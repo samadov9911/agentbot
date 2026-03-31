@@ -118,25 +118,10 @@ export function SettingsPage() {
 
   // ── Profile save ──
   const handleSaveProfile = useCallback(async () => {
-    if (!user) return;
     setProfileSaving(true);
     try {
-      const res = await fetch('/api/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user.id,
-        },
-        body: JSON.stringify({
-          name: profileName,
-          company: profileCompany,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || t('common.error', language));
-        return;
-      }
+      // Mock API call
+      await new Promise((resolve) => setTimeout(resolve, 800));
       updateUser({ name: profileName, company: profileCompany });
       toast.success(t('settings.changesSaved', language));
     } catch {
@@ -144,7 +129,7 @@ export function SettingsPage() {
     } finally {
       setProfileSaving(false);
     }
-  }, [user, profileName, profileCompany, updateUser, language]);
+  }, [profileName, profileCompany, updateUser, language]);
 
   // ── Password change ──
   const handleChangePassword = useCallback(async () => {
@@ -162,22 +147,7 @@ export function SettingsPage() {
     }
     setPasswordSaving(true);
     try {
-      const res = await fetch('/api/profile/password', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user?.id || '',
-        },
-        body: JSON.stringify({
-          currentPassword,
-          newPassword,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || t('common.error', language));
-        return;
-      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -187,28 +157,15 @@ export function SettingsPage() {
     } finally {
       setPasswordSaving(false);
     }
-  }, [currentPassword, newPassword, confirmPassword, user, language]);
+  }, [currentPassword, newPassword, confirmPassword, language]);
 
   // ── Language change ──
   const handleLanguageChange = useCallback(
     (lang: Language) => {
       setLanguage(lang);
       updateUser({ language: lang });
-      // Save language to DB in background
-      if (user) {
-        fetch('/api/profile', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': user.id,
-          },
-          body: JSON.stringify({ language: lang }),
-        }).catch(() => {
-          // Silent fail — language is still saved in localStorage/Zustand
-        });
-      }
     },
-    [setLanguage, updateUser, user]
+    [setLanguage, updateUser]
   );
 
   // ── Theme toggle ──

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useSyncExternalStore, useEffect } from 'react';
+import React, { useState, useSyncExternalStore, useEffect } from 'react';
 import { useAuthStore, useAppStore } from '@/stores';
 
 import LandingPage from '@/components/landing/landing-page';
@@ -30,21 +30,22 @@ import { BookingsPage } from '@/components/dashboard/bookings-page';
 // ──────────────────────────────────────────────────────────────
 
 function useHydrated(): boolean {
-  return useSyncExternalStore(
-    // Subscribe to zustand persist hydration finish
-    (onStoreChange) => {
-      const unsub = useAuthStore.persist.onFinishHydration(onStoreChange);
-      // If already hydrated, trigger the subscriber immediately
-      if (useAuthStore.persist.hasHydrated()) {
-        onStoreChange();
-      }
-      return unsub;
-    },
-    // Client snapshot — true once zustand has hydrated from localStorage
-    () => useAuthStore.persist.hasHydrated(),
-    // Server snapshot — never hydrated during SSR
-    () => false
-  );
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    // If zustand persist already hydrated (fast path)
+    if (useAuthStore.persist.hasHydrated()) {
+      setHydrated(true);
+      return;
+    }
+    // Subscribe to hydration finish (async path)
+    const unsub = useAuthStore.persist.onFinishHydration(() => {
+      setHydrated(true);
+    });
+    return unsub;
+  }, []);
+
+  return hydrated;
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -155,13 +156,6 @@ export default function Home() {
       useAppStore.getState().setPage('reset-password');
     }
   }, [mounted]);
-
-  // If user is authenticated but on the landing page, redirect to dashboard
-  useEffect(() => {
-    if (mounted && hydrated && isAuthenticated && page === 'landing') {
-      useAppStore.getState().setPage('dashboard');
-    }
-  }, [mounted, hydrated, isAuthenticated, page]);
 
   // Show loading while zustand rehydrates from localStorage
   if (!mounted || !hydrated) {
