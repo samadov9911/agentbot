@@ -3,12 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id            String   @id @default(cuid())
+  id            String   @id @default(uuid())
   email         String   @unique
   name          String?
   passwordHash  String?
@@ -21,16 +21,16 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  bots            Bot[]
-  subscriptions   Subscription[]
-  analyticsEvents AnalyticsEvent[]
-  payments        Payment[]
-  demoPeriod      DemoPeriod?
-  callLogs        CallLog[]
+  Bot             Bot[]
+  Subscription    Subscription[]
+  AnalyticsEvent  AnalyticsEvent[]
+  Payment         Payment[]
+  DemoPeriod      DemoPeriod?
+  CallLog         CallLog[]
 }
 
 model Admin {
-  id            String   @id @default(cuid())
+  id            String   @id @default(uuid())
   userId        String   @unique
   email         String   @unique
   passwordHash  String
@@ -40,22 +40,22 @@ model Admin {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  adminLogs AdminLog[]
+  AdminLog AdminLog[]
 }
 
 model AdminLog {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   adminId   String
   action    String   // impersonate, block_user, generate_code, revoke_code, etc.
   details   String?  // JSON string
   ipAddress String?
   createdAt DateTime @default(now())
 
-  admin Admin @relation(fields: [adminId], references: [id])
+  Admin Admin @relation(fields: [adminId], references: [id])
 }
 
 model Subscription {
-  id            String   @id @default(cuid())
+  id            String   @id @default(uuid())
   userId        String
   plan          String   @default("demo") // demo, monthly, quarterly, yearly, lifetime
   status        String   @default("active") // active, expired, cancelled
@@ -66,23 +66,23 @@ model Subscription {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  user      User     @relation(fields: [userId], references: [id])
-  payments  Payment[]
+  User      User     @relation(fields: [userId], references: [id])
+  Payment   Payment[]
 }
 
 model DemoPeriod {
-  id         String   @id @default(cuid())
+  id         String   @id @default(uuid())
   userId     String   @unique
   startsAt   DateTime @default(now())
   expiresAt  DateTime
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  User User @relation(fields: [userId], references: [id])
 }
 
 model Bot {
-  id          String   @id @default(cuid())
+  id          String   @id @default(uuid())
   userId      String
   name        String
   type        String   @default("ai") // ai, rule-based, hybrid
@@ -99,14 +99,14 @@ model Bot {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user         User           @relation(fields: [userId], references: [id])
-  conversations Conversation[]
-  appointments Appointment[]
-  leads        Lead[]
+  User         User           @relation(fields: [userId], references: [id])
+  Conversation Conversation[]
+  Appointment Appointment[]
+  Lead        Lead[]
 }
 
 model BotTemplate {
-  id          String   @id @default(cuid())
+  id          String   @id @default(uuid())
   niche       String   @unique
   name        String
   description String?
@@ -120,7 +120,7 @@ model BotTemplate {
 }
 
 model Conversation {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   botId     String
   source    String   @default("widget") // widget, telegram, whatsapp
   visitorId String?
@@ -131,12 +131,12 @@ model Conversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  bot      Bot       @relation(fields: [botId], references: [id])
-  messages Message[]
+  Bot     Bot       @relation(fields: [botId], references: [id])
+  Message Message[]
 }
 
 model Message {
-  id             String   @id @default(cuid())
+  id             String   @id @default(uuid())
   conversationId String
   role           String   @default("user") // user, bot, operator, system
   content        String
@@ -144,11 +144,11 @@ model Message {
   metadata       String?  // JSON for extra data
   createdAt      DateTime @default(now())
 
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  Conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 }
 
 model Appointment {
-  id         String   @id @default(cuid())
+  id         String   @id @default(uuid())
   botId      String
   visitorName  String
   visitorPhone String
@@ -161,22 +161,22 @@ model Appointment {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  bot Bot @relation(fields: [botId], references: [id])
+  Bot Bot @relation(fields: [botId], references: [id])
 }
 
 model AnalyticsEvent {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   userId    String
   botId     String?
   eventType String   // page_view, message_sent, appointment_booked, widget_opened
   metadata  String?  // JSON
   createdAt DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  User User @relation(fields: [userId], references: [id])
 }
 
 model Payment {
-  id            String   @id @default(cuid())
+  id            String   @id @default(uuid())
   userId        String
   subscriptionId String?
   amount        Float
@@ -188,12 +188,12 @@ model Payment {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  user        User         @relation(fields: [userId], references: [id])
-  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+  User         User         @relation(fields: [userId], references: [id])
+  Subscription Subscription? @relation(fields: [subscriptionId], references: [id])
 }
 
 model CallLog {
-  id              String   @id @default(cuid())
+  id              String   @id @default(uuid())
   userId          String
   botId           String?
   clientPhone     String
@@ -206,11 +206,11 @@ model CallLog {
   aiSummary       String   @default("") // AI-generated short result
   createdAt       DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  User User @relation(fields: [userId], references: [id])
 }
 
 model EmbedCode {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   botId     String   @unique
   code      String   @unique
   isActive  Boolean  @default(true)
@@ -221,7 +221,7 @@ model EmbedCode {
 }
 
 model Lead {
-  id           String   @id @default(cuid())
+  id           String   @id @default(uuid())
   botId        String
   visitorName  String?
   visitorPhone String?
@@ -234,5 +234,5 @@ model Lead {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  bot Bot @relation(fields: [botId], references: [id])
+  Bot Bot @relation(fields: [botId], references: [id])
 }

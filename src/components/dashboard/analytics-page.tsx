@@ -333,14 +333,18 @@ function exportToCSV(data: AnalyticsData, language: string) {
 }
 
 // ──────────────────────────────────────────────────────────────
-// Mock percentage changes for demo
+// Empty analytics data
 // ──────────────────────────────────────────────────────────────
 
-const MOCK_CHANGES = {
-  visitors: { value: 12.5, isPositive: true },
-  conversations: { value: 8.3, isPositive: true },
-  appointments: { value: 15.2, isPositive: true },
-  conversion: { value: 2.1, isPositive: false },
+const EMPTY_ANALYTICS: AnalyticsData = {
+  totalVisitors: 0,
+  totalConversations: 0,
+  totalAppointments: 0,
+  conversionRate: 0,
+  dailyStats: [],
+  topQuestions: [],
+  topServices: [],
+  sources: [],
 };
 
 // ──────────────────────────────────────────────────────────────
@@ -417,8 +421,8 @@ export function AnalyticsPage() {
       const data: AnalyticsData = await res.json();
       setAnalyticsData(data);
     } catch {
-      // On error, show demo data
-      setAnalyticsData(generateDemoData(timeRange));
+      // On error, show empty data
+      setAnalyticsData(EMPTY_ANALYTICS);
     } finally {
       setIsLoading(false);
     }
@@ -470,51 +474,7 @@ export function AnalyticsPage() {
     }
   }
 
-  // ── Demo data generator ──
-  function generateDemoData(range: TimeRange): AnalyticsData {
-    const days = range === 'today' ? 1 : range === 'week' ? 7 : range === 'month' ? 30 : 365;
-    const dailyStats = Array.from({ length: days }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (days - 1 - i));
-      return {
-        date: d.toISOString().split('T')[0],
-        visitors: Math.floor(Math.random() * 80) + 20,
-        conversations: Math.floor(Math.random() * 40) + 5,
-        appointments: Math.floor(Math.random() * 15) + 1,
-      };
-    });
 
-    const totalVisitors = dailyStats.reduce((s, d) => s + d.visitors, 0);
-    const totalConversations = dailyStats.reduce((s, d) => s + d.conversations, 0);
-    const totalAppointments = dailyStats.reduce((s, d) => s + d.appointments, 0);
-
-    return {
-      totalVisitors,
-      totalConversations,
-      totalAppointments,
-      conversionRate: totalVisitors > 0 ? Math.round((totalAppointments / totalVisitors) * 100) : 0,
-      dailyStats,
-      topQuestions: [
-        { question: 'Сколько стоит услуга?', count: 47 },
-        { question: 'Как записаться на приём?', count: 38 },
-        { question: 'Какие часы работы?', count: 32 },
-        { question: 'Есть ли скидки?', count: 25 },
-        { question: 'Где вы находитесь?', count: 19 },
-      ],
-      topServices: [
-        { service: 'Стрижка', count: 62 },
-        { service: 'Маникюр', count: 48 },
-        { service: 'Укладка', count: 35 },
-        { service: 'Окрашивание', count: 28 },
-        { service: 'Массаж', count: 15 },
-      ],
-      sources: [
-        { source: 'widget', count: Math.floor(totalConversations * 0.5) },
-        { source: 'telegram', count: Math.floor(totalConversations * 0.35) },
-        { source: 'whatsapp', count: Math.floor(totalConversations * 0.15) },
-      ],
-    };
-  }
 
   // ── Derive chart data with formatted dates ──
   const chartData = useMemo(() => {
@@ -586,22 +546,13 @@ export function AnalyticsPage() {
           }))
         );
       } else {
-        setConversationMessages(generateDemoMessages());
+        setConversationMessages([]);
       }
     } catch {
-      setConversationMessages(generateDemoMessages());
+      setConversationMessages([]);
     } finally {
       setIsLoadingMessages(false);
     }
-  }
-
-  function generateDemoMessages(): MessageItem[] {
-    return [
-      { role: 'user', content: 'Здравствуйте! Сколько стоит стрижка?', createdAt: new Date().toISOString() },
-      { role: 'bot', content: 'Добрый день! Стрижка стоит от 1500₽. Могу помочь записать вас?', createdAt: new Date().toISOString() },
-      { role: 'user', content: 'Да, на завтра в 14:00', createdAt: new Date().toISOString() },
-      { role: 'bot', content: 'Отлично! Записала вас на завтра в 14:00. До встречи! 😊', createdAt: new Date().toISOString() },
-    ];
   }
 
   // ── Format date for display ──
@@ -736,9 +687,8 @@ export function AnalyticsPage() {
                     {analyticsData?.totalVisitors.toLocaleString() ?? 0}
                   </p>
                 </div>
-                <div className="flex items-center gap-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                  <ArrowUpRight className="size-3" />
-                  {MOCK_CHANGES.visitors.value}%
+                <div className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground">
+                  —
                 </div>
               </div>
             </CardContent>
@@ -759,9 +709,8 @@ export function AnalyticsPage() {
                     {analyticsData?.totalConversations.toLocaleString() ?? 0}
                   </p>
                 </div>
-                <div className="flex items-center gap-0.5 text-xs font-medium text-teal-600 dark:text-teal-400">
-                  <ArrowUpRight className="size-3" />
-                  {MOCK_CHANGES.conversations.value}%
+                <div className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground">
+                  —
                 </div>
               </div>
             </CardContent>
@@ -782,9 +731,8 @@ export function AnalyticsPage() {
                     {analyticsData?.totalAppointments.toLocaleString() ?? 0}
                   </p>
                 </div>
-                <div className="flex items-center gap-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
-                  <ArrowUpRight className="size-3" />
-                  {MOCK_CHANGES.appointments.value}%
+                <div className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground">
+                  —
                 </div>
               </div>
             </CardContent>
@@ -805,9 +753,8 @@ export function AnalyticsPage() {
                     {analyticsData?.conversionRate ?? 0}%
                   </p>
                 </div>
-                <div className="flex items-center gap-0.5 text-xs font-medium text-rose-500">
-                  <ArrowDownRight className="size-3" />
-                  {MOCK_CHANGES.conversion.value}%
+                <div className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground">
+                  —
                 </div>
               </div>
             </CardContent>

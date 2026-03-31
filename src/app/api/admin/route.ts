@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       const users = await db.user.findMany({
         where: { deletedAt: null },
         include: {
-          _count: { select: { bots: true, subscriptions: true } },
+          _count: { select: { Bot: true, Subscription: true } },
         },
         orderBy: { createdAt: 'desc' },
         take: 50,
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
           company: u.company,
           role: u.role,
           isActive: u.isActive,
-          botsCount: u._count.bots,
+          botsCount: (u._count as Record<string, number>).Bot || 0,
           createdAt: u.createdAt.toISOString(),
         })),
       });
@@ -74,12 +74,12 @@ export async function GET(request: NextRequest) {
       const logs = await db.adminLog.findMany({
         orderBy: { createdAt: 'desc' },
         take: 100,
-        include: { admin: { select: { email: true } } },
+        include: { Admin: { select: { email: true } } },
       });
       return NextResponse.json({
         logs: logs.map(l => ({
           id: l.id,
-          adminEmail: l.admin.email,
+          adminEmail: (l as Record<string, unknown>).Admin?.email || '',
           action: l.action,
           details: l.details,
           ipAddress: l.ipAddress,

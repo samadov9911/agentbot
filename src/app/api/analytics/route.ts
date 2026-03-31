@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     // Get conversation counts
     const conversations = await db.conversation.findMany({
       where: { botId: { in: botIds }, createdAt: { gte: startDate } },
-      include: { messages: { orderBy: { createdAt: 'asc' } } },
+      include: { Message: { orderBy: { createdAt: 'asc' } } },
     });
 
     // Get appointments

@@ -1,0 +1,239 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id            String     @id @default(uuid())
+  userId        String     @unique
+  email         String     @unique
+  passwordHash  String
+  twoFactorCode String?
+  isActive      Boolean    @default(true)
+  lastLogin     DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  AdminLog      AdminLog[]
+}
+
+model AdminLog {
+  id        String   @id @default(uuid())
+  adminId   String
+  action    String
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  Admin     Admin    @relation(fields: [adminId], references: [id])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  botId     String?
+  eventType String
+  metadata  String?
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id])
+}
+
+model Appointment {
+  id           String   @id @default(uuid())
+  botId        String
+  visitorName  String
+  visitorPhone String
+  visitorEmail String?
+  service      String?
+  date         DateTime
+  duration     Int      @default(60)
+  status       String   @default("pending")
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  Bot          Bot      @relation(fields: [botId], references: [id])
+}
+
+model Bot {
+  id             String         @id @default(uuid())
+  userId         String
+  name           String
+  type           String         @default("ai")
+  niche          String?
+  avatar         String?
+  config         String         @default("{}")
+  appearance     String         @default("{}")
+  isActive       Boolean        @default(true)
+  embedCode      String?        @unique
+  telegramToken  String?
+  whatsappConfig String?
+  publishedAt    DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  Appointment    Appointment[]
+  User           User           @relation(fields: [userId], references: [id])
+  Conversation   Conversation[]
+  Lead           Lead[]
+}
+
+model BotTemplate {
+  id          String   @id @default(uuid())
+  niche       String   @unique
+  name        String
+  description String?
+  greeting    String?
+  faq         String?
+  colors      String?
+  icon        String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CallLog {
+  id              String   @id @default(uuid())
+  userId          String
+  botId           String?
+  clientPhone     String
+  companyPhone    String
+  taskDescription String
+  script          String
+  status          String   @default("completed")
+  duration        Int      @default(0)
+  transcript      String   @default("")
+  aiSummary       String   @default("")
+  createdAt       DateTime @default(now())
+  User            User     @relation(fields: [userId], references: [id])
+}
+
+model Conversation {
+  id          String    @id @default(uuid())
+  botId       String
+  source      String    @default("widget")
+  visitorId   String?
+  visitorName String?
+  status      String    @default("active")
+  isFlagged   Boolean   @default(false)
+  isProcessed Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  Bot         Bot       @relation(fields: [botId], references: [id])
+  Message     Message[]
+}
+
+model DemoPeriod {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  startsAt  DateTime @default(now())
+  expiresAt DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id])
+}
+
+model EmbedCode {
+  id        String    @id @default(uuid())
+  botId     String    @unique
+  code      String    @unique
+  isActive  Boolean   @default(true)
+  createdBy String?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Lead {
+  id           String   @id @default(uuid())
+  botId        String
+  visitorName  String?
+  visitorPhone String?
+  visitorEmail String?
+  ipAddress    String?
+  region       String?
+  message      String?
+  source       String   @default("widget")
+  status       String   @default("new")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  Bot          Bot      @relation(fields: [botId], references: [id])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  role           String       @default("user")
+  content        String
+  messageType    String       @default("text")
+  metadata       String?
+  createdAt      DateTime     @default(now())
+  Conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  userId         String
+  subscriptionId String?
+  amount         Float
+  currency       String        @default("USD")
+  plan           String
+  status         String        @default("pending")
+  provider       String?
+  providerId     String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  Subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  User           User          @relation(fields: [userId], references: [id])
+}
+
+model Subscription {
+  id        String    @id @default(uuid())
+  userId    String
+  plan      String    @default("demo")
+  status    String    @default("active")
+  startsAt  DateTime  @default(now())
+  expiresAt DateTime?
+  autoRenew Boolean   @default(false)
+  pricePaid Float?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  Payment   Payment[]
+  User      User      @relation(fields: [userId], references: [id])
+}
+
+model User {
+  id             String           @id @default(uuid())
+  email          String           @unique
+  name           String?
+  passwordHash   String?
+  avatar         String?
+  company        String?
+  role           String           @default("user")
+  language       String           @default("ru")
+  isActive       Boolean          @default(true)
+  deletedAt      DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  demoExpiresAt  DateTime?
+  planName       String?
+  planStatus     String?
+  AnalyticsEvent AnalyticsEvent[]
+  Bot            Bot[]
+  CallLog        CallLog[]
+  DemoPeriod     DemoPeriod?
+  PasswordReset  PasswordReset[]
+  Payment        Payment[]
+  Subscription   Subscription[]
+}
+
+model PasswordReset {
+  id        String   @id @default(uuid())
+  email     String
+  code      String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [email], references: [email])
+}

@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const bots = await db.bot.findMany({
       where: { userId, deletedAt: null },
       include: {
-        _count: { select: { conversations: true } },
+        _count: { select: { Conversation: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
         isActive: bot.isActive,
         embedCode: bot.embedCode,
         publishedAt: bot.publishedAt?.toISOString(),
-        conversationsCount: bot._count.conversations,
+        conversationsCount: (bot._count as Record<string, number>).Conversation || 0,
         createdAt: bot.createdAt.toISOString(),
         updatedAt: bot.updatedAt.toISOString(),
       })),
@@ -50,10 +50,10 @@ export async function POST(request: NextRequest) {
     // ── Demo limits check ──
     const userRecord = await db.user.findUnique({
       where: { id: userId },
-      include: { subscriptions: { take: 1, orderBy: { createdAt: 'desc' } }, demoPeriod: true },
+      include: { Subscription: { take: 1, orderBy: { createdAt: 'desc' } }, DemoPeriod: true },
     });
-    const planName = userRecord?.planName || userRecord?.subscriptions?.[0]?.plan || 'demo';
-    const demoPeriod = userRecord?.demoPeriod;
+    const planName = userRecord?.planName || (userRecord as Record<string, unknown>)?.Subscription?.[0]?.plan || 'demo';
+    const demoPeriod = userRecord?.DemoPeriod as { isActive: boolean; expiresAt: string } | null;
     const isDemoPlan = planName === 'demo' || planName === 'none' || !planName;
     const demoActive = demoPeriod?.isActive && demoPeriod.expiresAt && new Date(demoPeriod.expiresAt) > new Date();
     const isExpiredDemo = isDemoPlan && !demoActive;
