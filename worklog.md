@@ -1502,3 +1502,27 @@ Stage Summary:
 - Widget embedded on external sites can now communicate with API
 - Embed code in My Bots section generates correct self-contained inline script
 - User can copy new embed code and paste on any website
+
+---
+Task ID: 10
+Agent: Main Orchestrator
+Task: Replace inline widget embed code with external /api/widget.js endpoint
+
+Work Log:
+- Investigated why the embed code was a massive 3KB inline script vs expected short code
+- Created /api/widget.js route (src/app/api/widget.js/route.ts) that serves self-contained widget JS
+- Widget reads data-bot-id from its own script tag — no hardcoded bot IDs
+- Updated generateEmbedScript() to output just 5 clean lines
+- Updated getFormattedDisplayCode() to show the same short code (WYSIWYG)
+- Fixed duplicate guard: was checking "abw" (never exists), now checks "abw-"+E
+- Updated info boxes to mention auto-update capability
+- Updated React/Next.js instructions to use s.src approach instead of s.textContent
+- Instructions were already collapsible/expandable with proper chevron animation
+- Pushed to GitHub (master + main) for Vercel deployment
+
+Stage Summary:
+- Embed code is now: <script src=".../api/widget.js" data-bot-id="bf_..." async></script>
+- Widget engine served from server — updates work without re-copying
+- Clean 5-line embed code instead of 3KB minified inline script
+- Lint: zero errors
+- Git: pushed e8a370f to master and main
