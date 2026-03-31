@@ -4,13 +4,6 @@ import os from 'os';
 import path from 'path';
 
 // ──────────────────────────────────────────────────────────────
-// SDK instance cache — reuse across requests (serverless warm)
-// ──────────────────────────────────────────────────────────────
-
-let cachedZai: Awaited<ReturnType<typeof import('z-ai-web-dev-sdk').default.create>> | null = null;
-let sdkInitAttempted = false;
-
-// ──────────────────────────────────────────────────────────────
 // Ensure .z-ai-config exists (required by z-ai-web-dev-sdk)
 //
 // IMPORTANT: On Vercel the filesystem is READ-ONLY (except /tmp).
@@ -116,11 +109,10 @@ export async function POST(request: NextRequest) {
     // ── Step 1: Ensure config file exists ──
     const configDir = ensureZaiConfig();
 
-    // ── Step 2: Initialize SDK (cached) ──
-    if (cachedZai) {
-      // Reuse cached instance
-    } else if (configDir && !sdkInitAttempted) {
-      sdkInitAttempted = true;
+    // ── Step 2: Initialize SDK ──
+    let zai: Awaited<ReturnType<typeof import('z-ai-web-dev-sdk').default.create>> | null = null;
+
+    if (configDir) {
       // On Vercel, override HOME so SDK finds .z-ai-config in /tmp
       const originalHome = process.env.HOME;
       if (configDir !== process.cwd()) {
@@ -129,11 +121,10 @@ export async function POST(request: NextRequest) {
 
       try {
         const ZAI = (await import('z-ai-web-dev-sdk')).default;
-        cachedZai = await ZAI.create();
+        zai = await ZAI.create();
         console.log('[ai-assistant] SDK initialized successfully');
       } catch (sdkErr) {
         console.error('[ai-assistant] SDK create() failed:', sdkErr);
-        sdkInitAttempted = false; // Allow retry on next request
       } finally {
         // Restore HOME
         if (originalHome !== undefined) {
@@ -143,7 +134,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Step 3: If SDK available, use real AI with retry ──
-    if (cachedZai) {
+    if (zai) {
       const systemPrompt = buildSystemPrompt(context);
 
       const messages = [
@@ -155,7 +146,7 @@ export async function POST(request: NextRequest) {
       // Retry up to 2 times
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          const completion = await cachedZai.chat.completions.create({
+          const completion = await zai.chat.completions.create({
             messages,
             thinking: { type: 'disabled' },
           });

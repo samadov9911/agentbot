@@ -1141,3 +1141,29 @@ Stage Summary:
 - Quick suggestions adapt to current language (e.g., "Как создать бота?" in Russian)
 - Smart offline fallback preserved as safety net if SDK is unavailable
 - Files modified: route.ts, ai-assistant-widget.tsx, ru.json, en.json, tr.json
+---
+Task ID: 1
+Agent: Main
+Task: Fix 2 bugs — session lost on reload + profile edits not persisting
+
+Work Log:
+- Investigated auth system: Zustand persist stores in localStorage, app-storage only saved language (not currentPage)
+- Investigated profile system: settings-page.tsx had mock API calls (setTimeout), no real DB persistence
+- Created backups: stores/index.ts.backup5, settings-page.tsx.backup5, page.tsx.backup5
+- Fixed Bug 1 (session lost on reload):
+  - Added currentPage to app-storage partialize
+  - Added useEffect auto-redirect: authenticated user on landing → dashboard
+  - Refactored useHydrated() from useState+useEffect to useSyncExternalStore (fixed lint error)
+- Fixed Bug 2 (profile edits not persisting):
+  - Created PUT /api/profile — saves name, company, language to DB via Prisma
+  - Created PUT /api/profile/password — verifies current password with bcrypt, hashes & saves new password
+  - Updated settings-page.tsx: replaced all 3 mock calls with real fetch() endpoints
+  - Language change also persists to DB in background (silent fail)
+- Ran lint — 0 errors
+- Committed and pushed to GitHub (4a925f7)
+
+Stage Summary:
+- Bug 1 root cause: app-storage Zustand persist did not include currentPage → page reset to 'landing' on reload → condition `isAuthenticated && page !== 'landing'` failed
+- Bug 2 root cause: handleSaveProfile and handleChangePassword only called setTimeout (mock), never saved to database
+- Key files changed: src/stores/index.ts, src/app/page.tsx, src/components/dashboard/settings-page.tsx
+- Key files created: src/app/api/profile/route.ts, src/app/api/profile/password/route.ts
