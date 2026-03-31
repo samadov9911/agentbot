@@ -227,17 +227,19 @@ async function callHuggingFace(
   userMessage: string,
   history: ChatMessage[] = [],
 ): Promise<string | null> {
-  // Build a single prompt from system + history + user message
+  // Build prompt using Mistral chat template format
   const parts: string[] = [];
-  parts.push(`[System]: ${systemPrompt}`);
+  parts.push(`<s>[INST] ${systemPrompt} [/INST]</s>`);
 
   const recent = history.slice(-10);
   for (const msg of recent) {
-    const label = msg.role === 'assistant' ? 'Assistant' : 'User';
-    parts.push(`[${label}]: ${msg.content}`);
+    if (msg.role === 'user') {
+      parts.push(`[INST] ${msg.content} [/INST]`);
+    } else {
+      parts.push(msg.content);
+    }
   }
-  parts.push(`[User]: ${userMessage}`);
-  parts.push('[Assistant]:');
+  parts.push(`[INST] ${userMessage} [/INST]`);
 
   const prompt = parts.join('\n');
 

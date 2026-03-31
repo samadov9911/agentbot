@@ -429,15 +429,10 @@ export async function POST(request: NextRequest) {
         }
       }
     } else if (botType === 'ai' || botType === 'hybrid') {
-      // Hybrid: try FAQ first, then AI
+      // Hybrid: check for FAQ match to add as AI context for natural rephrasing
+      let matchedFaqAnswer: string | null = null;
       if (botType === 'hybrid') {
-        const faqAnswer = findFaqAnswer(message, faq);
-        if (faqAnswer) {
-          response = faqAnswer;
-          if (services.length > 0) {
-            bookingPrompt = BOOKING_PROMPTS[effectiveLang as keyof typeof BOOKING_PROMPTS] || BOOKING_PROMPTS.ru;
-          }
-        }
+        matchedFaqAnswer = findFaqAnswer(message, faq);
       }
 
       if (!response) {
@@ -504,6 +499,11 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // Inject matched FAQ answer as context for natural rephrasing (hybrid mode)
+        if (matchedFaqAnswer) {
+          effectiveSystemPrompt += '\n\n[RELEVANT FAQ ANSWER - rephrase this naturally in your own words, don\'t just copy it]:\n' + matchedFaqAnswer;
+        }
+
         // Build history for AI
         const recentHistory = history.slice(-10).map(({ role, content }) => ({
           role: role === 'user' ? 'user' as const : 'assistant' as const,
@@ -512,6 +512,7 @@ export async function POST(request: NextRequest) {
 
         // Call AI
         const aiResult = await chatWithAi(effectiveSystemPrompt, message, recentHistory);
+        console.log(`[AgentBot] AI provider used: ${aiResult.provider}`);
 
         if (aiResult.ok && aiResult.text) {
           response = aiResult.text;

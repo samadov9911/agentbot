@@ -1548,3 +1548,46 @@ Stage Summary:
 - Fix: 1 line addition (pan.id="abw-pan")
 - Pushed 6316468 to master + main, deployed to Vercel
 - Customer should hard-refresh (Ctrl+F5) to get new widget.js (1hr browser cache)
+
+---
+## Task ID: widget-dynamic-theming
+Agent: fullstack-developer
+Task: Fix AgentBot widget to dynamically apply bot appearance settings instead of hardcoded green colors, add avatar support.
+
+### Work Task
+Rewrite `/api/widget.js/route.ts` to use CSS custom properties for theming, fetch appearance config from `/api/bots/config`, apply primaryColor/secondaryColor dynamically, and show bot avatar in the panel header.
+
+### Work Summary
+
+**1. Version bump:**
+- Changed `WIDGET_VERSION` from `2` to `3`
+
+**2. CSS Custom Properties system:**
+- Added `:root` defaults in the embedded CSS: `--ab-primary: #059669`, `--ab-secondary: #10b981`, `--ab-secondary-rgb: 16,185,129`
+- Replaced ALL 8 hardcoded green color references with CSS var() expressions:
+  - 4× `linear-gradient(135deg,#059669,#10b981)` → `linear-gradient(135deg,var(--ab-primary),var(--ab-secondary))` (floating button, panel header, user bubbles, send button)
+  - `box-shadow:0 4px 24px rgba(16,185,129,0.4)` → `rgba(var(--ab-secondary-rgb),0.4)` (button)
+  - `box-shadow:0 6px 32px rgba(16,185,129,0.5)` → `rgba(var(--ab-secondary-rgb),0.5)` (button hover)
+  - `border-color:#10b981` → `border-color:var(--ab-secondary)` (input focus)
+  - `border:1px solid #a7f3d0` → `border:1px solid var(--ab-secondary)` (booking card border)
+- Updated booking card colors to neutral theme (`#f9fafb` background, `#374151` text, `#f3f4f6` hover) so they work with any theme color
+
+**3. `applyTheme(primary, secondary)` function:**
+- Sets `--ab-primary`, `--ab-secondary`, and `--ab-secondary-rgb` on `document.documentElement`
+- Parses hex secondary color to compute RGB components for `rgba()` box-shadows
+
+**4. Updated `loadConfig()` function:**
+- After fetching bot config, extracts `d.appearance.primaryColor` and `d.appearance.secondaryColor`
+- Calls `applyTheme()` with the appearance colors (falls back to green defaults if missing)
+- If `bot.avatar` exists: injects a 24×24px `<img>` into `#abw-avatar` span and hides `#abw-globe-icon`
+- All other loadConfig behavior preserved (title, greeting, error handling)
+
+**5. HTML structure changes:**
+- Added `<span id="abw-avatar"></span>` before the globe icon in the header
+- Added `id="abw-globe-icon"` to the globe SVG for dynamic hiding
+
+**6. All existing functionality preserved:**
+- Chat messaging, typing indicator, booking prompts, localStorage persistence, DOM ready handling, session management, error recovery — all untouched.
+
+**Lint:** Zero errors. Dev server compiles successfully.
+
