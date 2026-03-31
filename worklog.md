@@ -1117,3 +1117,27 @@ Fix exactly 4 bugs across the AgentBot platform: (1) Notification bell clicks do
 - `src/app/api/subscriptions/route.ts` — Bug 4: removed invalid db.user.update calls
 
 **Lint**: Zero errors. Dev server compiles successfully.
+
+---
+Task ID: AI-assistant-fix
+Agent: Main Orchestrator
+Task: Fix AI assistant bugs — display issues and offline mode
+
+Work Log:
+- Created backup copies: route.ts.backup2, ai-assistant-widget.tsx.backup2
+- Analyzed z-ai-web-dev-sdk documentation — discovered ROOT CAUSE of offline bug
+- Fixed API route: changed `role: 'system'` to `role: 'assistant'` per SDK requirements
+- Added 7 new i18n keys to all 3 language files (ru/en/tr): online, retry, clearChat, suggestionCreate, suggestionTemplate, suggestionWidget, suggestionPlans
+- Refactored widget: replaced hardcoded English QUICK_SUGGESTIONS array with dynamic `getQuickSuggestions(language)` function
+- Replaced hardcoded "Online" text with `t('aiAssistant.online', language)`
+- Replaced hardcoded "Retry" text with `t('aiAssistant.retry', language)`
+- Replaced hardcoded "Clear chat" title with `t('aiAssistant.clearChat', language)`
+- Verified lint passes with zero errors
+
+Stage Summary:
+- ROOT CAUSE: z-ai-web-dev-sdk uses `role: 'assistant'` for system messages, NOT `role: 'system'`. The API route was sending `role: 'system'` which the backend rejected, causing fallthrough to offline mode.
+- Fix: Changed system prompt role from `'system'` to `'assistant'` in /api/ai-assistant/route.ts
+- Widget now fully multilingual (ru/en/tr) — all visible text uses i18n translations
+- Quick suggestions adapt to current language (e.g., "Как создать бота?" in Russian)
+- Smart offline fallback preserved as safety net if SDK is unavailable
+- Files modified: route.ts, ai-assistant-widget.tsx, ru.json, en.json, tr.json
