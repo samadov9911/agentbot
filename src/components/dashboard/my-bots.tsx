@@ -26,6 +26,8 @@ import {
   Loader2,
   Save,
   Info,
+  Globe,
+  Layout,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -335,8 +337,55 @@ if(W.open){bPan.classList.add("open");bBtn.style.display="none";if(W.msgs.length
 }
 
 function generateEmbedScriptHtml(embedCode: string): string {
-  return `<!-- AgentBot Widget -->
-${generateEmbedScript(embedCode)}<!-- /AgentBot Widget -->`;
+  // The raw script is minified for actual embedding — but we show a formatted version in the UI
+  return `<!-- AgentBot Widget → ${embedCode} -->
+<script>
+(function(){
+  /* AgentBot — AI Widget */
+  /* Embed Code: ${embedCode} */
+  /* Base URL: ${WIDGET_BASE_URL} */
+  var E="${embedCode}",B="${WIDGET_BASE_URL}",S="ab_"+E,M={};
+  M[S]={open:false,msgs:[],sid:null,load:false,err:false};
+  var W=M[S],R=document;
+  /* ... widget engine ... */
+  if(document.getElementById("abw")){return}
+  /* CSS styles, DOM creation, chat logic */
+  /* See full source at: ${WIDGET_BASE_URL} */
+})();
+</script>
+<!-- /AgentBot Widget -->`;
+}
+
+/**
+ * Format the embed script for display in the code block.
+ * Shows a clean, readable version with comments explaining each section.
+ * The actual copied code is the minified version for smaller size.
+ */
+function getFormattedDisplayCode(embedCode: string, language: string): string {
+  const lang = language;
+  const comment = lang === 'ru'
+    ? '// Скопируйте и вставьте этот код на ваш сайт'
+    : lang === 'tr'
+      ? '// Bu kodu sitenize kopyalayıp yapıştırın'
+      : '// Copy and paste this code to your website';
+
+  return `${comment}
+// Работает на любом сайте — WordPress, Shopify, Tilda, React и т.д.
+// Works on any website — WordPress, Shopify, Tilda, React, etc.
+
+<!-- AgentBot Widget -->
+<script>
+(function() {
+  var E = "${embedCode}";
+  var B = "${WIDGET_BASE_URL}";
+  /* ... */
+  // Полный код виджета загружается автоматически
+  // Full widget engine loads automatically
+  // Нажмите «Копировать» ниже, чтобы получить рабочий код
+  // Click "Copy" below to get the working code
+})();
+</script>
+<!-- /AgentBot Widget -->`;
 }
 
 function EmbedCodeModal({
@@ -354,66 +403,225 @@ function EmbedCodeModal({
 }) {
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('code');
+  const [openInstructions, setOpenInstructions] = useState<Record<string, boolean>>({});
 
-  const scriptTag = useMemo(() => generateEmbedScriptHtml(embedCode), [embedCode]);
+  const scriptTag = useMemo(() => generateEmbedScript(embedCode), [embedCode]);
+  const displayCode = useMemo(() => getFormattedDisplayCode(embedCode, language), [embedCode, language]);
 
   const label = (ru: string, en: string, tr: string) =>
     language === 'ru' ? ru : language === 'en' ? en : tr;
 
+  const toggleInstruction = useCallback((id: string) => {
+    setOpenInstructions(prev => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+
   const instructions = [
     {
       id: 'html',
-      name: 'HTML',
-      text: label('HTML', 'HTML', 'HTML'),
-      instructions: label(
-        'Вставьте код перед закрывающим тегом &lt;/body&gt; в вашем HTML-файле.',
-        'Paste the code before the closing &lt;/body&gt; tag in your HTML file.',
-        'Kodu HTML dosyanızda &lt;/body&gt; kapanış etiketinden önce yapıştırın.'
+      name: label('HTML / Любой сайт', 'HTML / Any Website', 'HTML / Herhangi Bir Site'),
+      icon: Code2,
+      summary: label(
+        'Вставьте код перед &lt;/body&gt; — это самый простой способ',
+        'Paste the code before &lt;/body&gt; — the simplest method',
+        'Kodu &lt;/body&gt;\'den önce yapıştırın — en basit yöntem'
       ),
+      steps: [
+        {
+          ru: 'Откройте HTML-файл вашего сайта (обычно <code>index.html</code> или аналогичный).',
+          en: 'Open your site\'s HTML file (usually <code>index.html</code> or similar).',
+          tr: 'Sitenizin HTML dosyasını açın (genellikle <code>index.html</code> veya benzeri).',
+        },
+        {
+          ru: 'Найдите закрывающий тег <code>&lt;/body&gt;</code> в самом конце файла (обычно одна из последних строк).',
+          en: 'Find the <code>&lt;/body&gt;</code> closing tag near the end of the file (usually one of the last lines).',
+          tr: 'Dosyanın sonuna doğru <code>&lt;/body&gt;</code> kapanış etiketini bulun (genellikle son satırlardan biri).',
+        },
+        {
+          ru: 'Вставьте скопированный код виджета <b>прямо перед</b> <code>&lt;/body&gt;</code>.',
+          en: 'Paste the copied widget code <b>directly before</b> <code>&lt;/body&gt;</code>.',
+          tr: 'Kopyalanan widget kodunu <code>&lt;/body&gt;</code> etiketinden <b>hemen önce</b> yapıştırın.',
+        },
+        {
+          ru: 'Сохраните файл и обновите страницу в браузере — виджет появится в правом нижнем углу.',
+          en: 'Save the file and refresh the page in your browser — the widget will appear in the bottom-right corner.',
+          tr: 'Dosyayı kaydedin ve tarayıcıda sayfayı yenileyin — widget sağ alt köşede görünecektir.',
+        },
+      ],
     },
     {
       id: 'wordpress',
       name: 'WordPress',
-      text: 'WordPress',
-      instructions: label(
-        'Перейдите в Внешний вид → Редактор тем, выберите footer.php и вставьте код перед &lt;/body&gt;. Или используйте плагин "Insert Headers and Footers".',
-        'Go to Appearance → Theme Editor, select footer.php and paste the code before &lt;/body&gt;. Or use the "Insert Headers and Footers" plugin.',
-        'Görünüm → Tema Düzenleyici\'ye gidin, footer.php dosyasını seçin ve kodu &lt;/body&gt;\'den önce yapıştırın. Veya "Insert Headers and Footers" eklentisini kullanın.'
+      icon: Globe,
+      summary: label(
+        'Два способа: через редактор темы или через плагин (рекомендуется)',
+        'Two methods: via Theme Editor or via plugin (recommended)',
+        'İki yöntem: Tema Düzenleyici veya eklenti (önerilir)'
       ),
+      steps: [
+        {
+          ru: '<b>Способ 1 — Плагин (рекомендуется):</b>',
+          en: '<b>Method 1 — Plugin (recommended):</b>',
+          tr: '<b>Yöntem 1 — Eklenti (önerilir):</b>',
+        },
+        {
+          ru: 'Установите бесплатный плагин <b>«Insert Headers and Footers»</b> (или «WPCode»).',
+          en: 'Install the free <b>«Insert Headers and Footers»</b> plugin (or «WPCode»).',
+          tr: '<b>«Insert Headers and Footers»</b> eklentisini (veya «WPCode») ücretsiz kurun.',
+        },
+        {
+          ru: 'Перейдите в <b>Settings → Insert Headers and Footers</b>.',
+          en: 'Go to <b>Settings → Insert Headers and Footers</b>.',
+          tr: '<b>Ayarlar → Insert Headers and Footers</b> bölümüne gidin.',
+        },
+        {
+          ru: 'Вставьте код в поле <b>«Scripts in Footer»</b> (или «%Footer»).',
+          en: 'Paste the code into the <b>«Scripts in Footer»</b> field (or «%Footer»).',
+          tr: 'Kodu <b>«Scripts in Footer»</b> alanına yapıştırın (veya «%Footer»).',
+        },
+        {
+          ru: '<b>Способ 2 — Редактор темы:</b> Внешний вид → Редактор тем → <code>footer.php</code> → вставьте перед <code>&lt;/body&gt;</code>.',
+          en: '<b>Method 2 — Theme Editor:</b> Appearance → Theme Editor → <code>footer.php</code> → paste before <code>&lt;/body&gt;</code>.',
+          tr: '<b>Yöntem 2 — Tema Düzenleyici:</b> Görünüm → Tema Düzenleyici → <code>footer.php</code> → <code>&lt;/body&gt;</code> öncesine yapıştırın.',
+        },
+      ],
     },
     {
       id: 'shopify',
       name: 'Shopify',
-      text: 'Shopify',
-      instructions: label(
-        'Перейдите в Онлайн-магазин → Темы → Изменить код. Откройте theme.liquid и вставьте код перед &lt;/body&gt;.',
-        'Go to Online Store → Themes → Edit Code. Open theme.liquid and paste the code before &lt;/body&gt;.',
-        'Çevrimiçi Mağaza → Temalar → Kodu Düzenle. theme.liquid dosyasını açın ve kodu &lt;/body&gt;\'den önce yapıştırın.'
+      icon: ShoppingCart,
+      summary: label(
+        'Вставка через редактор кода темы (theme.liquid)',
+        'Insert via theme code editor (theme.liquid)',
+        'Tema kod düzenleyicisi aracılığıyla ekleme (theme.liquid)'
       ),
+      steps: [
+        {
+          ru: 'В панели администратора перейдите в <b>Online Store → Themes</b>.',
+          en: 'In the admin panel, go to <b>Online Store → Themes</b>.',
+          tr: 'Yönetici panelinde <b>Online Store → Themes</b> bölümüne gidin.',
+        },
+        {
+          ru: 'Нажмите <b>Actions → Edit code</b> на вашей текущей теме.',
+          en: 'Click <b>Actions → Edit code</b> on your current theme.',
+          tr: 'Geçerli temanızda <b>Actions → Edit code</b> düğmesine tıklayın.',
+        },
+        {
+          ru: 'В папке <b>Layout</b> откройте файл <code>theme.liquid</code>.',
+          en: 'In the <b>Layout</b> folder, open <code>theme.liquid</code>.',
+          tr: '<b>Layout</b> klasöründe <code>theme.liquid</code> dosyasını açın.',
+        },
+        {
+          ru: 'Прокрутите в самый низ и вставьте код <b>перед</b> закрывающим тегом <code>&lt;/body&gt;</code>.',
+          en: 'Scroll to the bottom and paste the code <b>before</b> the closing <code>&lt;/body&gt;</code> tag.',
+          tr: 'En alta kaydırın ve kodu <code>&lt;/body&gt;</code> kapanış etiketinden <b>önce</b> yapıştırın.',
+        },
+        {
+          ru: 'Нажмите <b>Save</b>. Виджет появится на всех страницах магазина.',
+          en: 'Click <b>Save</b>. The widget will appear on all store pages.',
+          tr: '<b>Save</b> düğmesine tıklayın. Widget mağazanın tüm sayfalarında görünecektir.',
+        },
+      ],
     },
     {
       id: 'react',
       name: 'React / Next.js',
-      text: 'React / Next.js',
-      instructions: label(
-        'Создайте компонент с useEffect, который добавляет скрипт в document.body черезdangerouslySetInnerHTML или DOM API.',
-        'Create a component with useEffect that adds the script to document.body via dangerouslySetInnerHTML or DOM API.',
-        'useEffect ile document.body\'e script ekleyen bir bileşen oluşturun. dangerouslySetInnerHTML veya DOM API kullanın.'
+      icon: Sparkles,
+      summary: label(
+        'Создайте отдельный компонент с useEffect для вставки скрипта',
+        'Create a separate component with useEffect to inject the script',
+        'Script\'i eklemek için useEffect ile ayrı bir bileşen oluşturun'
       ),
+      steps: [
+        {
+          ru: 'Создайте файл <code>AgentBotWidget.tsx</code> (или <code>.js</code>):',
+          en: 'Create a file <code>AgentBotWidget.tsx</code> (or <code>.js</code>):',
+          tr: '<code>AgentBotWidget.tsx</code> (veya <code>.js</code>) dosyası oluşturun:',
+        },
+        {
+          ru: 'Вставьте в него следующий код (замените <code>SCRIPT_CODE</code> на ваш реальный скопированный код):',
+          en: 'Paste the following code into it (replace <code>SCRIPT_CODE</code> with your actual copied code):',
+          tr: 'Aşağıdaki kodu yapıştırın (<code>SCRIPT_CODE</code> kısmını gerçek kopyaladığınız kodla değiştirin):',
+        },
+        {
+          ru: '<pre>useEffect(() =&gt; {\n  const s = document.createElement("script");\n  s.textContent = "ВАШ_КОД";\n  document.body.appendChild(s);\n}, []);</pre>',
+          en: '<pre>useEffect(() =&gt; {\n  const s = document.createElement("script");\n  s.textContent = "YOUR_CODE";\n  document.body.appendChild(s);\n}, []);</pre>',
+          tr: '<pre>useEffect(() =&gt; {\n  const s = document.createElement("script");\n  s.textContent = "KODUNUZ";\n  document.body.appendChild(s);\n}, []);</pre>',
+        },
+        {
+          ru: 'Добавьте <code>&lt;AgentBotWidget /&gt;</code> в корневой layout (<code>app.tsx</code> или <code>_app.tsx</code>).',
+          en: 'Add <code>&lt;AgentBotWidget /&gt;</code> to your root layout (<code>app.tsx</code> or <code>_app.tsx</code>).',
+          tr: '<code>&lt;AgentBotWidget /&gt;</code> bileşenini kök layout\'ınıza (<code>app.tsx</code> veya <code>_app.tsx</code>) ekleyin.',
+        },
+      ],
     },
     {
       id: 'tilda',
       name: 'Tilda',
-      text: 'Tilda',
-      instructions: label(
-        'Откройте настройки сайта → Дополнительные теги → Вставьте код в поле "HTML-код в &lt;body&gt;" для всех страниц.',
-        'Open Site Settings → More → Paste the code in the "HTML in &lt;body&gt;" field for all pages.',
-        'Site Ayarları → Diğer → Tüm sayfalar için "&lt;body&gt; içinde HTML kodu" alanına kodu yapıştırın.'
+      icon: Layout,
+      summary: label(
+        'Вставка через настройки сайта — без доступа к коду',
+        'Insert via site settings — no code access needed',
+        'Kod erişimi olmadan site ayarları aracılığıyla ekleme'
       ),
+      steps: [
+        {
+          ru: 'Откройте ваш сайт в редакторе Tilda.',
+          en: 'Open your site in the Tilda editor.',
+          tr: 'Sitenizi Tilda düzenleyicide açın.',
+        },
+        {
+          ru: 'Перейдите в <b>Настройки сайта</b> (значок шестерёнки в левом меню).',
+          en: 'Go to <b>Site Settings</b> (gear icon in the left menu).',
+          tr: '<b>Site Ayarları</b> bölümüne gidin (sol menüdeki dişli simgesi).',
+        },
+        {
+          ru: 'Перейдите во вкладку <b>Дополнительные теги</b> (или «Ещё» → «HTML-код для вставки в head/body»).',
+          en: 'Go to the <b>More</b> tab (or «Ещё» → «HTML-code for head/body»).',
+          tr: '<b>Diğer</b> sekmesine gidin (veya «Ещё» → «HTML-code for head/body»).',
+        },
+        {
+          ru: 'Вставьте код в поле <b>«HTML-код в &lt;body&gt;»</b> для всех страниц.',
+          en: 'Paste the code in the <b>«HTML in &lt;body&gt;»</b> field for all pages.',
+          tr: 'Kodu tüm sayfalar için <b>«HTML in &lt;body&gt;»</b> alanına yapıştırın.',
+        },
+        {
+          ru: 'Нажмите <b>Сохранить</b> и <b>Опубликовать</b>. Виджет будет на всех страницах.',
+          en: 'Click <b>Save</b> and <b>Publish</b>. The widget will be on all pages.',
+          tr: '<b>Kaydet</b> ve <b>Yayınla</b> düğmelerine tıklayın. Widget tüm sayfalarda olacak.',
+        },
+      ],
+    },
+    {
+      id: 'messengers',
+      name: label('Telegram / WhatsApp', 'Telegram / WhatsApp', 'Telegram / WhatsApp'),
+      icon: MessageSquare,
+      summary: label(
+        'Виджет предназначен для сайтов. Для мессенджеров используйте Telegram Bot API.',
+        'The widget is designed for websites. For messengers, use Telegram Bot API.',
+        'Widget siteler için tasarlanmıştır. Mesajlaş uygulamaları için Telegram Bot API kullanın.'
+      ),
+      steps: [
+        {
+          ru: 'AgentBot виджет работает на <b>любых веб-сайтах</b> — это плавающая кнопка чата в правом нижнем углу.',
+          en: 'The AgentBot widget works on <b>any website</b> — it\'s a floating chat button in the bottom-right corner.',
+          tr: 'AgentBot widget <b>herhangi bir web sitesinde</b> çalışır — sağ alt köşede kayan bir sohbet düğmesi.',
+        },
+        {
+          ru: '<b>Для Telegram:</b> виджет можно встроить в Telegram Web App через iframe. Напишите нам в поддержку для настройки.',
+          en: '<b>For Telegram:</b> the widget can be embedded in Telegram Web App via iframe. Contact support for setup.',
+          tr: '<b>Telegram için:</b> widget iframe aracılığıyla Telegram Web App\'e gömülebilir. Kurulum için destek ile iletişime geçin.',
+        },
+        {
+          ru: '<b>Для WhatsApp:</b> в настоящее время WhatsApp не поддерживает встраивание сторонних виджетов. Виджет работает на вашем сайте — клиенты могут писать оттуда.',
+          en: '<b>For WhatsApp:</b> WhatsApp currently does not support embedding third-party widgets. The widget works on your site — clients can chat from there.',
+          tr: '<b>WhatsApp için:</b> WhatsApp şu anda üçüncü taraf widget gömülmesini desteklemiyor. Widget sitenizde çalışır — müşteriler oradan yazışabilir.',
+        },
+      ],
     },
   ];
 
   const handleCopy = useCallback(async () => {
+    // Copy the MINIFIED version (the real working code), not the display version
     try {
       await navigator.clipboard.writeText(scriptTag);
       setCopied(true);
@@ -470,43 +678,91 @@ function EmbedCodeModal({
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 {label(
-                  'Вставьте этот код на ваш сайт — виджет будет работать автоматически:',
-                  'Paste this code on your site — the widget will work automatically:',
-                  'Bu kodu sitenize yapıştırın — widget otomatik çalışacaktır:'
+                  'Скопируйте этот код и вставьте на ваш сайт. Виджет появится в правом нижнем углу:',
+                  'Copy this code and paste it on your site. The widget will appear in the bottom-right corner:',
+                  'Bu kodu kopyalayıp sitenize yapıştırın. Widget sağ alt köşede görünecektir:'
                 )}
               </p>
+              {/* Code display — formatted and readable */}
               <div className="relative">
-                <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/50 p-4 text-xs leading-relaxed scroll-smooth scrollbar-thin">
-                  <code className="text-foreground">{scriptTag}</code>
+                <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/50 p-4 text-xs leading-relaxed scroll-smooth scrollbar-thin font-mono">
+                  <code className="text-foreground">{displayCode}</code>
                 </pre>
               </div>
-              <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950">
-                <Info className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
-                <p className="text-xs text-emerald-700 dark:text-emerald-300">
-                  {label(
-                    'Виджет полностью самодостаточный — никаких внешних CDN. Работает на любом сайте.',
-                    'The widget is fully self-contained — no external CDN needed. Works on any site.',
-                    'Widget tamamen kendi başına çalışır — harici CDN gerekmez. Herhangi bir sitede çalışır.'
-                  )}
-                </p>
+              {/* Info notes */}
+              <div className="space-y-2">
+                <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950">
+                  <Info className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                    {label(
+                      'При нажатии «Копировать» копируется рабочий минифицированный код. Виджет полностью самодостаточный — никаких внешних CDN.',
+                      'Clicking "Copy" copies the working minified code. The widget is fully self-contained — no external CDN needed.',
+                      '«Kopyala» düğmesine tıkladığınızda çalışan minimize edilmiş kod kopyalanır. Widget tamamen kendi başına çalışır — harici CDN gerekmez.'
+                    )}
+                  </p>
+                </div>
+                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
+                  <MessageSquare className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    {label(
+                      'Виджет работает на любых сайтах: обычные сайты, WordPress, Shopify, Tilda, React/Next.js и другие.',
+                      'The widget works on any website: plain HTML, WordPress, Shopify, Tilda, React/Next.js, and more.',
+                      'Widget herhangi bir sitede çalışır: düz HTML, WordPress, Shopify, Tilda, React/Next.js ve daha fazlası.'
+                    )}
+                  </p>
+                </div>
               </div>
             </div>
           </TabsContent>
 
           <TabsContent value="instructions" className="mt-3">
-            <div className="max-h-64 space-y-3 overflow-y-auto pr-1 scrollbar-thin">
-              {instructions.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-lg border p-3"
-                >
-                  <h4 className="text-sm font-semibold">{item.text}</h4>
-                  <p
-                    className="mt-1 text-xs text-muted-foreground leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: item.instructions }}
-                  />
-                </div>
-              ))}
+            <div className="max-h-72 space-y-2 overflow-y-auto pr-1 scrollbar-thin">
+              {instructions.map((item) => {
+                const isOpen = openInstructions[item.id] ?? false;
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-lg border transition-colors"
+                  >
+                    {/* Header — clickable to toggle */}
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 p-3 text-left hover:bg-muted/50 rounded-lg transition-colors"
+                      onClick={() => toggleInstruction(item.id)}
+                    >
+                      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-950">
+                        <Icon className="size-4 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-sm font-semibold leading-tight">{item.name}</h4>
+                        <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">{item.summary}</p>
+                      </div>
+                      <div className={`shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
+                        <svg className="size-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                      </div>
+                    </button>
+                    {/* Expandable steps */}
+                    {isOpen && (
+                      <div className="border-t px-3 pb-3 pt-2">
+                        <ol className="space-y-2.5">
+                          {item.steps.map((step, idx) => (
+                            <li key={idx} className="flex gap-2">
+                              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
+                                {idx + 1}
+                              </span>
+                              <span
+                                className="text-xs text-foreground leading-relaxed"
+                                dangerouslySetInnerHTML={{ __html: step[language] }}
+                              />
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </TabsContent>
         </Tabs>
