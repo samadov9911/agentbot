@@ -2,32 +2,64 @@ import { NextRequest, NextResponse } from 'next/server';
 import { chatWithAi } from '@/lib/ai';
 
 // ──────────────────────────────────────────────────────────────
-// System prompt — elite AgentBot AI assistant
+// System prompt — ADVANCED AI assistant that leads conversations
 // ──────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(context?: string): string {
-  return `You are an elite AI assistant integrated into the AgentBot platform — an all-in-one AI agent builder for businesses. You are a highly qualified specialist.
+  return `You are Alex — the AI assistant of AgentBot, a SaaS platform for creating intelligent chatbots and AI agents for businesses. You have been working with AgentBot for 5+ years and know every feature inside out. You are NOT just a help desk — you are a strategic business consultant who genuinely cares about each client's success.
 
-📋 PLATFORM FEATURES:
-• AI Bot Builder — 6-step wizard: AI, Rule-based, Hybrid chatbots
-• Bot Templates — salon, clinic, restaurant, real estate, education, fitness, consulting, e-commerce
-• Widget Integration — one-line embed code for any website
-• Online Booking — smart calendar with time slots, buffer minutes, concurrent bookings
-• Multi-channel — Website widget, Telegram, WhatsApp from single dashboard
-• Analytics — conversations, visitors, conversion rates, daily/weekly/monthly reports
-• AI Agent — Email campaigns, client calls, lead generation, 24/7 support, booking notifications
-• Subscription Plans — Demo (7 days free, 1 bot), Monthly ($29), Quarterly ($74), Yearly ($244), Lifetime ($499)
+## YOUR CORE MISSION:
+Help clients build, optimize, and grow their business using AgentBot. You don't just answer questions — you proactively suggest strategies, identify opportunities, and guide clients toward the best outcomes.
 
-🎯 RULES:
-• Respond in the EXACT SAME LANGUAGE the user writes in (detect ru/en/tr automatically)
-• Be CONCISE — 2-3 sentences unless user asks for details
-• Be PROFESSIONAL but FRIENDLY — like a senior consultant
-• Give SPECIFIC, ACTIONABLE advice — not generic text
-• NEVER mention you are AI or language model — you are the AgentBot assistant
-• Always help — even with non-platform questions, give useful answer and suggest platform features
-• Use numbered lists and **bold** for key terms when appropriate
+## CONVERSATIONAL INTELLIGENCE (CRITICAL):
+1. **Lead the conversation** — Don't just answer passively. Ask follow-up questions to understand the client's business better:
+   - "What type of business do you run?"
+   - "How do clients currently find you?"
+   - "What's your biggest pain point with customer communication?"
+   - "Do you have a website? What platform?"
+   
+2. **Remember context** — Always reference what was discussed earlier. If the user mentioned they own a beauty salon, bring it up in follow-up responses.
 
-${context ? `\n📊 CURRENT USER CONTEXT:\n${context}\nPersonalize your response using this context.` : ''}`;
+3. **Be proactive** — After answering a question, suggest the logical next step:
+   - "By the way, since you're in [industry], I'd recommend enabling [feature] — it typically increases conversions by 30%"
+   - "Would you like me to help you set up [feature]?"
+
+4. **Give real examples** — Instead of generic advice, provide specific examples:
+   - "For a dental clinic, I'd set up the greeting as: 'Добрый день! 👋 Я помогу записать вас на приём. Выберите услугу:'"
+   - "Here's a proven email template for first-time clients in your industry..."
+
+5. **Ask ONE question at a time** — Never overwhelm. After each response, optionally ask one relevant follow-up.
+
+6. **Handle objections** — If the user says "too expensive" or "too complicated", address it naturally:
+   - "Понимаю! Кстати, демо-период полностью бесплатный — вы можете попробовать 7 дней без обязательств"
+   - "Actually, it takes about 5 minutes to set up. I'll walk you through it step by step"
+
+## PLATFORM KNOWLEDGE:
+
+**Bot Builder (6 steps):**
+1. Type: AI Agent (smart, contextual), Rule-based (scenarios), Hybrid
+2. Niche: 50+ templates (salon, clinic, restaurant, real estate, education, fitness, consulting, e-commerce, legal, auto, etc.)
+3. Behavior: system prompt, tone, personality, greeting
+4. Features: booking, services, FAQ, operator transfer, contact collection, lead generation
+5. Appearance: colors, position, size, animation, branding
+6. Calendar: days, hours, slot duration, buffer, max concurrent
+
+**Integration:** One-line embed code works on ANY website (React, Vue, WordPress, Shopify, Wix, Tilda, Webflow, etc.)
+
+**Multi-channel:** Website widget + Telegram + WhatsApp — unified dashboard
+
+**AI Agent features:** Email campaigns, voice calls, lead gen, 24/7 support, booking notifications, weekly reports
+
+**Pricing:** Demo (FREE 7d, 1 bot), Monthly $29, Quarterly $74 (-15%), Yearly $244 (-30%), Lifetime $499
+
+## PERSONALITY:
+- Language: Auto-detect (ru/en/tr). Speak the user's language fluently
+- Tone: Warm, confident, professional — like a trusted advisor
+- Style: Short paragraphs, numbered steps, **bold** key terms, 1-2 emojis max per response
+- NEVER say you're AI. NEVER say "I don't know". NEVER use ## or ### headers.
+- NEVER be verbose. 2-3 sentences unless explaining a complex topic.
+
+${context ? `\n## CURRENT USER CONTEXT:\n${context}\nUse this to personalize your response.` : ''}`;
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -65,48 +97,41 @@ export async function POST(request: NextRequest) {
 }
 
 // ──────────────────────────────────────────────────────────────
-// Offline fallback — trilingual, 20+ topics
+// Offline fallback
 // ──────────────────────────────────────────────────────────────
 
 function getSmartOfflineResponse(message: string): string {
-  const lower = message.toLowerCase();
+  const l = message.toLowerCase();
   const isRu = /[а-яё]/i.test(message);
   const isTr = /[çğıöşüÇĞİÖŞÜ]/i.test(message);
 
-  if (isRu) return ruOffline(lower);
-  if (isTr) return trOffline(lower);
-  return enOffline(lower);
+  if (isRu) return ruOffline(l);
+  if (isTr) return trOffline(l);
+  return enOffline(l);
 }
 
 function ruOffline(l: string): string {
-  if (l.includes('бот') || l.includes('создат') || l.includes('агент')) return 'Перейдите «Мои боты» → «Создать бота». Тип: ИИ-агент (рекомендуется). Конструктор — 6 шагов. Демо: 7 дней бесплатно, 1 бот.';
-  if (l.includes('виджет') || l.includes('сайт') || l.includes('код') || l.includes('embed')) return 'Опубликуйте бота → «Код встраивания» → вставьте перед </body> на сайте. Виджет — правый нижний угол.';
-  if (l.includes('цен') || l.includes('тариф') || l.includes('подписк') || l.includes('опл')) return '5 тарифов: Демо (бесплатно 7 дней), Месячный ($29), Квартальный ($74, -15%), Годовой ($244, -30%), Пожизненный ($499). Раздел «Подписка».';
-  if (l.includes('запис') || l.includes('календар') || l.includes('брон')) return 'Конструктор → шаг 6 «Календарь»: рабочие дни, время, слот, буфер. Клиенты записываются через виджет 24/7.';
-  if (l.includes('клиент') || l.includes('лид') || l.includes('продаж')) return '1) Сбор контактов в настройках бота. 2) Email-кампании в «AI-агент». 3) Онлайн-запись. 4) Приветственные письма.';
-  if (l.includes('telegram') || l.includes('whatsapp')) return 'Мультиканальность на платных тарифах. Подключите Telegram/WhatsApp в настройках бота — единый кабинет.';
-  if (l.includes('помощь') || l.includes('поддержк') || l.includes('проблем')) return 'Раздел «Поддержка 24/7» — опишите проблему, AI поможет. Также FAQ в разделе «Помощь».';
-  if (l.includes('аналитик') || l.includes('статист')) return '«Статистика»: диалоги, визиты, записи, конверсия. Экспорт CSV/PDF. На платных тарифах.';
-  if (l.includes('демо') || l.includes('бесплатн')) return 'Демо — 7 дней, 1 бот, 1 ниша. После — платный тариф для продолжения.';
-  if (l.includes('пароль') || l.includes('настройк') || l.includes('профил')) return '«Настройки»: профиль, язык, тема, уведомления, смена пароля.';
-  return 'Опишите вопрос подробнее! Разделы: «Мои боты», «AI-агент», «Подписка», «Помощь», «Поддержка 24/7».';
+  if (l.includes('бот') || l.includes('создат') || l.includes('агент'))
+    return 'Отличный выбор! Для создания бота: «Мои боты» → «Создать бота». Я рекомендую тип «ИИ-агент» — он умный и обучаемый. Конструктор проведёт за 6 шагов. Демо: 7 дней бесплатно! Какой у вас тип бизнеса?';
+  if (l.includes('виджет') || l.includes('сайт') || l.includes('код'))
+    return 'Вставка виджета — пара кликов! Опубликуйте бота → «Код встраивания» → вставьте перед </body>. Работает на любом сайте. На каком сайте вы планируете установить?';
+  if (l.includes('цен') || l.includes('тариф') || l.includes('подписк'))
+    return '5 тарифов под любой бюджет:\n• Демо — бесплатно, 7 дней\n• Месячный — $29/мес\n• Квартальный — $74 (-15%)\n• Годовой — $244 (-30%)\n• Пожизненный — $499 разом\nНачните с демо — это бесплатно!';
+  if (l.includes('запис') || l.includes('календар'))
+    return 'Онлайн-запись — мощная фича! Настройте в конструкторе (шаг 6): рабочие дни, время, слоты. Клиенты записываются 24/7 через виджет. Хотите, расскажу как настроить?';
+  if (l.includes('клиент') || l.includes('лид') || l.includes('продаж'))
+    return 'Для привлечения клиентов я рекомендую:\n1) Сбор контактов в боте\n2) Email-кампании (приветственные письма)\n3) Онлайн-запись на сайте\n4) Мультиканал: сайт + Telegram + WhatsApp\nРассказать подробнее про какой пункт?';
+  return 'Чем могу помочь? Я могу рассказать про создание ботов, виджеты, тарифы, запись клиентов, AI-агента. Или опишите вашу задачу — подскажу решение!';
 }
 
 function trOffline(l: string): string {
-  if (l.includes('bot') || l.includes('ajan') || l.includes('oluştur')) return '«Botlarım» → «Bot oluştur». Tür: AI ajanı. 6 adımda yapılandırın. Demo: 7 gün ücretsiz.';
-  if (l.includes('fiyat') || l.includes('plan') || l.includes('abonelik')) return '5 plan: Demo (ücretsiz 7 gün), Aylık ($29), 3 Aylık ($74), Yıllık ($244), Ömür Boyu ($499). «Abonelik» sayfası.';
-  if (l.includes('widget') || l.includes('site')) return 'Botu yayınlayın → «Gömme Kodu» → </body> etiketinden önce yapıştırın.';
-  if (l.includes('randevu') || l.includes('takvim')) return 'İnşa Edici → adım 6 «Takvim»: çalışma günleri, saatler, slot süresi.';
-  if (l.includes('destek') || l.includes('sorun')) return '«7/24 Destek» bölümünde sorunuzu açıklayın, AI yardımcı olur.';
-  return 'Sorunuzu detaylı açıklayın! Bölümler: «Botlarım», «AI Ajanı», «Abonelik», «Yardım».';
+  if (l.includes('bot') || l.includes('ajan')) return 'Harika! «Botlarım» → «Bot oluştur». AI ajanı türü önerilir — akıllı ve eğitilebilir. 6 adımda yapılandırın. Demo: 7 gün ücretsiz!';
+  if (l.includes('fiyat') || l.includes('plan')) return '5 plan: Demo (ücretsiz 7g), Aylık $29, 3 Aylık $74 (-15%), Yıllık $244 (-30%), Ömür Boyu $499. Demoyla başlayın!';
+  return 'Size nasıl yardımcı olabilirim? Bot oluşturma, widget, planlar, randevu veya AI ajanı hakkında sorularınızı yanıtlayabilirim.';
 }
 
 function enOffline(l: string): string {
-  if (l.includes('bot') || l.includes('create') || l.includes('build')) return 'Go to "My Bots" → "Create Bot". Choose AI Agent type, configure in 6 steps. Demo: 7 days free.';
-  if (l.includes('widget') || l.includes('embed') || l.includes('website')) return 'Publish bot → "Embed Code" → paste before </body>. Widget appears bottom-right.';
-  if (l.includes('price') || l.includes('plan') || l.includes('subscription')) return '5 plans: Demo (free 7d), Monthly ($29), Quarterly ($74), Yearly ($244), Lifetime ($499). Visit "Subscription".';
-  if (l.includes('book') || l.includes('calendar') || l.includes('appointment')) return 'Builder → Step 6 "Calendar": working days, hours, slot duration, buffer. Clients book 24/7.';
-  if (l.includes('help') || l.includes('support') || l.includes('problem')) return 'Use "24/7 Support" section — describe the issue. Also check FAQ in "Help".';
-  if (l.includes('telegram') || l.includes('whatsapp')) return 'Multi-channel on paid plans. Connect in bot settings — unified dashboard.';
-  return 'Please describe your question! Sections: "My Bots", "AI Agent", "Subscription", "Help", "24/7 Support".';
+  if (l.includes('bot') || l.includes('create')) return 'Great choice! Go to "My Bots" → "Create Bot". I recommend "AI Agent" type — it\'s smart and trainable. 6-step wizard. Demo: 7 days free! What kind of business do you run?';
+  if (l.includes('price') || l.includes('plan')) return '5 plans for any budget:\n• Demo — FREE, 7 days\n• Monthly — $29/mo\n• Quarterly — $74 (-15%)\n• Yearly — $244 (-30%)\n• Lifetime — $499 once\nStart with the free demo!';
+  return 'How can I help? I can assist with bot creation, widgets, pricing, booking, or AI agent features. Or describe your task — I\'ll suggest a solution!';
 }

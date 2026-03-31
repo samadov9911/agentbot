@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
   Select,
@@ -352,11 +353,10 @@ export function SupportPage() {
             )}
           </CardHeader>
           <Separator />
-          <CardContent className="p-0">
-            {/* Fixed-height scrollable chat area */}
-            <div className="h-[420px] overflow-y-auto px-4 py-4 space-y-4">
+          <CardContent className="p-4 md:p-6">
+            <ScrollArea className="max-h-96 pr-2">
               {messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
                   <div className="size-16 rounded-full bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center mb-4">
                     <Bot className="size-8 text-emerald-400" />
                   </div>
@@ -367,7 +367,7 @@ export function SupportPage() {
                   {messages.map((msg) => (
                     <div
                       key={msg.id}
-                      className={`flex gap-3 min-w-0 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                      className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       {msg.role === 'ai' && (
                         <div className="shrink-0 mt-0.5">
@@ -376,9 +376,9 @@ export function SupportPage() {
                           </div>
                         </div>
                       )}
-                      <div className={`min-w-0 max-w-[85%] ${msg.role === 'user' ? 'order-first' : ''}`}>
+                      <div className={`max-w-[80%] ${msg.role === 'user' ? 'order-first' : ''}`}>
                         <div
-                          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden ${
+                          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
                             msg.role === 'user'
                               ? 'bg-emerald-600 text-white rounded-br-md'
                               : 'bg-muted text-foreground rounded-bl-md'
@@ -433,7 +433,7 @@ export function SupportPage() {
                   <div ref={chatEndRef} />
                 </div>
               )}
-            </div>
+            </ScrollArea>
           </CardContent>
         </Card>
 

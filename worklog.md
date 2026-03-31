@@ -1198,3 +1198,32 @@ Stage Summary:
 - Both AI endpoints now share the same reliable pattern: config setup -> SDK init -> chat with retry -> offline fallback
 - AI assistants will now work with real AI (z-ai-web-dev-sdk) instead of hardcoded responses
 - SDK instance caching reduces cold-start latency
+
+---
+Task ID: 3
+Agent: Main
+Task: Fix AI agents not responding — integrate Google Gemini API
+
+Work Log:
+- Investigated: local .env has no Z_AI_CONFIG, z-ai-web-dev-sdk never initializes
+- On Vercel the SDK had read-only filesystem issues even with config
+- Decision: Replace z-ai-web-dev-sdk with Google Gemini 2.0 Flash (FREE)
+- Created src/lib/ai.ts — unified AI provider:
+  - Gemini 2.0 Flash REST API (free: 15 req/min, 1500/day)
+  - systemInstruction field for system prompts
+  - Conversation history support (Gemini content format)
+  - Retry x2 with 500ms backoff, 30s timeout
+  - Offline fallback function
+  - isAiAvailable() helper
+- Created src/app/api/ai-status/route.ts — GET status endpoint
+- Rewrote src/app/api/ai-assistant/route.ts (400+ → 140 lines)
+- Rewrote src/app/api/support/route.ts (250+ → 130 lines)
+- Updated ai-assistant-widget.tsx: checks AI status, shows "Gemini AI — Online"
+- Updated support-page.tsx: shows "Powered by Gemini AI"
+- Lint: 0 errors, committed and pushed (f49da92)
+
+Stage Summary:
+- Root cause: Z_AI_CONFIG env var not configured, SDK couldn't initialize
+- Solution: Google Gemini 2.0 Flash API — free, no complex SDK, simple REST calls
+- User needs to add GEMINI_API_KEY env var on Vercel (free key at aistudio.google.com/apikey)
+- Both AI endpoints now share src/lib/ai.ts as unified provider

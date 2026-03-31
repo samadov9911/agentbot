@@ -1,5 +1,5 @@
 // ──────────────────────────────────────────────────────────────
-// Unified AI Provider — Google Gemini 2.5 Flash (FREE, smart)
+// Unified AI Provider — Google Gemini 2.0 Flash (FREE)
 //
 // Usage: Just set GEMINI_API_KEY in your environment.
 // Get a free key at: https://aistudio.google.com/apikey
@@ -7,7 +7,7 @@
 // Fallback: offline responses if API key is not configured.
 // ──────────────────────────────────────────────────────────────
 
-export interface ChatMessage {
+interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
@@ -18,7 +18,7 @@ interface AiResponse {
   provider: 'gemini' | 'offline';
 }
 
-const GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20';
+const GEMINI_MODEL = 'gemini-2.0-flash';
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // ──────────────────────────────────────────────────────────────
@@ -39,9 +39,11 @@ async function callGemini(
   // Build Gemini-compatible content array
   const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
 
-  // Add conversation history (keep last 20 messages for context)
-  const recentHistory = history.slice(-20);
-  for (const msg of recentHistory) {
+  // System instruction (sent separately for Gemini)
+  // Gemini uses systemInstruction field, not a message
+
+  // Add conversation history
+  for (const msg of history) {
     contents.push({
       role: msg.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: msg.content }],
@@ -62,9 +64,9 @@ async function callGemini(
     },
     contents,
     generationConfig: {
-      temperature: 0.8,
-      topP: 0.95,
-      maxOutputTokens: 2048,
+      temperature: 0.7,
+      topP: 0.9,
+      maxOutputTokens: 1024,
     },
     safetySettings: [
       { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
@@ -81,7 +83,7 @@ async function callGemini(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(45_000), // 45s timeout for longer responses
+        signal: AbortSignal.timeout(30_000), // 30s timeout
       });
 
       if (!res.ok) {
