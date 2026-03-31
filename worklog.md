@@ -1453,3 +1453,29 @@ Fix 4 bugs: (1) Avatar photo doesn't save due to large base64 size, (2) System p
 **Files modified:**
 - `src/components/dashboard/bot-builder.tsx` — Bug 1-3 fixes
 - `src/components/dashboard/my-bots.tsx` — Bug 4 fix
+
+---
+Task ID: 10
+Agent: Main Orchestrator
+Task: Fix widget embed code not working on external websites — CORS issue
+
+Work Log:
+- Investigated user's report: widget embed code `<script src="https://cdn.botforge.ai/widget.js" ...>` doesn't work on external sites
+- Root cause analysis: TWO issues found
+  1. Old production deployment still serves embed code pointing to non-existent `cdn.botforge.ai` CDN URL
+  2. CRITICAL: No CORS middleware exists — browser blocks all cross-origin API calls from embedded widget to `agentbot-one.vercel.app`
+- Verified current local code already generates correct self-contained inline embed script (no external CDN needed)
+- Verified API routes `/api/bots/config` and `/api/bot-demo-chat` are correctly implemented
+- Confirmed `bot-demo-chat` POST with `Content-Type: application/json` triggers CORS preflight
+- Created `src/middleware.ts` — Next.js middleware that adds CORS headers to all `/api/*` routes
+- Middleware handles OPTIONS preflight requests (returns 204 with CORS headers)
+- Middleware adds CORS headers to all other API requests
+- `Access-Control-Allow-Origin: *` allows any external site to embed the widget
+- `Access-Control-Allow-Headers` includes `Content-Type, x-user-id` needed by widget API calls
+- Lint passes with zero errors
+
+Stage Summary:
+- Created `src/middleware.ts` — CORS middleware for widget cross-origin support
+- This is the ROOT CAUSE fix: without CORS headers, browser blocks widget API calls from external sites
+- User needs to redeploy to Vercel to get the fix + the correct embed code format
+- Old `cdn.botforge.ai` embed code was from stuck production deployment; local code already uses correct self-contained inline script
