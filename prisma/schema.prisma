@@ -1,0 +1,238 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  passwordHash  String?
+  avatar        String?
+  company       String?
+  role          String   @default("user") // user, admin
+  language      String   @default("ru")
+  isActive      Boolean  @default(true)
+  deletedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  bots            Bot[]
+  subscriptions   Subscription[]
+  analyticsEvents AnalyticsEvent[]
+  payments        Payment[]
+  demoPeriod      DemoPeriod?
+  callLogs        CallLog[]
+}
+
+model Admin {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  email         String   @unique
+  passwordHash  String
+  twoFactorCode String?
+  isActive      Boolean  @default(true)
+  lastLogin     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  adminLogs AdminLog[]
+}
+
+model AdminLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  action    String   // impersonate, block_user, generate_code, revoke_code, etc.
+  details   String?  // JSON string
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  admin Admin @relation(fields: [adminId], references: [id])
+}
+
+model Subscription {
+  id            String   @id @default(cuid())
+  userId        String
+  plan          String   @default("demo") // demo, monthly, quarterly, yearly, lifetime
+  status        String   @default("active") // active, expired, cancelled
+  startsAt      DateTime @default(now())
+  expiresAt     DateTime?
+  autoRenew     Boolean  @default(false)
+  pricePaid     Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id])
+  payments  Payment[]
+}
+
+model DemoPeriod {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  startsAt   DateTime @default(now())
+  expiresAt  DateTime
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Bot {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  type        String   @default("ai") // ai, rule-based, hybrid
+  niche        String?  // salon, medical, restaurant, etc.
+  avatar      String?
+  config      String   @default("{}") // JSON: greeting, tone, working hours, features, etc.
+  appearance  String   @default("{}") // JSON: colors, position, size, etc.
+  isActive    Boolean  @default(true)
+  embedCode   String?  @unique
+  telegramToken String?
+  whatsappConfig String?
+  publishedAt DateTime?
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user         User           @relation(fields: [userId], references: [id])
+  conversations Conversation[]
+  appointments Appointment[]
+  leads        Lead[]
+}
+
+model BotTemplate {
+  id          String   @id @default(cuid())
+  niche       String   @unique
+  name        String
+  description String?
+  greeting    String?
+  faq         String?  // JSON array
+  colors      String?  // JSON object
+  icon        String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  botId     String
+  source    String   @default("widget") // widget, telegram, whatsapp
+  visitorId String?
+  visitorName String?
+  status    String   @default("active") // active, closed, archived
+  isFlagged Boolean  @default(false)
+  isProcessed Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bot      Bot       @relation(fields: [botId], references: [id])
+  messages Message[]
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String   @default("user") // user, bot, operator, system
+  content        String
+  messageType    String   @default("text") // text, buttons, card, calendar, contact_form
+  metadata       String?  // JSON for extra data
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model Appointment {
+  id         String   @id @default(cuid())
+  botId      String
+  visitorName  String
+  visitorPhone String
+  visitorEmail String?
+  service    String?
+  date       DateTime
+  duration   Int      @default(60) // minutes
+  status     String   @default("pending") // pending, confirmed, cancelled, completed
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  bot Bot @relation(fields: [botId], references: [id])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  botId     String?
+  eventType String   // page_view, message_sent, appointment_booked, widget_opened
+  metadata  String?  // JSON
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  userId        String
+  subscriptionId String?
+  amount        Float
+  currency      String   @default("USD")
+  plan          String
+  status        String   @default("pending") // pending, completed, failed, refunded
+  provider      String?  // stripe
+  providerId    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id])
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+}
+
+model CallLog {
+  id              String   @id @default(cuid())
+  userId          String
+  botId           String?
+  clientPhone     String
+  companyPhone    String
+  taskDescription String
+  script          String
+  status          String   @default("completed") // completed, failed, no_answer
+  duration        Int      @default(0) // seconds (simulated)
+  transcript      String   @default("") // JSON array of dialog lines
+  aiSummary       String   @default("") // AI-generated short result
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model EmbedCode {
+  id        String   @id @default(cuid())
+  botId     String   @unique
+  code      String   @unique
+  isActive  Boolean  @default(true)
+  createdBy String?  // admin user id for manual creation
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Lead {
+  id           String   @id @default(cuid())
+  botId        String
+  visitorName  String?
+  visitorPhone String?
+  visitorEmail String?
+  ipAddress    String?
+  region       String?
+  message      String?
+  source       String   @default("widget")
+  status       String   @default("new")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  bot Bot @relation(fields: [botId], references: [id])
+}

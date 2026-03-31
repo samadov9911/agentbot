@@ -1,0 +1,155 @@
+'use client';
+
+import React, { useSyncExternalStore } from 'react';
+import { useAuthStore, useAppStore } from '@/stores';
+
+import LandingPage from '@/components/landing/landing-page';
+import { LoginForm } from '@/components/auth/login-form';
+import { RegisterForm } from '@/components/auth/register-form';
+import { DashboardLayout } from '@/components/layout/dashboard-layout';
+import { DashboardOverview } from '@/components/dashboard/overview';
+import { MyBotsPage } from '@/components/dashboard/my-bots';
+import { BotBuilderPage } from '@/components/dashboard/bot-builder';
+import { AnalyticsPage } from '@/components/dashboard/analytics-page';
+import { SubscriptionPage } from '@/components/dashboard/subscription-page';
+import { SettingsPage } from '@/components/dashboard/settings-page';
+import { HelpPage } from '@/components/dashboard/help-page';
+import { AdminPage } from '@/components/dashboard/admin-page';
+import { AiAgentPage } from '@/components/dashboard/ai-agent-page';
+import { AiAssistantWidget } from '@/components/dashboard/ai-assistant-widget';
+import { SupportPage } from '@/components/dashboard/support-page';
+import { BookingsPage } from '@/components/dashboard/bookings-page';
+
+// ──────────────────────────────────────────────────────────────
+// Dashboard inner content renderer
+// ──────────────────────────────────────────────────────────────
+
+function DashboardContent({ page }: { page: string }) {
+  const user = useAuthStore((s) => s.user);
+  const language = useAppStore((s) => s.language);
+
+  // Check if user is expired demo
+  const isExpiredDemo = !!(
+    user?.demoExpiresAt &&
+    new Date(user.demoExpiresAt) < new Date() &&
+    (!user?.planName || user.planName === 'demo' || user.planName === 'none')
+  );
+
+  // Block analytics for expired demo
+  if (page === 'analytics' && isExpiredDemo) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-6">
+        <div className="flex size-16 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-950">
+          <svg className="size-8 text-amber-600 dark:text-amber-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        </div>
+        <div className="text-center space-y-2 max-w-sm">
+          <h3 className="text-lg font-semibold">
+            {language === 'ru'
+              ? 'Аналитика доступна на платных планах'
+              : language === 'en'
+                ? 'Analytics available on paid plans'
+                : 'Analitik ücretli planlarda mevcuttur'}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {language === 'ru'
+              ? 'Демо-период истёк. Для доступа к аналитике выберите платный план.'
+              : language === 'en'
+                ? 'Demo period expired. Choose a paid plan to access analytics.'
+                : 'Demo süresi doldu. Analitiğe erişmek için ücretli bir plan seçin.'}
+          </p>
+        </div>
+        <button
+          onClick={() => useAppStore.getState().setPage('subscription')}
+          className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
+        >
+          {language === 'ru'
+            ? 'Выбрать план'
+            : language === 'en'
+              ? 'Choose a plan'
+              : 'Plan seç'}
+        </button>
+      </div>
+    );
+  }
+
+  switch (page) {
+    case 'dashboard':
+      return <DashboardOverview />;
+    case 'bots':
+      return <MyBotsPage />;
+    case 'bot-builder':
+      return <BotBuilderPage />;
+    case 'analytics':
+      return <AnalyticsPage />;
+    case 'settings':
+      return <SettingsPage />;
+    case 'subscription':
+      return <SubscriptionPage />;
+    case 'help':
+      return <HelpPage />;
+    case 'admin':
+    case 'admin-users':
+    case 'admin-analytics':
+    case 'admin-logs':
+    case 'admin-embed':
+      return <AdminPage />;
+    case 'ai-agent':
+      return <AiAgentPage />;
+    case 'support':
+      return <SupportPage />;
+    case 'bookings':
+      return <BookingsPage />;
+    default:
+      return <DashboardOverview />;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// Main Page Router
+// ──────────────────────────────────────────────────────────────
+
+export default function Home() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const page = useAppStore((s) => s.currentPage);
+
+  // Client-side hydration guard
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+
+  if (!mounted) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Auth pages - no layout
+  if (page === 'login') {
+    return <LoginForm />;
+  }
+
+  if (page === 'register') {
+    return <RegisterForm />;
+  }
+
+  // Dashboard pages - with layout
+  if (isAuthenticated && page !== 'landing') {
+    return (
+      <DashboardLayout>
+        <DashboardContent page={page} />
+        <AiAssistantWidget />
+      </DashboardLayout>
+    );
+  }
+
+  // Default: landing page
+  return <LandingPage />;
+}
+
