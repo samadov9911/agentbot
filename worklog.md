@@ -1246,3 +1246,27 @@ Stage Summary:
 - Falls back to OpenRouter → Gemini → offline if Groq fails
 - User MUST add GROQ_API_KEY to Vercel environment variables manually
 - Gemini API key already deployed on Vercel from previous session
+
+---
+Task ID: 12
+Agent: Main Orchestrator
+Task: Fix AI not responding — switch to z-ai-web-dev-sdk as primary provider
+
+Work Log:
+- Tested Groq API key: returns Forbidden (key invalid)
+- Tested Gemini API key: returns 429 Quota Exceeded (limit 0)
+- Root cause: BOTH external API keys dead, AI was running in offline mode only
+- Invoked LLM skill to learn z-ai-web-dev-sdk proper usage
+- Tested z-ai CLI: works perfectly (GLM-4-plus model, Russian responses)
+- Rewrote src/lib/ai.ts: z-ai-web-dev-sdk as provider #1, Groq/Gemini as fallbacks
+- z-ai-web-dev-sdk uses dynamic import for server-side only
+- ZAI.create() instance cached and reset on error for resilience
+- Verified SDK is in package.json and node_modules
+- Pushed to GitHub (had to rewrite commit history to remove Groq secret from worklog)
+
+Stage Summary:
+- AI now uses z-ai-web-dev-sdk (GLM-4-plus) as PRIMARY provider
+- No external API keys needed — always available
+- Falls back to Groq → OpenRouter → Gemini → offline keyword matching
+- Both AI assistant widget and Support 24/7 should now respond intelligently
+- User needs to wait for Vercel auto-deploy from GitHub push
