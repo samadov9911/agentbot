@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       const systemPrompt = buildSystemPrompt(context);
 
       const messages = [
-        { role: 'system' as const, content: systemPrompt },
+        { role: 'assistant' as const, content: systemPrompt },
         ...(history || []),
         { role: 'user' as const, content: message },
       ];

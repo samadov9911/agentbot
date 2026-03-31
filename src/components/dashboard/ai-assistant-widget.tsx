@@ -45,28 +45,47 @@ interface QuickSuggestion {
 const STORAGE_KEY = 'ai-assistant-history';
 const MAX_MESSAGES = 20;
 
-const QUICK_SUGGESTIONS: QuickSuggestion[] = [
-  {
-    icon: Sparkles,
-    label: 'How do I create a bot?',
-    message: 'How do I create a bot?',
-  },
-  {
-    icon: LayoutTemplate,
-    label: 'Which template for my business?',
-    message: 'Which template for my business?',
-  },
-  {
-    icon: Globe,
-    label: 'How to add widget to my site?',
-    message: 'How to add widget to my site?',
-  },
-  {
-    icon: CreditCard,
-    label: 'Explain subscription plans',
-    message: 'Explain subscription plans',
-  },
-];
+// Dynamic quick suggestions — generated based on current language
+function getQuickSuggestions(language: Language): QuickSuggestion[] {
+  return [
+    {
+      icon: Sparkles,
+      label: t('aiAssistant.suggestionCreate', language),
+      message: language === 'ru'
+        ? 'Как создать бота?'
+        : language === 'tr'
+          ? 'Bot nasıl oluştururum?'
+          : 'How to create a bot?',
+    },
+    {
+      icon: LayoutTemplate,
+      label: t('aiAssistant.suggestionTemplate', language),
+      message: language === 'ru'
+        ? 'Какой шаблон выбрать для моего бизнеса?'
+        : language === 'tr'
+          ? 'İşim için hangi şablonu seçmeliyim?'
+          : 'Which template for my business?',
+    },
+    {
+      icon: Globe,
+      label: t('aiAssistant.suggestionWidget', language),
+      message: language === 'ru'
+        ? 'Как добавить виджет на мой сайт?'
+        : language === 'tr'
+          ? 'Siteye widget nasıl eklerim?'
+          : 'How to add widget to my site?',
+    },
+    {
+      icon: CreditCard,
+      label: t('aiAssistant.suggestionPlans', language),
+      message: language === 'ru'
+        ? 'Расскажи о тарифах и ценах'
+        : language === 'tr'
+          ? 'Planlar ve fiyatlar hakkında bilgi ver'
+          : 'Explain subscription plans',
+    },
+  ];
+}
 
 const PAGE_TITLE_KEYS: Record<string, string> = {
   dashboard: 'Overview',
@@ -408,7 +427,7 @@ export function AiAssistantWidget() {
                       <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-300 opacity-75" />
                       <span className="relative inline-flex size-2 rounded-full bg-emerald-200" />
                     </span>
-                    Online
+                    {t('aiAssistant.online', language)}
                   </span>
                 </div>
               </div>
@@ -418,7 +437,7 @@ export function AiAssistantWidget() {
                   size="icon"
                   className="size-8 text-white/80 hover:text-white hover:bg-white/20"
                   onClick={handleClear}
-                  title="Clear chat"
+                  title={t('aiAssistant.clearChat', language)}
                 >
                   <Trash2 className="size-3.5" />
                 </Button>
@@ -457,7 +476,7 @@ export function AiAssistantWidget() {
 
                   {/* Quick suggestions */}
                   <div className="flex flex-wrap justify-center gap-2 w-full">
-                    {QUICK_SUGGESTIONS.map((suggestion) => {
+                    {getQuickSuggestions(language).map((suggestion) => {
                       const Icon = suggestion.icon;
                       return (
                         <button
@@ -514,7 +533,7 @@ export function AiAssistantWidget() {
                     onClick={handleRetry}
                   >
                     <RotateCcw className="size-3" />
-                    <span className="text-xs">Retry</span>
+                    <span className="text-xs">{t('aiAssistant.retry', language)}</span>
                   </Button>
                 </motion.div>
               )}

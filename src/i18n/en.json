@@ -421,6 +421,13 @@
     "placeholder": "Ask a question...",
     "greeting": "Hi! I'm the AgentBot assistant. How can I help you?",
     "thinking": "Thinking...",
-    "error": "An error occurred. Please try again."
+    "error": "An error occurred. Please try again.",
+    "online": "Online",
+    "retry": "Retry",
+    "clearChat": "Clear chat",
+    "suggestionCreate": "How to create a bot?",
+    "suggestionTemplate": "Which template for my business?",
+    "suggestionWidget": "How to add widget to my site?",
+    "suggestionPlans": "Plans & pricing"
   }
 }

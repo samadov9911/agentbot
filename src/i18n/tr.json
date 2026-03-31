@@ -421,6 +421,13 @@
     "placeholder": "Bir soru sorun...",
     "greeting": "Merhaba! AgentBot asistanıyım. Size nasıl yardımcı olabilirim?",
     "thinking": "Düşünüyorum...",
-    "error": "Bir hata oluştu. Lütfen tekrar deneyin."
+    "error": "Bir hata oluştu. Lütfen tekrar deneyin.",
+    "online": "Çevrimiçi",
+    "retry": "Tekrar",
+    "clearChat": "Sohbeti temizle",
+    "suggestionCreate": "Bot nasıl oluştururum?",
+    "suggestionTemplate": "İşim için hangi şablon?",
+    "suggestionWidget": "Siteye widget nasıl eklerim?",
+    "suggestionPlans": "Planlar ve fiyatlar"
   }
 }
