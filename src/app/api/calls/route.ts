@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import ZAI from 'z-ai-web-dev-sdk';
+import { chatWithAi } from '@/lib/ai';
 
 // ── POST: Execute an AI call, generate transcript + summary, save to DB ──
 
@@ -20,9 +20,7 @@ export async function POST(request: NextRequest) {
 
     const lang = language === 'en' ? 'English' : language === 'tr' ? 'Turkish' : 'Russian';
 
-    // ── 1. Generate call transcript via LLM ──
-    const zai = await ZAI.create();
-
+    // ── 1. Generate call transcript via AI ──
     const transcriptPrompt = `You are a call simulator. Generate a realistic phone conversation between an AI agent and a client.
 
 Language: ${lang}
@@ -39,15 +37,12 @@ Rules:
 - Return ONLY a JSON array, no markdown, no explanation. Format:
 [{"role":"ai_agent","text":"..."},{"role":"client","text":"..."},...]`;
 
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'system' as const, content: transcriptPrompt },
-        { role: 'user' as const, content: lang === 'Russian' ? 'Сгенерируй диалог' : lang === 'English' ? 'Generate the dialog' : 'Diyaloğu oluştur' },
-      ],
-      thinking: { type: 'disabled' },
-    });
+    const transcriptResult = await chatWithAi(
+      transcriptPrompt,
+      lang === 'Russian' ? 'Сгенерируй диалог' : lang === 'English' ? 'Generate the dialog' : 'Diyaloğu oluştur',
+    );
 
-    let rawTranscript = completion.choices[0]?.message?.content || '';
+    let rawTranscript = transcriptResult.text || '';
     // Strip markdown fences if present
     rawTranscript = rawTranscript.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
@@ -135,15 +130,12 @@ ${dialogLines.map(l => `[${l.role === 'ai_agent' ? 'AI' : 'Client'}]: ${l.text}`
 Language of summary: ${lang}
 Return ONLY the summary text, no extra formatting.`;
 
-    const summaryCompletion = await zai.chat.completions.create({
-      messages: [
-        { role: 'system' as const, content: 'You are a concise call summary writer. Be brief and factual.' },
-        { role: 'user' as const, content: summaryPrompt },
-      ],
-      thinking: { type: 'disabled' },
-    });
+    const summaryResult = await chatWithAi(
+      'You are a concise call summary writer. Be brief and factual.',
+      summaryPrompt,
+    );
 
-    const aiSummary = summaryCompletion.choices[0]?.message?.content?.trim() || '';
+    const aiSummary = summaryResult.text || '';
 
     // ── 3. Save to database ──
     const callLog = await db.callLog.create({

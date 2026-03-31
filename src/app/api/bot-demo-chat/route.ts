@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
+import { chatWithAi } from '@/lib/ai';
 import { db } from '@/lib/db';
 
 // In-memory conversation histories for demo (keyed by sessionId)
@@ -412,41 +412,11 @@ export async function POST(request: NextRequest) {
       }
 
       if (!response) {
-        // Use LLM
-        let zai: Awaited<ReturnType<typeof ZAI.create>> | null = null;
-        try {
-          zai = await ZAI.create();
-        } catch {
-          // ZAI SDK not available — use rule-based fallback
-          const defaults: Record<string, Record<string, string>> = {
-            ru: { friendly: 'Спасибо за сообщение! К сожалению, демо-чат временно недоступен. Попробуйте позже или напишите нам напрямую.' },
-            en: { friendly: 'Thanks for your message! Unfortunately, the demo chat is temporarily unavailable. Please try again later.' },
-            tr: { friendly: 'Mesajınız için teşekkürler! Maalesef demo sohbet şu an kullanılamıyor. Lütfen daha sonra tekrar deneyin.' },
-          };
-          const langDefaults = defaults[effectiveLang] || defaults.ru;
-          response = langDefaults[tone] || langDefaults.friendly;
-          // Still try to save lead
-          try {
-            if (isFirstMessage && botId) {
-              await db.lead.create({
-                data: { botId, visitorName: null, visitorPhone: null, visitorEmail: null, ipAddress, region, message: message || null, source: 'widget' },
-              });
-            }
-          } catch { /* ignore */ }
-
-          history.push({ role: 'assistant', content: response, ts: Date.now() });
-          if (history.length > 20) history = history.slice(-20);
-          demoConversations.set(sessionId, history);
-
-          return NextResponse.json({ response });
-        }
-
+        // Use AI via chatWithAi
         let effectiveSystemPrompt = '';
 
         if (systemPrompt.trim()) {
-          // User provided a custom system prompt — still append calendar context and key rules
           effectiveSystemPrompt = systemPrompt;
-          // Append anti-robotic rules even for custom prompts
           const antiRoboticRules = effectiveLang === 'en'
             ? '\n\nIMPORTANT: Never say you are an AI, bot, or assistant. Keep responses to 1-3 sentences. Never use "How can I help you?" or similar robotic phrases. Don\'t repeat what the user said. Be natural and conversational.'
             : effectiveLang === 'tr'
@@ -465,7 +435,7 @@ export async function POST(request: NextRequest) {
 
         // ── Lead capture: Add contact nudge to system prompt after 3+ messages ──
         if (currentHistoryLength >= 6) {
-          const allContactsBefore = scanHistoryForContacts(history.slice(0, -1)); // exclude latest user msg for initial check
+          const allContactsBefore = scanHistoryForContacts(history.slice(0, -1));
           if (!allContactsBefore.phone && !allContactsBefore.email) {
             effectiveSystemPrompt += CONTACT_NUDGE[effectiveLang as keyof typeof CONTACT_NUDGE] || CONTACT_NUDGE.ru;
           }
@@ -505,29 +475,24 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Build messages array with system prompt + recent history (max 10 messages)
+        // Build history for AI
         const recentHistory = history.slice(-10).map(({ role, content }) => ({
           role: role === 'user' ? 'user' as const : 'assistant' as const,
           content,
         }));
 
-        const messages = [
-          { role: 'system' as const, content: effectiveSystemPrompt },
-          ...recentHistory,
-        ];
+        // Call AI
+        const aiResult = await chatWithAi(effectiveSystemPrompt, message, recentHistory);
 
-        const completion = await zai.chat.completions.create({
-          messages,
-          thinking: { type: 'disabled' },
-        });
-
-        response = completion.choices[0]?.message?.content || (
-          effectiveLang === 'en'
+        if (aiResult.ok && aiResult.text) {
+          response = aiResult.text;
+        } else {
+          response = effectiveLang === 'en'
             ? 'Sorry, something went wrong. Could you try again?'
             : effectiveLang === 'tr'
               ? 'Üzgünüm, bir şeyler ters gitti. Tekrar deneyebilir misiniz?'
-              : 'Извините, что-то пошло не так. Попробуйте ещё раз.'
-        );
+              : 'Извините, что-то пошло не так. Попробуйте ещё раз.';
+        }
 
         // Booking intent detection for AI responses
         if (detectBookingIntent(response) && !detectBookingIntent(message)) {

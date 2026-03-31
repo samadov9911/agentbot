@@ -1,10 +1,12 @@
 // ──────────────────────────────────────────────────────────────
-// Unified AI Provider — Google Gemini 2.5 Flash (FREE, smart)
+// Multi-Provider AI Module
 //
-// Usage: Just set GEMINI_API_KEY in your environment.
-// Get a free key at: https://aistudio.google.com/apikey
-//
-// Fallback: offline responses if API key is not configured.
+// Provider priority:
+//   1. z-ai-web-dev-sdk — built-in, always available, server-side
+//   2. Groq (Llama 3.3 70B) — FREE, ultra-fast
+//   3. OpenRouter (free models) — FREE, many models
+//   4. Gemini — FREE, but geo-restricted
+//   5. Offline fallback — smart keyword matching
 // ──────────────────────────────────────────────────────────────
 
 export interface ChatMessage {
@@ -15,14 +17,179 @@ export interface ChatMessage {
 interface AiResponse {
   ok: boolean;
   text: string;
-  provider: 'gemini' | 'offline';
+  provider: string;
 }
 
-const GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20';
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+// ──────────────────────────────────────────────────────────────
+// Provider 1: z-ai-web-dev-sdk (built-in, always available)
+// ──────────────────────────────────────────────────────────────
+
+let zaiInstance: any = null;
+
+async function getZaiInstance() {
+  if (!zaiInstance) {
+    try {
+      const ZAI = (await import('z-ai-web-dev-sdk')).default;
+      zaiInstance = await ZAI.create();
+    } catch (err) {
+      console.error('[z-ai-sdk] Failed to initialize:', err);
+      return null;
+    }
+  }
+  return zaiInstance;
+}
+
+async function callZaiSdk(
+  systemPrompt: string,
+  userMessage: string,
+  history: ChatMessage[] = [],
+): Promise<string | null> {
+  try {
+    const zai = await getZaiInstance();
+    if (!zai) return null;
+
+    const messages: Array<{ role: string; content: string }> = [
+      { role: 'assistant', content: systemPrompt },
+    ];
+
+    const recent = history.slice(-20);
+    for (const msg of recent) {
+      messages.push({ role: msg.role, content: msg.content });
+    }
+    messages.push({ role: 'user', content: userMessage });
+
+    const completion = await zai.chat.completions.create({
+      messages,
+      thinking: { type: 'disabled' },
+    });
+
+    const text = completion?.choices?.[0]?.message?.content;
+    if (text?.trim()) return text.trim();
+
+    return null;
+  } catch (err) {
+    console.error('[z-ai-sdk] Error:', err);
+    // Reset instance on error so next call retries
+    zaiInstance = null;
+    return null;
+  }
+}
 
 // ──────────────────────────────────────────────────────────────
-// Call Google Gemini API
+// Provider 2: Groq (Llama 3.3 70B) — FREE, ultra-fast
+// ──────────────────────────────────────────────────────────────
+
+async function callGroq(
+  systemPrompt: string,
+  userMessage: string,
+  history: ChatMessage[] = [],
+): Promise<string | null> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+
+  const messages: Array<{ role: string; content: string }> = [
+    { role: 'system', content: systemPrompt },
+  ];
+
+  const recent = history.slice(-20);
+  for (const msg of recent) {
+    messages.push({ role: msg.role, content: msg.content });
+  }
+  messages.push({ role: 'user', content: userMessage });
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages,
+        temperature: 0.7,
+        max_tokens: 2048,
+        top_p: 0.9,
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (!res.ok) {
+      console.warn(`[groq] Error: ${res.status}`);
+      return null;
+    }
+
+    const data = await res.json();
+    const text = data?.choices?.[0]?.message?.content;
+    if (text?.trim()) return text.trim();
+    return null;
+  } catch (err) {
+    console.error('[groq] Failed:', err);
+    return null;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// Provider 3: OpenRouter (multiple free models)
+// ──────────────────────────────────────────────────────────────
+
+async function callOpenRouter(
+  systemPrompt: string,
+  userMessage: string,
+  history: ChatMessage[] = [],
+): Promise<string | null> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return null;
+
+  const messages: Array<{ role: string; content: string }> = [
+    { role: 'system', content: systemPrompt },
+  ];
+
+  const recent = history.slice(-20);
+  for (const msg of recent) {
+    messages.push({ role: msg.role, content: msg.content });
+  }
+  messages.push({ role: 'user', content: userMessage });
+
+  const freeModels = [
+    'meta-llama/llama-3.3-70b-instruct:free',
+    'google/gemma-3-27b-it:free',
+    'qwen/qwen-3-30b-a3b-instruct:free',
+  ];
+
+  for (const model of freeModels) {
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': 'https://agentbot-one.vercel.app',
+          'X-Title': 'AgentBot AI Assistant',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.7,
+          max_tokens: 2048,
+        }),
+        signal: AbortSignal.timeout(25_000),
+      });
+
+      if (!res.ok) continue;
+
+      const data = await res.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (text?.trim()) return text.trim();
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+// ──────────────────────────────────────────────────────────────
+// Provider 4: Google Gemini
 // ──────────────────────────────────────────────────────────────
 
 async function callGemini(
@@ -31,92 +198,47 @@ async function callGemini(
   history: ChatMessage[] = [],
 ): Promise<string | null> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn('[ai] GEMINI_API_KEY is not set — AI will use offline mode');
-    return null;
-  }
+  if (!apiKey) return null;
 
-  // Build Gemini-compatible content array
   const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
 
-  // Add conversation history (keep last 20 messages for context)
-  const recentHistory = history.slice(-20);
-  for (const msg of recentHistory) {
+  const recent = history.slice(-20);
+  for (const msg of recent) {
     contents.push({
       role: msg.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: msg.content }],
     });
   }
+  contents.push({ role: 'user', parts: [{ text: userMessage }] });
 
-  // Add current user message
-  contents.push({
-    role: 'user',
-    parts: [{ text: userMessage }],
-  });
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
-  const url = `${GEMINI_BASE}/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents,
+        generationConfig: { temperature: 0.7, topP: 0.95, maxOutputTokens: 2048 },
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
 
-  const body = {
-    systemInstruction: {
-      parts: [{ text: systemPrompt }],
-    },
-    contents,
-    generationConfig: {
-      temperature: 0.8,
-      topP: 0.95,
-      maxOutputTokens: 2048,
-    },
-    safetySettings: [
-      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-    ],
-  };
+    if (!res.ok) return null;
 
-  // Retry up to 2 times
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(45_000), // 45s timeout for longer responses
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        console.error(`[ai] Gemini API error (attempt ${attempt}):`, res.status, errText.slice(0, 300));
-        if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
-        continue;
-      }
-
-      const data = await res.json();
-
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text && text.trim().length > 0) {
-        return text.trim();
-      }
-
-      // Check if blocked by safety
-      if (data?.candidates?.[0]?.finishReason === 'SAFETY') {
-        console.warn('[ai] Gemini response blocked by safety filters');
-        return null;
-      }
-
-      console.warn(`[ai] Gemini empty response (attempt ${attempt})`);
-      if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
-    } catch (err) {
-      console.error(`[ai] Gemini fetch failed (attempt ${attempt}):`, err);
-      if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
-    }
+    const data = await res.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (text?.trim()) return text.trim();
+    return null;
+  } catch (err) {
+    console.error('[gemini] Failed:', err);
+    return null;
   }
-
-  return null;
 }
 
 // ──────────────────────────────────────────────────────────────
-// Public: chat with AI
+// Public: chat with AI — tries providers in order
 // ──────────────────────────────────────────────────────────────
 
 export async function chatWithAi(
@@ -125,14 +247,31 @@ export async function chatWithAi(
   history: ChatMessage[] = [],
   offlineFallback?: (message: string) => string,
 ): Promise<AiResponse> {
-  // Try Gemini first
-  const geminiResponse = await callGemini(systemPrompt, userMessage, history);
-
-  if (geminiResponse) {
-    return { ok: true, text: geminiResponse, provider: 'gemini' };
+  // 1. z-ai-web-dev-sdk (built-in, always available)
+  const sdkResult = await callZaiSdk(systemPrompt, userMessage, history);
+  if (sdkResult) {
+    return { ok: true, text: sdkResult, provider: 'z-ai-sdk' };
   }
 
-  // Offline fallback
+  // 2. Groq (fastest external, free)
+  const groqResult = await callGroq(systemPrompt, userMessage, history);
+  if (groqResult) {
+    return { ok: true, text: groqResult, provider: 'groq' };
+  }
+
+  // 3. OpenRouter (many free models)
+  const orResult = await callOpenRouter(systemPrompt, userMessage, history);
+  if (orResult) {
+    return { ok: true, text: orResult, provider: 'openrouter' };
+  }
+
+  // 4. Gemini (geo-restricted)
+  const geminiResult = await callGemini(systemPrompt, userMessage, history);
+  if (geminiResult) {
+    return { ok: true, text: geminiResult, provider: 'gemini' };
+  }
+
+  // 5. Offline fallback
   if (offlineFallback) {
     return { ok: true, text: offlineFallback(userMessage), provider: 'offline' };
   }
@@ -141,9 +280,19 @@ export async function chatWithAi(
 }
 
 // ──────────────────────────────────────────────────────────────
-// Public: check if AI is available (for status badges)
+// Public: check which providers are available
 // ──────────────────────────────────────────────────────────────
 
+export function getAiProviders(): { name: string; key: string; available: boolean }[] {
+  return [
+    { name: 'AI Assistant', key: 'z-ai-sdk', available: true },
+    { name: 'Groq (Llama 3.3 70B)', key: 'GROQ_API_KEY', available: !!process.env.GROQ_API_KEY },
+    { name: 'OpenRouter', key: 'OPENROUTER_API_KEY', available: !!process.env.OPENROUTER_API_KEY },
+    { name: 'Google Gemini', key: 'GEMINI_API_KEY', available: !!process.env.GEMINI_API_KEY },
+  ];
+}
+
 export function isAiAvailable(): boolean {
-  return !!process.env.GEMINI_API_KEY;
+  // z-ai-sdk is always available (built-in)
+  return true;
 }
