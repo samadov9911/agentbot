@@ -130,7 +130,9 @@ export function SupportPage() {
   useEffect(() => {
     fetch('/api/ai-status')
       .then((r) => r.json())
-      .then((data) => setAiProvider(data.provider || 'offline'))
+      .then((data) => {
+        setAiProvider(data.providers?.find((p: { available: boolean }) => p.available)?.name || 'offline');
+      })
       .catch(() => setAiProvider('offline'));
   }, []);
 
@@ -266,7 +268,7 @@ export function SupportPage() {
             </div>
             <div className="hidden md:flex items-center gap-2 text-white/80 text-sm">
               <Sparkles className="size-4" />
-              <span>{aiProvider === 'gemini' ? 'Powered by Gemini AI' : 'AI-powered'}</span>
+              <span>{aiProvider && aiProvider !== 'offline' ? `Powered by ${aiProvider}` : 'AI-powered'}</span>
             </div>
           </div>
         </div>

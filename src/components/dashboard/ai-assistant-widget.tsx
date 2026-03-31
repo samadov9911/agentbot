@@ -237,7 +237,9 @@ export function AiAssistantWidget() {
     // Check AI status
     fetch('/api/ai-status')
       .then((r) => r.json())
-      .then((data) => setAiProvider(data.provider || 'offline'))
+      .then((data) => {
+        setAiProvider(data.providers?.find((p: { available: boolean }) => p.available)?.name || 'offline');
+      })
       .catch(() => setAiProvider('offline'));
   }, []);
 
@@ -433,8 +435,8 @@ export function AiAssistantWidget() {
                       <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-300 opacity-75" />
                       <span className="relative inline-flex size-2 rounded-full bg-emerald-200" />
                     </span>
-                    {aiProvider === 'gemini'
-                      ? (language === 'ru' ? 'Gemini AI — Онлайн' : language === 'tr' ? 'Gemini AI — Çevrimiçi' : 'Gemini AI — Online')
+                    {aiProvider && aiProvider !== 'offline'
+                      ? aiProvider
                       : t('aiAssistant.online', language)}
                   </span>
                 </div>
