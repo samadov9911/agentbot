@@ -305,7 +305,7 @@ const WIDGET_BASE_URL = 'https://agentbot-one.vercel.app';
 function generateEmbedScript(embedCode: string): string {
   return `<!-- AgentBot Widget -->
 <script
-  src="${WIDGET_BASE_URL}/api/widget.js?v=3"
+  src="${WIDGET_BASE_URL}/api/widget.js?v=4"
   data-bot-id="${embedCode}"
   async>
 </script>`;
@@ -324,7 +324,7 @@ function generateEmbedScriptHtml(embedCode: string): string {
 function getFormattedDisplayCode(embedCode: string, language: string): string {
   return `<!-- AgentBot Widget -->
 <script
-  src="${WIDGET_BASE_URL}/api/widget.js?v=3"
+  src="${WIDGET_BASE_URL}/api/widget.js?v=4"
   data-bot-id="${embedCode}"
   async>
 </script>`;
