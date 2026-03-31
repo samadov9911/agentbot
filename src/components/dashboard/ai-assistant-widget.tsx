@@ -180,16 +180,16 @@ function ChatBubble({ message, language }: { message: ChatMessage; language: Lan
       initial={{ opacity: 0, y: 8, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
-      className={`flex flex-col ${isBot ? 'items-start' : 'items-end'}`}
+      className={`flex gap-2 ${isBot ? 'items-start' : 'items-end justify-end'}`}
     >
-      <div className="group relative max-w-[85%]">
-        {/* Avatar for bot */}
-        {isBot && (
-          <div className="absolute -left-8 top-0 flex size-6 items-center justify-center rounded-full bg-emerald-600 text-white">
-            <Bot className="size-3.5" />
-          </div>
-        )}
+      {/* Avatar for bot — inline, not absolute */}
+      {isBot && (
+        <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white mt-0.5">
+          <Bot className="size-3.5" />
+        </div>
+      )}
 
+      <div className="flex flex-col max-w-[80%]">
         <div
           className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words ${
             isBot
@@ -199,10 +199,10 @@ function ChatBubble({ message, language }: { message: ChatMessage; language: Lan
         >
           {message.content}
         </div>
+        <span className={`mt-1 text-[10px] text-muted-foreground tabular-nums ${isBot ? 'pl-1' : 'pr-1 text-right'}`}>
+          {time}
+        </span>
       </div>
-      <span className="mt-1 text-[10px] text-muted-foreground px-1 tabular-nums">
-        {time}
-      </span>
     </motion.div>
   );
 }
@@ -400,7 +400,7 @@ export function AiAssistantWidget() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-5 right-5 z-[9999]">
       {/* ── Chat Panel ── */}
       <AnimatePresence>
         {isOpen && (
@@ -409,8 +409,8 @@ export function AiAssistantWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-            className="absolute bottom-16 right-0 mb-2 flex flex-col overflow-hidden rounded-2xl border bg-background shadow-xl w-[calc(100vw-3rem)] sm:w-[380px]"
-            style={{ maxHeight: '520px' }}
+            className="absolute bottom-16 right-0 mb-2 flex flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl ring-1 ring-black/5 w-[calc(100vw-2.5rem)] sm:w-[380px]"
+            style={{ maxHeight: 'min(520px, calc(100vh - 6rem))' }}
           >
             {/* ── Header ── */}
             <div className="flex items-center justify-between gap-2 border-b bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-3 dark:from-emerald-700 dark:to-emerald-600">
@@ -453,7 +453,7 @@ export function AiAssistantWidget() {
             </div>
 
             {/* ── Messages Area ── */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0" style={{ maxHeight: '340px' }}>
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0" style={{ maxHeight: 'min(360px, calc(100vh - 14rem))' }}>
               {/* Welcome message */}
               {showWelcome && (
                 <motion.div
@@ -504,9 +504,9 @@ export function AiAssistantWidget() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="flex items-center gap-2 px-1"
+                  className="flex gap-2 px-1"
                 >
-                  <div className="flex size-6 items-center justify-center rounded-full bg-emerald-600 text-white">
+                  <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
                     <Bot className="size-3.5" />
                   </div>
                   <div className="flex items-center gap-1.5">
