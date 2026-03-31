@@ -1270,3 +1270,186 @@ Stage Summary:
 - Falls back to Groq → OpenRouter → Gemini → offline keyword matching
 - Both AI assistant widget and Support 24/7 should now respond intelligently
 - User needs to wait for Vercel auto-deploy from GitHub push
+
+---
+## Task ID: 1
+Agent: full-stack-developer
+Task: Fix 2 bugs in bot builder — avatar not saving after publish + personality presets not adapting to niche/bot type
+
+### Work Task
+Fix Bug 1: Avatar not showing in My Bots page after publishing a bot with uploaded avatar.
+Fix Bug 2: Step 3 personality presets don't adapt to the selected niche and bot type — they generate generic system prompts regardless of context.
+
+### Work Summary
+
+**Bug 1 — Avatar not saving after publish (my-bots.tsx):**
+
+- **Root cause:** The `BotCard` component in `src/components/dashboard/my-bots.tsx` (line ~788-794) always rendered the niche icon (`NicheIcon`) in the avatar area, never checking if the bot had an uploaded avatar (`bot.avatar`).
+- **Fix:** Modified the avatar section in `BotCard` to first check if `bot.avatar` exists and starts with `data:`. If so, render an `<img>` tag with `object-cover` and rounded-xl styling. Otherwise, fall back to the original niche icon.
+- The `Bot.avatar` field was already being saved correctly by the publish handler (line 1758: `avatar: draftBot.avatar || null`) and the API stores it. The issue was purely a display bug on the My Bots page.
+
+**Bug 2 — Personality presets not niche/type-aware (bot-builder.tsx):**
+
+- **Root cause:** The personality preset click handler (line ~842-846) directly used `AI_PERSONALITIES[preset.key][language]` which was a generic prompt not considering the selected niche, bot type, tone, company name, or bot name.
+- **Fix — New function `buildNicheAwarePrompt()`:**
+  - Signature: `buildNicheAwarePrompt(personality, niche, botType, language, tone, companyName, botName)`
+  - Combines: personality base from `AI_PERSONALITIES` + niche-specific knowledge from `NICHE_KNOWLEDGE` + company info + bot name + tone instruction + bot-type instruction + communication rules
+  - Bot type instructions:
+    - AI: "full creative autonomy — respond naturally"
+    - Rule-based: "strictly follow FAQ rules, if no match suggest operator"
+    - Hybrid: "FIRST check FAQ, if no match use AI knowledge"
+  - All text generated in the user's language (ru/en/tr)
+
+- **New constants added:**
+  - `NICHE_KNOWLEDGE` — Record of 8 niches (salon, medical, restaurant, real-estate, education, fitness, consulting, ecommerce), each with ru/en/tr knowledge blocks describing services, common questions, booking flows, and domain-specific rules
+  - `NICHE_RULES_TEMPLATES` — Record of 8 niches with 3-4 pre-filled FAQ question/answer pairs per language, for rule-based bots to load directly into FAQ
+
+- **Modified personality preset click handlers:**
+  - AI bots: Uses `buildNicheAwarePrompt()` with `botType='ai'`, shows emerald-styled preset cards with niche adaptation note
+  - Hybrid bots: New section "Гибридный режим: FAQ + AI" with violet-styled preset cards and hybrid-specific prompt text
+  - Rule-based bots: New "Правила ответов" (Response Rules) section instead of personality presets, showing:
+    - Explanation that rule-based bots use FAQ for personality
+    - Pre-filled response rules card for the selected niche (from `NICHE_RULES_TEMPLATES`)
+    - "Загрузить в FAQ" button to batch-load niche rules into the FAQ
+    - If no niche selected, shows hint to select one in Step 2
+
+**Files modified:**
+- `src/components/dashboard/my-bots.tsx` — BotCard avatar display fix (lines ~788-804)
+- `src/components/dashboard/bot-builder.tsx` — Added NICHE_KNOWLEDGE, NICHE_RULES_TEMPLATES, buildNicheAwarePrompt(), updated Step 3 personality presets for all 3 bot types (~430 lines of new constants + ~200 lines of new UI)
+
+**Lint**: Zero errors. Dev server compiles successfully.
+
+---
+## Task ID: 3
+Agent: full-stack-developer
+Task: Fix Step 4 "Функционал" (Features) — same features for all bot types
+
+### Work Task
+The Step4Features component showed identical feature toggles for ALL bot types (ai, rule-based, hybrid). This was incorrect because each bot type has fundamentally different capabilities. The fix introduces type-specific features, auto-defaults on type change, color coding, and trilingual descriptions.
+
+### Work Summary
+
+**Problem:** `Step4Features` in `src/components/dashboard/bot-builder.tsx` displayed the same 5 generic feature toggles (booking, services, faq, operatorTransfer, contactCollection) and the same AI Capabilities section regardless of bot type.
+
+**Solution — Complete rewrite of `Step4Features` (lines 1454–2032):**
+
+1. **Bot type awareness**: Component now reads `draftBot.type` from `useBotBuilderStore()` and renders entirely different UI per type.
+
+2. **Auto-set feature defaults on type change** (`useEffect` with `lastAutoSetType` ref):
+   - **AI**: `features={booking:false, services:true, faq:false, operatorTransfer:false, contactCollection:false}` + `aiCapabilities={autoQA:true, intentRecognition:true, leadCapture:true, personalization:true, operatorEscalation:false}`
+   - **Rule-based**: `features={booking:true, services:true, faq:true, operatorTransfer:false, contactCollection:true}`
+   - **Hybrid**: `features={booking:true, services:true, faq:true, operatorTransfer:false, contactCollection:false}` + `aiCapabilities={autoQA:true, intentRecognition:false, leadCapture:true, personalization:false, operatorEscalation:false}`
+
+3. **Per-type rendering:**
+   - **AI bots**: Shows AI Capabilities section (all 5: autoQA, intentRecognition, leadCapture, personalization, operatorEscalation) + emerald info note ("AI doesn't need manual FAQ") + Services editor (always visible). No FAQ editor. No regular feature toggles.
+   - **Rule-based bots**: Shows 5 regular feature toggles (faq, services, booking, contactCollection, operatorTransfer) + amber info note ("Bot responds strictly by FAQ") + FAQ editor + Services editor. No AI Capabilities.
+   - **Hybrid bots**: Shows AI Capabilities section (reduced: autoQA, leadCapture, operatorEscalation only) with violet "Дополнение" badge + Separator + 4 regular feature toggles (faq, services, booking, operatorTransfer) + violet info note ("FAQ first, then AI") + FAQ editor + Services editor.
+
+4. **Color coding per bot type:**
+   - AI: emerald (border, background, icons, notes, buttons)
+   - Rule-based: amber
+   - Hybrid: violet
+
+5. **Trilingual descriptions under each toggle** (ru/en/tr):
+   - Each AI capability has a contextual description (e.g., autoQA: "AI отвечает на все вопросы автоматически")
+   - Each rule-based feature has a description (e.g., faq: "Ответы по заранее заданным вопросам и ответам")
+   - Hybrid features have different descriptions from rule-based (e.g., faq: "Сначала проверяет FAQ, потом AI")
+
+6. **Trilingual UI labels:** All headers, placeholders, buttons, notes, empty states are now trilingual (ru/en/tr).
+
+7. **New helper**: `toggleAiCapability` callback for toggling individual AI capability fields.
+
+**Files modified:**
+- `src/components/dashboard/bot-builder.tsx` — Step4Features completely rewritten (~580 lines)
+
+**Lint**: Zero errors, zero warnings. Dev server compiles and serves with HTTP 200.
+
+---
+## Task ID: 4
+Agent: full-stack-developer
+Task: Fix embed code modal broken UI + embed code does not work (non-existent CDN)
+
+### Work Task
+Two problems: (A) Embed Code Modal UI overflow — the `<pre>` code block overflows modal boundaries and the long single-line script tag doesn't wrap. (B) The embed code points to a non-existent CDN URL (`https://cdn.botforge.ai/widget.js`). Replace with a real, self-contained inline script.
+
+### Work Summary
+
+**1. Created `/api/bots/config/route.ts` (NEW):**
+- GET endpoint: accepts `?embedCode=bf_xxx` query parameter (public, no auth required)
+- Looks up active published bot by `embedCode` in the database
+- Parses `config` and `appearance` JSON strings into objects
+- Returns: `{ bot: { id, name, type, niche, avatar, embedCode, config, appearance } }`
+- In-memory cache with 5-minute TTL to reduce DB queries
+
+**2. Updated `/api/bot-demo-chat/route.ts` POST handler:**
+- Added `embedCode` to destructured body parameters
+- When `embedCode` is provided and no `botConfig`, looks up bot from DB by embedCode
+- Extracts botId, botName, botConfig, and calendarConfig from the resolved bot
+- This allows the widget to work with just an embedCode
+
+**3. Rewrote `EmbedCodeModal` in `src/components/dashboard/my-bots.tsx`:**
+
+- **UI Fixes (Problem A):**
+  - Added `max-h-[85vh] overflow-hidden` to DialogContent
+  - Changed `<pre>` to use `whitespace-pre-wrap break-all` classes
+  - Widened modal to `sm:max-w-2xl`
+  - Increased max height of code block to `max-h-52`
+
+- **Self-contained inline widget script (Problem B):**
+  - Replaced broken CDN reference with a fully self-contained inline `<script>` (~3KB minified)
+  - Widget creates a floating emerald chat button (bottom-right, 60px, gradient + shadow)
+  - On click, opens a chat panel (380x520px, emerald gradient header, rounded design)
+  - Chat features: typing indicator, message bubbles, booking prompt buttons
+  - Loads bot config from `/api/bots/config?embedCode=xxx` on first open
+  - Sends messages to `/api/bot-demo-chat` with embedCode for AI responses
+  - Session persistence via localStorage
+  - Fully responsive, no external dependencies
+
+- **Added Tabs UI with 5 platform guides (ru/en/tr):** HTML, WordPress, Shopify, React/Next.js, Tilda
+
+**Files created:**
+- `src/app/api/bots/config/route.ts`
+
+**Files modified:**
+- `src/components/dashboard/my-bots.tsx`
+- `src/app/api/bot-demo-chat/route.ts`
+
+**Lint**: Zero errors. Dev server compiles successfully.
+
+---
+## Task ID: 1-4
+Agent: full-stack-developer
+Task: Fix 4 bugs in the AgentBot project — avatar compression, auto-generate system prompt, FAQ auto-load, embed dialog overflow
+
+### Work Task
+Fix 4 bugs: (1) Avatar photo doesn't save due to large base64 size, (2) System prompt not auto-generated in Step 3, (3) FAQ not auto-loaded for rule-based bots in Step 4, (4) Embed code dialog UI overflow.
+
+### Work Summary
+
+**Bug 1 — Avatar compression (`bot-builder.tsx`):**
+- Added `compressImage(dataUrl, maxWidth, quality)` function that creates a canvas, resizes to maxWidth (200px), and returns JPEG data URL at quality 0.7
+- Modified `handleFileChange` in `Step1BotType` to call `compressImage()` before storing avatar
+- Added try/catch fallback: if compression fails, stores original data URL
+- Changed `reader.onload` to `async` to support `await compressImage()`
+
+**Bug 2 — Auto-generate system prompt in Step 3 (`bot-builder.tsx`):**
+- Added `NICHE_PERSONALITY_MAP` constant mapping each niche to a default personality: salon→friendly, medical→professional, restaurant→friendly, real-estate→sales, education→support, fitness→friendly, consulting→professional, ecommerce→sales, other→friendly
+- Added `NICHE_GREETINGS` constant with contextual greeting messages for each niche in ru/en/tr
+- Added `useEffect` in `Step3Behavior` that fires on mount: auto-generates system prompt via `buildNicheAwarePrompt()`, sets `aiPersonality`, and populates greeting — but only when `systemPrompt` is empty (doesn't overwrite user edits)
+- Works for AI, hybrid, and rule-based bot types
+
+**Bug 3 — FAQ auto-load + contextual banner in Step 4 (`bot-builder.tsx`):**
+- Added `faqAutoLoadedRef` and `useEffect` in `Step4Features` that auto-loads FAQ from `NICHE_RULES_TEMPLATES` when: botType is rule-based, niche is selected, and FAQ is empty
+- Added contextual banner at the top of Step 4 with niche-specific descriptions per bot type (AI: "ответает на все вопросы самостоятельно", rule-based: "отвечает строго по загруженным FAQ. Готовые вопросы уже загружены", hybrid: "сначала ищет ответ в FAQ, затем AI")
+- Removed duplicate type-specific info notes (old AI/rule-based/hybrid banners) since new unified banner replaces them
+
+**Bug 4 — Embed code dialog UI overflow (`my-bots.tsx`):**
+- Changed `DialogContent` to use `flex flex-col` layout with header/footer as `shrink-0` and scrollable content area wrapped in `min-h-0 flex-1 overflow-y-auto`
+- Updated `<pre>` code block: changed `max-h-52 break-all` to `max-h-72 break-words scroll-smooth` for better overflow handling
+- The `/api/bots/config` endpoint already existed with proper caching — no new file needed
+
+**Lint**: Zero errors, zero warnings. Dev server compiles successfully.
+
+**Files modified:**
+- `src/components/dashboard/bot-builder.tsx` — Bug 1-3 fixes
+- `src/components/dashboard/my-bots.tsx` — Bug 4 fix

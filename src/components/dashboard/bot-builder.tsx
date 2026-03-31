@@ -189,6 +189,429 @@ const SLOT_DURATIONS = [30, 45, 60, 90];
 const BUFFER_TIMES = [0, 5, 10, 15, 30];
 
 // ──────────────────────────────────────────────────────────────
+// Niche-specific knowledge base for system prompts
+// ──────────────────────────────────────────────────────────────
+
+type BotTypeKey = 'ai' | 'rule-based' | 'hybrid';
+
+const NICHE_KNOWLEDGE: Record<string, Record<string, string>> = {
+  salon: {
+    ru: `Ты работаешь в сфере красоты (салон/барбершоп). Ты знаешь:
+- Услуги: стрижки мужские/женские, окрашивание, укладка, маникюр, педикюр, брови, ресницы, массаж
+- Бронирование: клиент может записаться на конкретную дату и время через вас
+- Цены: ориентируйся на прайс-лист, если клиент спрашивает
+- Частые вопросы: сколько длится окрашивание, как подготовиться к процедуре, есть ли скидки для новых клиентов
+- Проблемы: аллергия на краску, неудачная стрижка — предложи записать на коррекцию`,
+    en: `You work in the beauty industry (salon/barbershop). You know:
+- Services: men's/women's haircuts, coloring, styling, manicure, pedicure, brows, lashes, massage
+- Booking: clients can book a specific date and time through you
+- Pricing: refer to the price list when clients ask
+- Common questions: how long does coloring take, how to prepare for a procedure, new client discounts
+- Issues: hair dye allergies, bad haircut — offer to book a correction`,
+    tr: `Güzellik sektöründe çalışıyorsunuz (salon/berber). Şunları biliyorsunuz:
+- Hizmetler: erkek/kadın saç kesimi, boyama, fön, manikür, pedikür, kaş, kirpik, masaj
+- Randevu: müşteriler sizin aracılığınızla belirli bir tarih ve saat için rezervasyon yapabilir
+- Fiyatlar: müşteriler sorduğunda fiyat listesine yönlendirin
+- Sık sorulan sorular: boyama ne kadar sürer, işleme nasıl hazırlanılır, yeni müşteri indirimleri
+- Sorunlar: saç boyası alerjisi, kötü saç kesimi — düzeltme için randevu teklif edin`,
+  },
+  medical: {
+    ru: `Ты работаешь в медицинской сфере (клиника/стоматология). Ты знаешь:
+- Запись на приём к врачу, консультации
+- Виды приёмов: первичный, повторный, онлайн-консультация
+- Страхование: уточняй, есть ли полис ОМС/ДМС у пациента
+- Частые вопросы: какие документы нужны, как подготовиться к анализам, сроки готовности результатов
+- ВАЖНО: ты НЕ ставишь диагнозы и НЕ назначаешь лечение — направляй к врачу`,
+    en: `You work in the medical field (clinic/dentistry). You know:
+- Booking appointments with doctors, consultations
+- Appointment types: initial, follow-up, online consultation
+- Insurance: check if the patient has health insurance
+- Common questions: what documents are needed, how to prepare for tests, result turnaround times
+- IMPORTANT: you do NOT diagnose or prescribe treatment — refer to a doctor`,
+    tr: `Tıbbi alanda çalışıyorsunuz (klinik/diş hekimi). Şunları biliyorsunuz:
+- Doktor randevuları, konsültasyonlar
+- Randevu türleri: ilk, takip, online konsültasyon
+- Sigorta: hastanın sağlık sigortası olup olmadığını kontrol edin
+- Sık sorulan sorular: hangi belgeler gerekli, testlere nasıl hazırlanılır, sonuç süreleri
+- ÖNEMLİ: tanı koymaz ve tedavi önermezsiniz — bir doktora yönlendirin`,
+  },
+  restaurant: {
+    ru: `Ты работаешь в ресторане/кафе. Ты знаешь:
+- Меню: завтраки, бизнес-ланчи, основное меню, десерты, напитки
+- Бронирование столов: количество гостей, дата, время, предпочтения
+- Доставка: условия, минимальный заказ, время доставки, зона покрытия
+- Частые вопросы: есть ли вегетарианские блюда, парковка, живая музыка, детское меню
+- Аллергии: всегда уточняй у клиента пищевую аллергию`,
+    en: `You work in a restaurant/cafe. You know:
+- Menu: breakfasts, business lunches, main menu, desserts, drinks
+- Table reservations: number of guests, date, time, preferences
+- Delivery: conditions, minimum order, delivery time, coverage area
+- Common questions: vegetarian options, parking, live music, kids menu
+- Allergies: always check for food allergies with the customer`,
+    tr: `Bir restoranda/kafede çalışıyorsunuz. Şunları biliyorsunuz:
+- Menü: kahvaltılar, iş öğle yemekleri, ana menü, tatlılar, içecekler
+- Masa rezervasyonu: misafir sayısı, tarih, saat, tercihler
+- Teslimat: koşullar, minimum sipariş, teslimat süresi, kapsam alanı
+- Sık sorulan sorular: vejetaryen seçenekler, otopark, canlı müzik, çocuk menüsü
+- Alerjiler: müşteriden her zaman gıda alerjilerini sorun`,
+  },
+  'real-estate': {
+    ru: `Ты работаешь в сфере недвижимости (агентство/застройщик). Ты знаешь:
+- Типы объектов: квартиры, дома, коммерческая недвижимость, участки
+- Услуги: подбор, показ, оформление сделки, ипотечное консультирование
+- Частые вопросы: цены в районе, наличие рядом школ/детских садов, транспортная доступность
+- Бронирование: можно записать на показ объекта на конкретную дату и время
+- Формат: вежливый, но решительный — помогай клиенту принять решение`,
+    en: `You work in real estate (agency/developer). You know:
+- Property types: apartments, houses, commercial properties, land plots
+- Services: selection, viewing, transaction processing, mortgage consulting
+- Common questions: prices in the area, nearby schools/kindergartens, transport accessibility
+- Booking: can schedule a property viewing for a specific date and time
+- Style: polite but decisive — help the client make a decision`,
+    tr: `Gayrimenkul sektöründe çalışıyorsunuz (ajans/geliştirici). Şunları biliyorsunuz:
+- Gayrimenkul türleri: daireler, evler, ticari mülkler, arsalar
+- Hizmetler: seçim, gösterim, işlem süreçleri, ipotek danışmanlığı
+- Sık sorulan sorular: bölgedeki fiyatlar, yakınlardaki okullar/kreşler, ulaşım kolaylığı
+- Rezervasyon: belirli bir tarih ve saat için gayrimenkul gösterimi ayarlayabilirsiniz
+- Stil: nazik ama kararlı — müşterinin karar vermesine yardım edin`,
+  },
+  education: {
+    ru: `Ты работаешь в сфере образования (курсы/школа/репетитор). Ты знаешь:
+- Направления: языки, программирование, подготовка к экзаменам, дизайн, маркетинг
+- Формат: индивидуальные и групповые занятия, онлайн и офлайн
+- Расписание: группы по дням недели, время занятий, длительность курса
+- Частые вопросы: цены, пробный урок, сертификат, преподаватели
+- Запись: можно записаться на пробный урок или консультацию`,
+    en: `You work in education (courses/school/tutoring). You know:
+- Subjects: languages, programming, exam prep, design, marketing
+- Format: individual and group classes, online and offline
+- Schedule: weekly groups, class times, course duration
+- Common questions: pricing, trial lesson, certificates, instructors
+- Booking: can sign up for a trial lesson or consultation`,
+    tr: `Eğitim sektöründe çalışıyorsunuz (kurslar/okul/özel ders). Şunları biliyorsunuz:
+- Konular: diller, programlama, sınav hazırlığı, tasarım, pazarlama
+- Format: birebir ve grup dersleri, online ve çevrimiçi
+- Program: haftalık gruplar, ders saatleri, kurs süresi
+- Sık sorulan sorular: fiyatlar, deneme dersi, sertifika, eğitmenler
+- Kayıt: deneme dersi veya danışmanlık için kayıt yaptırılabilir`,
+  },
+  fitness: {
+    ru: `Ты работаешь в фитнес-сфере (зал/студия). Ты знаешь:
+- Услуги: персональные тренировки, групповые программы, йога, пилатес, кроссфит
+- Абонементы: месячные, квартальные, годовые, разовые посещения
+- Расписание: группы по времени, запись на персональную тренировку
+- Частые вопросы: расписание групп, цены, тренеры, что нужно для первой тренировки
+- Мотивация: поддерживай клиента, напоминай о тренировках`,
+    en: `You work in fitness (gym/studio). You know:
+- Services: personal training, group programs, yoga, pilates, crossfit
+- Memberships: monthly, quarterly, annual, single visits
+- Schedule: groups by time, booking personal training
+- Common questions: group schedule, pricing, trainers, what to bring for first workout
+- Motivation: encourage the client, remind about workouts`,
+    tr: `Fitness sektöründe çalışıyorsunuz (salon/stüdyo). Şunları biliyorsunuz:
+- Hizmetler: kişisel antrenman, grup programları, yoga, pilates, crossfit
+- Üyelikler: aylık, üç aylık, yıllık, tek seans
+- Program: zamanına göre gruplar, kişisel antrenman randevusu
+- Sık sorulan sorular: grup programı, fiyatlar, antrenörler, ilk antrenman için ne gerekli
+- Motivasyon: müşteriyi teşvik edin, antrenmanları hatırlatın`,
+  },
+  consulting: {
+    ru: `Ты работаешь в сфере консалтинга (бизнес/юридический/финансовый). Ты знаешь:
+- Услуги: бизнес-консультации, юридическая помощь, бухгалтерия, аудит
+- Формат: первичная бесплатная консультация, платные сессии, пакетные услуги
+- Частые вопросы: цены, сроки, как проходит консультация, какие документы приготовить
+- Запись: можно записать на первичную консультацию
+- Стиль: строго профессиональный, без лишних эмоций`,
+    en: `You work in consulting (business/legal/financial). You know:
+- Services: business consulting, legal assistance, accounting, audit
+- Format: initial free consultation, paid sessions, package deals
+- Common questions: pricing, timelines, how consultations work, what documents to prepare
+- Booking: can schedule an initial consultation
+- Style: strictly professional, no unnecessary emotions`,
+    tr: `Danışmanlık sektöründe çalışıyorsunuz (iş/hukuki/finansal). Şunları biliyorsunuz:
+- Hizmetler: iş danışmanlığı, hukuki yardım, muhasebe, denetim
+- Format: ilk ücretsiz danışmanlık, ücretli seanslar, paket hizmetler
+- Sık sorulan sorular: fiyatlar, süreler, danışmanlık nasıl işler, hangi belgeler hazırlanmalı
+- Kayıt: ilk danışmanlık için randevu ayarlanabilir
+- Stil: kesinlikle profesyonel, gereksiz duygusuz`,
+  },
+  ecommerce: {
+    ru: `Ты работаешь в интернет-магазине. Ты знаешь:
+- Каталог товаров, цены, наличие на складе
+- Доставка: сроки, стоимость, способы (курьер, пункт выдачи, почта)
+- Возврат и обмен: условия, сроки
+- Частые вопросы: статус заказа, трекинг-номер, оплата (карта, наличные, СБП)
+- Акции: скидки, промокоды, распродажа
+- Проблемы: доставка задерживается, товар не подошёл — помоги оформить возврат`,
+    en: `You work in an online store. You know:
+- Product catalog, prices, stock availability
+- Delivery: timeframes, costs, methods (courier, pickup point, mail)
+- Returns and exchanges: conditions, timeframes
+- Common questions: order status, tracking number, payment methods (card, cash, SBP)
+- Promotions: discounts, promo codes, sales
+- Issues: delayed delivery, wrong product — help process a return`,
+    tr: `Bir çevrimiçi mağazada çalışıyorsunuz. Şunları biliyorsunuz:
+- Ürün kataloğu, fiyatlar, stok durumu
+- Teslimat: süreler, maliyetler, yöntemler (kurye, teslim noktası, posta)
+- İade ve değişim: koşullar, süreler
+- Sık sorulan sorular: sipariş durumu, takip numarası, ödeme yöntemleri
+- Promosyonlar: indirimler, promosyon kodları, indirimler
+- Sorunlar: gecikmiş teslimat, yanlış ürün — iade sürecine yardım edin`,
+  },
+};
+
+const NICHE_RULES_TEMPLATES: Record<string, Record<string, { question: string; answer: string }[]>> = {
+  salon: {
+    ru: [
+      { question: 'Какие услуги вы предоставляете?', answer: 'Мы предоставляем широкий спектр услуг: стрижки, окрашивание, укладку, маникюр, педикюр, уход за бровями и ресницами. Подскажите, какая услуга вас интересует?' },
+      { question: 'Сколько стоит стрижка?', answer: 'Стоимость стрижки зависит от мастера и сложности. Женская стрижка — от 1500₽, мужская — от 800₽. Для точной цены запишитесь на консультацию.' },
+      { question: 'Как записаться?', answer: 'Вы можете записаться прямо здесь! Напишите удобную дату и время, и я подберу для вас свободное окно.' },
+      { question: 'Есть ли скидки?', answer: 'Да! При первом посещении скидка 15%. Также действуют скидки при записи на несколько услуг одновременно.' },
+    ],
+    en: [
+      { question: 'What services do you offer?', answer: 'We offer a wide range of services: haircuts, coloring, styling, manicure, pedicure, brow and lash care. Which service are you interested in?' },
+      { question: 'How much does a haircut cost?', answer: 'Prices depend on the stylist and complexity. Women\'s haircut from $30, men\'s from $15. Book a consultation for an exact quote.' },
+      { question: 'How do I book an appointment?', answer: 'You can book right here! Tell me your preferred date and time, and I\'ll find an available slot for you.' },
+      { question: 'Do you have any discounts?', answer: 'Yes! First visit gets 15% off. We also offer discounts when booking multiple services together.' },
+    ],
+    tr: [
+      { question: 'Hangi hizmetleri sunuyorsunuz?', answer: 'Geniş bir yelpazede hizmet sunuyoruz: saç kesimi, boyama, fön, manikür, pedikür, kaş ve kirpik bakımı. Hangi hizmet ilginizi çekiyor?' },
+      { question: 'Saç kesimi ne kadar?', answer: 'Fiyatlar uzmana ve karmaşıklığa bağlıdır. Kadın saç kesimi 500₺\'den, erkek saç kesimi 300₺\'den başlar. Kesin fiyat için konsültasyon randevusu alın.' },
+      { question: 'Randevu nasıl alabilirim?', answer: 'Buradan doğrudan randevu alabilirsiniz! Uygun tarih ve saati söyleyin, boş bir saat bulayım.' },
+      { question: 'İndiriminiz var mı?', answer: 'Evet! İlk ziyarette %15 indirim. Birden fazla hizmet birlikte alındığında da indirim uygulanıyor.' },
+    ],
+  },
+  medical: {
+    ru: [
+      { question: 'Как записаться к врачу?', answer: 'Напишите, к какому врачу и на какую дату вам нужно записаться. Я проверю свободное время и предложу варианты.' },
+      { question: 'Какие документы нужны?', answer: 'Для первого приёма необходим паспорт и полис ОМС (если есть). Для повторного визита — только паспорт.' },
+      { question: 'Вы работаете по ОМС?', answer: 'Да, мы принимаем пациентов как по ОМС, так и по коммерческой основе. Уточните у меня наличие свободных мест по ОМС.' },
+      { question: 'Как подготовиться к анализам?', answer: 'Обычно анализы сдаются натощак. Не ешьте 8-12 часов перед сдачей. Пить воду можно. Специфическую подготовку уточнит врач.' },
+    ],
+    en: [
+      { question: 'How do I book a doctor?', answer: 'Tell me which doctor and what date you need. I\'ll check availability and suggest options.' },
+      { question: 'What documents do I need?', answer: 'For the first visit, bring your ID and insurance card (if applicable). For follow-ups, just your ID.' },
+      { question: 'Do you accept insurance?', answer: 'Yes, we accept both insured and private patients. Ask me about available insurance-covered slots.' },
+      { question: 'How to prepare for lab tests?', answer: 'Tests are usually done fasting. Don\'t eat 8-12 hours before. Drinking water is fine. Your doctor will specify any special preparation.' },
+    ],
+    tr: [
+      { question: 'Doktora nasıl randevu alabilirim?', answer: 'Hangi doktora ve hangi tarihe randevu almak istediğinizi söyleyin. Uygun saatleri kontrol edip seçenekler sunayım.' },
+      { question: 'Hangi belgeler gerekli?', answer: 'İlk ziyaret için kimlik ve sigorta kartı (varsa) gereklidir. Takip ziyaretleri için sadece kimlik yeterli.' },
+      { question: 'Sigorta kabul ediyor musunuz?', answer: 'Evet, hem sigortalı hem de özel hastaları kabul ediyoruz. Sigorta kapsamındaki müsaitlik durumlarını sorabilirsiniz.' },
+      { question: 'Laboratuvar testlerine nasıl hazırlanmalı?', answer: 'Testler genellikle aç karnına yapılır. Test öncesi 8-12 saat yemeyin. Su içebilirsiniz. Doktor özel hazırlık belirtecektir.' },
+    ],
+  },
+  restaurant: {
+    ru: [
+      { question: 'Как забронировать столик?', answer: 'Скажите, на какое число, время и сколько гостей ожидается. Я подберу для вас лучший столик!' },
+      { question: 'Есть ли доставка?', answer: 'Да, мы доставляем! Минимальный заказ 1000₽. Доставка занимает 45-60 минут. Сделать заказ можно прямо здесь.' },
+      { question: 'Есть ли вегетарианские блюда?', answer: 'Да, у нас есть специальное вегетарианское меню. Могу порекомендовать несколько позиций. Есть ли у вас аллергия?' },
+      { question: 'Какие способы оплаты?', answer: 'Мы принимаем наличные, банковские карты и СБП. Оплату можно произвести при получении или при оформлении заказа.' },
+    ],
+    en: [
+      { question: 'How to reserve a table?', answer: 'Tell me the date, time, and number of guests. I\'ll find the best table for you!' },
+      { question: 'Do you deliver?', answer: 'Yes, we do! Minimum order is $15. Delivery takes 45-60 minutes. You can order right here.' },
+      { question: 'Do you have vegetarian options?', answer: 'Yes, we have a special vegetarian menu. I can recommend some dishes. Do you have any allergies?' },
+      { question: 'What payment methods do you accept?', answer: 'We accept cash, bank cards, and mobile payments. You can pay on delivery or when placing an order.' },
+    ],
+    tr: [
+      { question: 'Masa nasıl rezerve edebilirim?', answer: 'Tarih, saat ve misafir sayısını söyleyin. Size en iyi masayı bulayım!' },
+      { question: 'Teslimat yapıyor musunuz?', answer: 'Evet! Minimum sipariş 200₺. Teslimat 45-60 dakika sürer. Buradan sipariş verebilirsiniz.' },
+      { question: 'Vejetaryen seçenekleriniz var mı?', answer: 'Evet, özel vejetaryen menümüz var. Birkaç yemek önerebilirim. Herhangi bir alerjiniz var mı?' },
+      { question: 'Hangi ödeme yöntemlerini kabul ediyorsunuz?', answer: 'Nakit, banka kartları ve mobil ödeme kabul ediyoruz. Teslimatta veya sipariş sırasında ödeme yapabilirsiniz.' },
+    ],
+  },
+  'real-estate': {
+    ru: [
+      { question: 'Какие объекты у вас есть?', answer: 'У нас большой выбор: квартиры, дома, коммерческая недвижимость. Какой тип и в каком районе вас интересует?' },
+      { question: 'Как записаться на показ?', answer: 'Напишите удобную дату и время — я организую показ объекта. Несколько объектов можно посмотреть за одну поездку.' },
+      { question: 'Помогаете ли с ипотекой?', answer: 'Да! У нас есть партнёры-банки с льготными условиями. Запишитесь на бесплатную консультацию по ипотеке.' },
+    ],
+    en: [
+      { question: 'What properties do you have?', answer: 'We have a wide selection: apartments, houses, commercial properties. What type and area are you interested in?' },
+      { question: 'How to schedule a viewing?', answer: 'Tell me a convenient date and time — I\'ll arrange a property viewing. You can see multiple properties in one trip.' },
+      { question: 'Do you help with mortgages?', answer: 'Yes! We partner with banks offering preferential terms. Book a free mortgage consultation.' },
+    ],
+    tr: [
+      { question: 'Hangi mülkleriniz var?', answer: 'Geniş bir seçeneğimiz var: daireler, evler, ticari mülkler. Hangi tip ve bölge ilginizi çekiyor?' },
+      { question: 'Gösterim için nasıl randevu alabilirim?', answer: 'Uygun tarih ve saati söyleyin — gayrimenkul gösterimi ayarlayayım. Bir seferde birden fazla mülk görebilirsiniz.' },
+      { question: 'İpotek konusunda yardımcı oluyor musunuz?', answer: 'Evet! Özel koşullar sunan bankalarla işbirliği yapıyoruz. Ücretsiz ipotek danışmanlığı için randevu alın.' },
+    ],
+  },
+  education: {
+    ru: [
+      { question: 'Какие курсы есть?', answer: 'У нас есть курсы по программированию, дизайну, маркетингу, иностранным языкам. Какое направление вас интересует?' },
+      { question: 'Можно записаться на пробный урок?', answer: 'Конечно! Запишитесь прямо здесь — пробный урок бесплатный. Какое направление вам ближе?' },
+      { question: 'Выдаёте ли вы сертификат?', answer: 'Да, после окончания курса вы получаете сертификат. Он признаётся работодателями-партнёрами.' },
+    ],
+    en: [
+      { question: 'What courses do you offer?', answer: 'We offer courses in programming, design, marketing, and foreign languages. Which field interests you?' },
+      { question: 'Can I book a trial lesson?', answer: 'Of course! Book right here — trial lessons are free. Which field are you most interested in?' },
+      { question: 'Do you provide certificates?', answer: 'Yes, you receive a certificate upon course completion. It\'s recognized by our partner employers.' },
+    ],
+    tr: [
+      { question: 'Hangi kurslarınız var?', answer: 'Programlama, tasarım, pazarlama ve yabancı diller kurslarımız var. Hangi alan ilginizi çekiyor?' },
+      { question: 'Deneme dersine kayıt olabilir miyim?', answer: 'Elbette! Buradan kaydolun — deneme dersleri ücretsiz. Hangi alan size daha yakın?' },
+      { question: 'Sertifika veriyor musunuz?', answer: 'Evet, kurs tamamlandıktan sonra sertifika alırsınız. İş ortağı işverenler tarafından tanınır.' },
+    ],
+  },
+  fitness: {
+    ru: [
+      { question: 'Какие абонементы есть?', answer: 'У нас месячные (от 3000₽), квартальные (от 8000₽) и годовые (от 25000₽) абонементы. Также есть разовые посещения за 500₽.' },
+      { question: 'Какое расписание групп?', answer: 'Расписание зависит от дня недели. У нас йога, пилатес, кроссфит и танцы. Какое направление интересует?' },
+      { question: 'Есть ли персональный тренер?', answer: 'Да! Персональная тренировка — от 2000₽ за занятие. Запишитесь на пробную тренировку!' },
+    ],
+    en: [
+      { question: 'What memberships do you have?', answer: 'Monthly (from $50), quarterly (from $120), and annual (from $400). Single visits are also available for $10.' },
+      { question: 'What\'s the group schedule?', answer: 'The schedule varies by day. We offer yoga, pilates, crossfit, and dance classes. What are you interested in?' },
+      { question: 'Do you have personal trainers?', answer: 'Yes! Personal training starts at $35 per session. Book a trial session!' },
+    ],
+    tr: [
+      { question: 'Hangi üyelikleriniz var?', answer: 'Aylık (1000₺\'den), üç aylık (2500₺\'den) ve yıllık (8000₺\'den) üyeliklerimiz var. Tek seans da 200₺.' },
+      { question: 'Grup programı nasıl?', answer: 'Program güne göre değişir. Yoga, pilates, crossfit ve dans derslerimiz var. Ne ilginizi çekiyor?' },
+      { question: 'Kişisel antrenör var mı?', answer: 'Evet! Kişisel antrenman seans başına 700₺\'den başlar. Deneme antrenmanı için randevu alın!' },
+    ],
+  },
+  consulting: {
+    ru: [
+      { question: 'Какие услуги вы оказываете?', answer: 'Мы предоставляем бизнес-консультации, юридическую помощь, бухгалтерские и аудиторские услуги. Какой вопрос вас интересует?' },
+      { question: 'Сколько стоит консультация?', answer: 'Первичная консультация — бесплатная (30 минут). Далее — от 5000₽/час в зависимости от тематики.' },
+      { question: 'Как записаться на консультацию?', answer: 'Напишите удобную дату и кратко опишите вашу ситуацию. Я подберу подходящего специалиста и время.' },
+    ],
+    en: [
+      { question: 'What services do you provide?', answer: 'We offer business consulting, legal assistance, accounting, and audit services. What question do you have?' },
+      { question: 'How much does a consultation cost?', answer: 'Initial consultation is free (30 minutes). After that, from $80/hour depending on the topic.' },
+      { question: 'How to book a consultation?', answer: 'Tell me your preferred date and briefly describe your situation. I\'ll find the right specialist and time.' },
+    ],
+    tr: [
+      { question: 'Hangi hizmetleri sunuyorsunuz?', answer: 'İş danışmanlığı, hukuki yardım, muhasebe ve denetim hizmetleri sunuyoruz. Hangi sorunuz var?' },
+      { question: 'Danışmanlık ne kadar?', answer: 'İlk danışmanlık ücretsiz (30 dakika). Sonrasında konuya göre saat 1500₺\'den başlar.' },
+      { question: 'Danışmanlık için nasıl randevu alabilirim?', answer: 'Uygun tarihinizi ve durumunuzu kısaca açıklayın. Uygun uzman ve saat bulayım.' },
+    ],
+  },
+  ecommerce: {
+    ru: [
+      { question: 'Как оформить заказ?', answer: 'Расскажите, какой товар вас интересует. Я проверю наличие и оформлю заказ. Доставка 2-5 дней.' },
+      { question: 'Как узнать статус заказа?', answer: 'Напишите номер вашего заказа, и я проверю статус. Обычно доступно: принят, в обработке, отправлен, доставлен.' },
+      { question: 'Можно ли вернуть товар?', answer: 'Да, возврат в течение 14 дней при сохранении упаковки и товарного вида. Помогу оформить возврат.' },
+    ],
+    en: [
+      { question: 'How to place an order?', answer: 'Tell me which product you\'re interested in. I\'ll check availability and place the order. Delivery takes 2-5 days.' },
+      { question: 'How to check order status?', answer: 'Share your order number and I\'ll check the status. Typical stages: received, processing, shipped, delivered.' },
+      { question: 'Can I return a product?', answer: 'Yes, returns within 14 days if packaging and condition are preserved. I can help process a return.' },
+    ],
+    tr: [
+      { question: 'Sipariş nasıl verilir?', answer: 'Hangi ürün ilginizi çektiğini söyleyin. Stok durumunu kontrol edip siparişi oluşturayım. Teslimat 2-5 gün.' },
+      { question: 'Sipariş durumunu nasıl öğrenebilirim?', answer: 'Sipariş numaranızı paylaşın, durumu kontrol edeyim. Tipik aşamalar: alındı, hazırlanıyor, kargoya verildi, teslim edildi.' },
+      { question: 'Ürün iade edilebilir mi?', answer: 'Evet, ambalaj ve ürün durumu korunarak 14 gün içinde iade yapılabilir. İade sürecine yardım edebilirim.' },
+    ],
+  },
+};
+
+// ──────────────────────────────────────────────────────────────
+// buildNicheAwarePrompt — generates comprehensive system prompts
+// ──────────────────────────────────────────────────────────────
+
+function buildNicheAwarePrompt(
+  personality: string,
+  niche: string,
+  botType: BotTypeKey,
+  language: 'ru' | 'en' | 'tr',
+  tone: string,
+  companyName: string,
+  botName: string,
+): string {
+  const lang = language;
+  const personalityBase = AI_PERSONALITIES[personality]?.[lang] || AI_PERSONALITIES[personality]?.ru || '';
+  const nicheKnowledge = NICHE_KNOWLEDGE[niche]?.[lang] || NICHE_KNOWLEDGE[niche]?.ru || '';
+
+  const companyInfo = companyName
+    ? lang === 'ru'
+      ? `Ты представляешь компанию «${companyName}».`
+      : lang === 'en'
+        ? `You represent the company "${companyName}".`
+        : `"${companyName}" şirketini temsil ediyorsun.`
+    : '';
+
+  const botNameInfo = botName
+    ? lang === 'ru'
+      ? `Твоё имя: ${botName}.`
+      : lang === 'en'
+        ? `Your name is ${botName}.`
+        : `Adın ${botName}.`
+    : '';
+
+  const toneMap: Record<string, Record<string, string>> = {
+    formal: {
+      ru: 'Общайся формально и уважительно.',
+      en: 'Communicate formally and respectfully.',
+      tr: 'Resmi ve saygılı bir şekilde iletişim kur.',
+    },
+    friendly: {
+      ru: 'Общайся дружелюбно и тёplo.',
+      en: 'Communicate in a warm, friendly manner.',
+      tr: 'Sıcak ve dost canlı bir şekilde iletişim kur.',
+    },
+    professional: {
+      ru: 'Общайся профессионально, чётко и по делу.',
+      en: 'Communicate professionally, clearly and to the point.',
+      tr: 'Profesyonel, net ve konuya odaklı iletişim kur.',
+    },
+  };
+
+  const toneInstruction = toneMap[tone]?.[lang] || toneMap.friendly[lang];
+
+  let botTypeInstruction = '';
+  if (botType === 'ai') {
+    botTypeInstruction =
+      lang === 'ru'
+        ? 'Ты обладаешь полной свободой ответов — отвечай естественно, креативно и полезно на основе своих знаний.'
+        : lang === 'en'
+          ? 'You have full creative autonomy — respond naturally, creatively, and helpfully based on your knowledge.'
+          : 'Tam yaratıcı özgürlüğe sahipsin — bilgilerin temelinde doğal, yaratıcı ve yardımcı şekilde yanıt ver.';
+  } else if (botType === 'rule-based') {
+    botTypeInstruction =
+      lang === 'ru'
+        ? 'Строго следуй заданным правилам ответов (FAQ). Если вопрос не совпадает ни с одним правилом — вежливо скажи, что не знаешь ответ, и предложи связаться с оператором.'
+        : lang === 'en'
+          ? 'Strictly follow the provided FAQ response rules. If the question doesn\'t match any rule, politely say you don\'t know and suggest contacting an operator.'
+          : 'Sağlanan FAQ yanıt kurallarına sıkı sıkıya uyun. Soru hiçbir kurala uymuyorsa, nazikçe bilmediğinizi söyleyin ve operatörle iletişim kurmayı önerin.';
+  } else if (botType === 'hybrid') {
+    botTypeInstruction =
+      lang === 'ru'
+        ? 'СНАЧАЛА проверь вопрос по правилам FAQ. Если точного совпадения нет — используй свои знания для ответа. Всегда старайся помочь.'
+        : lang === 'en'
+          ? 'FIRST check the question against the FAQ rules. If there\'s no exact match — use your knowledge to respond. Always try to help.'
+          : 'ÖNCE soruyu FAQ kurallarına göre kontrol et. Kesin eşleşme yoksa — bilgilerinle yanıt ver. Her zaman yardım etmeye çalış.';
+  }
+
+  const greetingNote = lang === 'ru'
+    ? 'Начни разговор с приветственного сообщения.'
+    : lang === 'en'
+      ? 'Start the conversation with a greeting message.'
+      : 'Konuşmaya karşılama mesajı ile başla.';
+
+  const parts = [
+    personalityBase,
+    companyInfo,
+    botNameInfo,
+    nicheKnowledge,
+    '',
+    `## Правила общения:`,
+    `- ${toneInstruction}`,
+    `- ${botTypeInstruction}`,
+    `- ${greetingNote}`,
+    lang === 'ru'
+      ? '- Отвечай кратко (1-3 предложения), не повторяй вопрос пользователя.'
+      : lang === 'en'
+        ? '- Respond briefly (1-3 sentences), do not repeat the user\'s question.'
+        : '- Kısa yanıt ver (1-3 cümle), kullanıcının sorusunu tekrarlama.',
+  ].filter(Boolean);
+
+  return parts.join('\n\n');
+}
+
+// ──────────────────────────────────────────────────────────────
 // Step Indicator
 // ──────────────────────────────────────────────────────────────
 
@@ -259,6 +682,31 @@ function StepIndicator({ currentStep, language }: { currentStep: number; languag
 
 const MAX_AVATAR_SIZE = 2 * 1024 * 1024; // 2MB
 
+function compressImage(dataUrl: string, maxWidth: number, quality: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let { width, height } = img;
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = dataUrl;
+  });
+}
+
 function Step1BotType({ language }: { language: 'ru' | 'en' | 'tr' }) {
   const { draftBot, updateDraftBot } = useBotBuilderStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -281,9 +729,15 @@ function Step1BotType({ language }: { language: 'ru' | 'en' | 'tr' }) {
       }
 
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         if (typeof reader.result === 'string') {
-          updateDraftBot({ avatar: reader.result });
+          try {
+            const compressed = await compressImage(reader.result, 200, 0.7);
+            updateDraftBot({ avatar: compressed });
+          } catch {
+            // Fallback: save original if compression fails
+            updateDraftBot({ avatar: reader.result });
+          }
         }
       };
       reader.readAsDataURL(file);
@@ -622,9 +1076,99 @@ function Step2Niche({ language, nicheLocked }: { language: 'ru' | 'en' | 'tr'; n
 // Step 3: Behavior Settings
 // ──────────────────────────────────────────────────────────────
 
+// ──────────────────────────────────────────────────────────────
+// Niche-aware auto-personality and greeting mapping
+// ──────────────────────────────────────────────────────────────
+
+const NICHE_PERSONALITY_MAP: Record<string, string> = {
+  salon: 'friendly',
+  medical: 'professional',
+  restaurant: 'friendly',
+  'real-estate': 'sales',
+  education: 'support',
+  fitness: 'friendly',
+  consulting: 'professional',
+  ecommerce: 'sales',
+  other: 'friendly',
+};
+
+const NICHE_GREETINGS: Record<string, Record<string, string>> = {
+  salon: {
+    ru: 'Здравствуйте! 👋 Добро пожаловать в наш салон красоты. Чем могу помочь? Записать на стрижку или расскажу об услугах.',
+    en: 'Hello! 👋 Welcome to our beauty salon. How can I help? Book a haircut or I\'ll tell you about our services.',
+    tr: 'Merhaba! 👋 Güzellik salonumuza hoş geldiniz. Size nasıl yardımcı olabilirim? Saç kesimi için randevu alabilir veya hizmetlerimizi anlatabilirim.',
+  },
+  medical: {
+    ru: 'Здравствуйте! 👋 Медицинский центр к вашим услугам. Записать к врачу или ответить на вопросы по приёму?',
+    en: 'Hello! 👋 Our medical center is at your service. Book a doctor or answer questions about your visit?',
+    tr: 'Merhaba! 👋 Tıbbi merkezimiz hizmetinizdedir. Doktora randevu alabilir veya ziyaretinizle ilgili soruları yanıtlayabilirim.',
+  },
+  restaurant: {
+    ru: 'Здравствуйте! 👋 Рады видеть вас! Бронировать столик, заказать доставку или подскажу меню?',
+    en: 'Hello! 👋 Glad to see you! Reserve a table, order delivery, or let me show you the menu?',
+    tr: 'Merhaba! 👋 Sizi görmekten mutluluk! Masa rezervasyonu, teslimat siparişi veya menüyü göstereyim mi?',
+  },
+  'real-estate': {
+    ru: 'Здравствуйте! 👋 Ищете недвижимость? Подскажу доступные объекты или запишу на показ!',
+    en: 'Hello! 👋 Looking for a property? I can show available listings or schedule a viewing!',
+    tr: 'Merhaba! 👋 Gayrimenkul mü arıyorsunuz? Mevcut listeleri gösterebilir veya gösterim için randevu ayarlayabilirim!',
+  },
+  education: {
+    ru: 'Здравствуйте! 👋 Добро пожаловать! Рассказать о курсах или записать на пробный урок?',
+    en: 'Hello! 👋 Welcome! Tell you about our courses or book a trial lesson?',
+    tr: 'Merhaba! 👋 Hoş geldiniz! Kurslarımızı anlatayım mı veya deneme dersi için randevu alayım mı?',
+  },
+  fitness: {
+    ru: 'Привет! 💪 Готовы к тренировке? Подскажу расписание, абонементы или запишу на занятие!',
+    en: 'Hi! 💪 Ready for a workout? I can help with the schedule, memberships, or book a class!',
+    tr: "Merhaba! 💪 Antrenman'a hazır mısınız? Program, üyelikler hakkında bilgi verebilir veya ders için randevu ayarlayabilirim!",
+  },
+  consulting: {
+    ru: 'Здравствуйте! 👋 Чем могу помочь? Записать на консультацию или рассказать об услугах.',
+    en: 'Hello! 👋 How can I help? Book a consultation or tell you about our services.',
+    tr: 'Merhaba! 👋 Size nasıl yardımcı olabilirim? Danışmanlık için randevu alabilir veya hizmetlerimizi anlatabilirim.',
+  },
+  ecommerce: {
+    ru: 'Здравствуйте! 👋 Добро пожаловать в наш магазин! Помочь с выбором, оформить заказ или уточнить доставку?',
+    en: 'Hello! 👋 Welcome to our store! Help with a choice, place an order, or check delivery?',
+    tr: 'Merhaba! 👋 Mağazamıza hoş geldiniz! Seçim, sipariş veya teslimat konusunda yardımcı olmamı ister misiniz?',
+  },
+};
+
 function Step3Behavior({ language }: { language: 'ru' | 'en' | 'tr' }) {
   const { draftBot, updateDraftBot, updateConfig, updateWorkingHours } = useBotBuilderStore();
   const { config } = draftBot;
+
+  // ── Auto-generate system prompt and greeting when entering Step 3 ──
+  useEffect(() => {
+    const { niche, type, name } = draftBot;
+    // Only auto-generate for AI/hybrid bots when system prompt is empty
+    if ((type === 'ai' || type === 'hybrid') && !config.systemPrompt && niche) {
+      const personality = NICHE_PERSONALITY_MAP[niche] || 'friendly';
+      const prompt = buildNicheAwarePrompt(
+        personality,
+        niche,
+        type,
+        language,
+        config.tone,
+        draftBot.appearance.companyName,
+        name,
+      );
+      const greetingUpdates: Record<string, string> = {
+        systemPrompt: prompt,
+        aiPersonality: personality,
+      };
+      // Auto-generate greeting if empty
+      if (!config.greeting && NICHE_GREETINGS[niche]) {
+        greetingUpdates.greeting = NICHE_GREETINGS[niche][language] || NICHE_GREETINGS[niche].ru;
+      }
+      updateConfig(greetingUpdates);
+    }
+    // Also auto-generate greeting for rule-based bots if empty
+    if (type === 'rule-based' && !config.greeting && niche && NICHE_GREETINGS[niche]) {
+      updateConfig({ greeting: NICHE_GREETINGS[niche][language] || NICHE_GREETINGS[niche].ru });
+    }
+  }, []);
 
   const toggleDay = useCallback(
     (day: number) => {
@@ -819,7 +1363,7 @@ function Step3Behavior({ language }: { language: 'ru' | 'en' | 'tr' }) {
             </p>
           </div>
 
-          {/* Personality Presets */}
+          {/* Personality Presets — AI bots */}
           {draftBot.type === 'ai' && (
             <div className="space-y-3">
               <Label className="text-sm font-medium flex items-center gap-2">
@@ -840,9 +1384,18 @@ function Step3Behavior({ language }: { language: 'ru' | 'en' | 'tr' }) {
                         : 'hover:border-muted-foreground/30'
                     }`}
                     onClick={() => {
+                      const prompt = buildNicheAwarePrompt(
+                        preset.key,
+                        draftBot.niche,
+                        draftBot.type,
+                        language,
+                        config.tone,
+                        draftBot.appearance.companyName,
+                        draftBot.name,
+                      );
                       updateConfig({
                         aiPersonality: preset.key,
-                        systemPrompt: AI_PERSONALITIES[preset.key][language] || AI_PERSONALITIES[preset.key].ru,
+                        systemPrompt: prompt,
                       });
                     }}
                   >
@@ -856,6 +1409,157 @@ function Step3Behavior({ language }: { language: 'ru' | 'en' | 'tr' }) {
                   </Card>
                 ))}
               </div>
+              {draftBot.niche && (
+                <p className="text-xs text-muted-foreground">
+                  {language === 'ru'
+                    ? `✨ Пресеты адаптированы под нишу «${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}»`
+                    : language === 'en'
+                      ? `✨ Presets adapted for the "${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}" niche`
+                      : `✨ Presetler "${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}" nişine uyarlandı`}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Hybrid bots: FAQ-first + AI personality */}
+          {draftBot.type === 'hybrid' && (
+            <div className="space-y-3">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <GitMerge className="size-4 text-violet-500" />
+                {language === 'ru'
+                  ? 'Гибридный режим: FAQ + AI'
+                  : language === 'en'
+                    ? 'Hybrid mode: FAQ + AI'
+                    : 'Hibrit mod: FAQ + AI'}
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {language === 'ru'
+                  ? 'Бот сначала ищет ответ в FAQ. Если совпадения нет — AI отвечает самостоятельно.'
+                  : language === 'en'
+                    ? 'The bot first checks FAQ for a match. If no match is found, AI responds independently.'
+                    : 'Bot önce FAQ\'da eşleşme arar. Eşleşme yoksa AI bağımsız olarak yanıt verir.'}
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {PERSONALITY_PRESETS.map((preset) => (
+                  <Card
+                    key={preset.key}
+                    className={`cursor-pointer transition-all hover:shadow-sm ${
+                      config.aiPersonality === preset.key
+                        ? 'border-violet-500 ring-2 ring-violet-500/20 bg-violet-50/50 dark:bg-violet-950/20'
+                        : 'hover:border-muted-foreground/30'
+                    }`}
+                    onClick={() => {
+                      const prompt = buildNicheAwarePrompt(
+                        preset.key,
+                        draftBot.niche,
+                        draftBot.type,
+                        language,
+                        config.tone,
+                        draftBot.appearance.companyName,
+                        draftBot.name,
+                      );
+                      updateConfig({
+                        aiPersonality: preset.key,
+                        systemPrompt: prompt,
+                      });
+                    }}
+                  >
+                    <CardContent className="flex items-center gap-3 p-3">
+                      <span className="text-xl">{preset.emoji}</span>
+                      <span className="text-sm font-medium">{preset.label[language] || preset.label.ru}</span>
+                      {config.aiPersonality === preset.key && (
+                        <Check className="size-4 text-violet-600 dark:text-violet-400 ml-auto shrink-0" />
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              {draftBot.niche && (
+                <p className="text-xs text-muted-foreground">
+                  {language === 'ru'
+                    ? `✨ Пресеты адаптированы под нишу «${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}» (режим: сначала FAQ, затем AI)`
+                    : language === 'en'
+                      ? `✨ Presets adapted for the "${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}" niche (mode: FAQ first, then AI)`
+                      : `✨ Presetler "${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}" nişine uyarlandı (mod: önce FAQ, sonra AI)`}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Rule-based bots: Response Rules instead of personality presets */}
+          {draftBot.type === 'rule-based' && (
+            <div className="space-y-3">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <Code2 className="size-4 text-amber-500" />
+                {language === 'ru'
+                  ? 'Правила ответов'
+                  : language === 'en'
+                    ? 'Response Rules'
+                    : 'Yanıt Kuralları'}
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {language === 'ru'
+                  ? 'Для ботов на правилах персональность настраивается через FAQ. Выберите нишу (шаг 2), чтобы получить готовые правила ответов.'
+                  : language === 'en'
+                    ? 'For rule-based bots, personality is configured through FAQ. Select a niche (step 2) to get pre-filled response rules.'
+                    : 'Kural tabanlı botlar için kişilik FAQ üzerinden yapılandırılır. Hazır yanıt kuralları için niş seçin (adım 2).'}
+              </p>
+              {draftBot.niche && NICHE_RULES_TEMPLATES[draftBot.niche] && (
+                <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">
+                        {language === 'ru'
+                          ? `📋 Готовые правила для «${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}»`
+                          : language === 'en'
+                            ? `📋 Pre-filled rules for "${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}"`
+                            : `📋 "${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}" için hazır kurallar`}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs gap-1"
+                        onClick={() => {
+                          const rules = NICHE_RULES_TEMPLATES[draftBot.niche]?.[language] || NICHE_RULES_TEMPLATES[draftBot.niche]?.ru || [];
+                          updateConfig({ faq: rules });
+                          toast.success(
+                            language === 'ru'
+                              ? 'Правила ответов загружены в FAQ'
+                              : language === 'en'
+                                ? 'Response rules loaded into FAQ'
+                                : 'Yanıt kuralları FAQ\'ya yüklendi'
+                          );
+                        }}
+                      >
+                        <Zap className="size-3" />
+                        {language === 'ru'
+                          ? 'Загрузить в FAQ'
+                          : language === 'en'
+                            ? 'Load to FAQ'
+                            : "FAQ'ya yükle"}
+                      </Button>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto space-y-2">
+                      {(NICHE_RULES_TEMPLATES[draftBot.niche]?.[language] || NICHE_RULES_TEMPLATES[draftBot.niche]?.ru || []).map((rule, i) => (
+                        <div key={i} className="rounded-lg border bg-background p-2.5">
+                          <p className="text-xs font-medium text-foreground">Q: {rule.question}</p>
+                          <p className="text-xs text-muted-foreground mt-1">A: {rule.answer}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              {!draftBot.niche && (
+                <p className="text-xs text-muted-foreground italic">
+                  {language === 'ru'
+                    ? '← Выберите нишу на шаге 2, чтобы увидеть готовые правила'
+                    : language === 'en'
+                      ? '← Select a niche in step 2 to see pre-filled rules'
+                      : '← Hazır kuralları görmek için adım 2\'de niş seçin'}
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -870,8 +1574,45 @@ function Step3Behavior({ language }: { language: 'ru' | 'en' | 'tr' }) {
 
 function Step4Features({ language, isDemoUser }: { language: 'ru' | 'en' | 'tr'; isDemoUser: boolean }) {
   const { draftBot, updateFeatures, updateConfig } = useBotBuilderStore();
+  const botType = draftBot.type;
   const { features, faq, services } = draftBot.config;
 
+  // ── Auto-set feature defaults when bot type changes ──
+  const lastAutoSetType = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (lastAutoSetType.current === botType) return;
+    lastAutoSetType.current = botType;
+
+    if (botType === 'ai') {
+      updateFeatures({ booking: false, services: true, faq: false, operatorTransfer: false, contactCollection: false });
+      updateConfig({
+        aiCapabilities: { autoQA: true, intentRecognition: true, leadCapture: true, personalization: true, operatorEscalation: false },
+      });
+    } else if (botType === 'rule-based') {
+      updateFeatures({ booking: true, services: true, faq: true, operatorTransfer: false, contactCollection: true });
+    } else if (botType === 'hybrid') {
+      updateFeatures({ booking: true, services: true, faq: true, operatorTransfer: false, contactCollection: false });
+      updateConfig({
+        aiCapabilities: { autoQA: true, intentRecognition: false, leadCapture: true, personalization: false, operatorEscalation: false },
+      });
+    }
+  }, [botType]);
+
+  // ── Auto-load FAQ from niche template for rule-based bots on first mount ──
+  const faqAutoLoadedRef = useRef(false);
+  useEffect(() => {
+    if (faqAutoLoadedRef.current) return;
+    if (botType === 'rule-based' && draftBot.niche && faq.length === 0) {
+      const rules = NICHE_RULES_TEMPLATES[draftBot.niche]?.[language] || NICHE_RULES_TEMPLATES[draftBot.niche]?.ru || [];
+      if (rules.length > 0) {
+        updateConfig({ faq: rules });
+        faqAutoLoadedRef.current = true;
+      }
+    }
+  }, [botType, draftBot.niche, faq.length]);
+
+  // ── Toggle helpers ──
   const toggleFeature = useCallback(
     (key: string, value: boolean) => {
       updateFeatures({ [key]: value } as Record<string, boolean>);
@@ -879,7 +1620,16 @@ function Step4Features({ language, isDemoUser }: { language: 'ru' | 'en' | 'tr';
     [updateFeatures]
   );
 
-  // FAQ management
+  const toggleAiCapability = useCallback(
+    (key: string, value: boolean) => {
+      updateConfig({
+        aiCapabilities: { ...draftBot.config.aiCapabilities, [key]: value },
+      });
+    },
+    [updateConfig, draftBot.config.aiCapabilities]
+  );
+
+  // ── FAQ management ──
   const [faqQuestion, setFaqQuestion] = useState('');
   const [faqAnswer, setFaqAnswer] = useState('');
 
@@ -898,7 +1648,7 @@ function Step4Features({ language, isDemoUser }: { language: 'ru' | 'en' | 'tr';
     [faq, updateConfig]
   );
 
-  // Services management
+  // ── Services management ──
   const [serviceName, setServiceName] = useState('');
   const [servicePrice, setServicePrice] = useState('');
   const [serviceDuration, setServiceDuration] = useState('');
@@ -908,12 +1658,7 @@ function Step4Features({ language, isDemoUser }: { language: 'ru' | 'en' | 'tr';
       updateConfig({
         services: [
           ...services,
-          {
-            name: serviceName.trim(),
-            price: parseFloat(servicePrice) || 0,
-            duration: parseInt(serviceDuration) || 60,
-            description: '',
-          },
+          { name: serviceName.trim(), price: parseFloat(servicePrice) || 0, duration: parseInt(serviceDuration) || 60, description: '' },
         ],
       });
       setServiceName('');
@@ -929,99 +1674,252 @@ function Step4Features({ language, isDemoUser }: { language: 'ru' | 'en' | 'tr';
     [services, updateConfig]
   );
 
+  // ── Color theme per bot type ──
+  const themeColors = {
+    ai: {
+      border: 'border-emerald-200 dark:border-emerald-800',
+      bg: 'bg-emerald-50/30 dark:bg-emerald-950/20',
+      iconBg: 'bg-emerald-100 dark:bg-emerald-950',
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      accentIcon: 'text-emerald-500',
+      noteBorder: 'border-emerald-200 dark:border-emerald-800',
+      noteBg: 'bg-emerald-50 dark:bg-emerald-950/30',
+      noteText: 'text-emerald-800 dark:text-emerald-200',
+      badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+      btnClass: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+    },
+    'rule-based': {
+      border: 'border-amber-200 dark:border-amber-800',
+      bg: 'bg-amber-50/30 dark:bg-amber-950/20',
+      iconBg: 'bg-amber-100 dark:bg-amber-950',
+      iconColor: 'text-amber-600 dark:text-amber-400',
+      accentIcon: 'text-amber-500',
+      noteBorder: 'border-amber-200 dark:border-amber-800',
+      noteBg: 'bg-amber-50 dark:bg-amber-950/30',
+      noteText: 'text-amber-800 dark:text-amber-200',
+      badge: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+      btnClass: 'bg-amber-600 hover:bg-amber-700 text-white',
+    },
+    hybrid: {
+      border: 'border-violet-200 dark:border-violet-800',
+      bg: 'bg-violet-50/30 dark:bg-violet-950/20',
+      iconBg: 'bg-violet-100 dark:bg-violet-950',
+      iconColor: 'text-violet-600 dark:text-violet-400',
+      accentIcon: 'text-violet-500',
+      noteBorder: 'border-violet-200 dark:border-violet-800',
+      noteBg: 'bg-violet-50 dark:bg-violet-950/30',
+      noteText: 'text-violet-800 dark:text-violet-200',
+      badge: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
+      btnClass: 'bg-violet-600 hover:bg-violet-700 text-white',
+    },
+  };
+
+  const tc = themeColors[botType];
+
+  // ── Feature descriptions (trilingual) ──
+  const aiCapDescriptions: Record<string, Record<string, string>> = {
+    autoQA: {
+      ru: 'AI отвечает на все вопросы автоматически',
+      en: 'AI answers all questions automatically',
+      tr: 'AI tüm soruları otomatik olarak yanıtlar',
+    },
+    intentRecognition: {
+      ru: 'AI распознаёт намерения клиента',
+      en: 'AI recognizes customer intent',
+      tr: 'AI müşteri niyetini tanır',
+    },
+    leadCapture: {
+      ru: 'AI собирает имя и телефон в разговоре',
+      en: 'AI collects name and phone during conversation',
+      tr: 'AI sohbet sırasında ad ve telefon toplar',
+    },
+    personalization: {
+      ru: 'AI запоминает контекст беседы',
+      en: 'AI remembers conversation context',
+      tr: 'AI görüşme bağlamını hatırlar',
+    },
+    operatorEscalation: {
+      ru: 'Переключение на живого оператора при сложных вопросах',
+      en: 'Switch to live operator for complex questions',
+      tr: 'Karmaşık sorularda canlı operatöre geçiş',
+    },
+  };
+
+  const ruleFeatureDescriptions: Record<string, Record<string, string>> = {
+    faq: {
+      ru: 'Ответы по заранее заданным вопросам и ответам',
+      en: 'Answers based on pre-configured Q&A',
+      tr: 'Önceden yapılandırılmış soru ve cevaplara göre yanıtlar',
+    },
+    services: {
+      ru: 'Показ списка услуг с ценами',
+      en: 'Display list of services with prices',
+      tr: 'Fiyatlarla hizmet listesi göster',
+    },
+    booking: {
+      ru: 'Онлайн-запись на услуги',
+      en: 'Online booking for services',
+      tr: 'Hizmetler için çevrimiçi randevu',
+    },
+    contactCollection: {
+      ru: 'Сбор контактов клиента',
+      en: 'Collect customer contacts',
+      tr: 'Müşteri iletişim bilgileri toplama',
+    },
+    operatorTransfer: {
+      ru: 'Перевод на оператора',
+      en: 'Transfer to operator',
+      tr: 'Operatöre aktarım',
+    },
+  };
+
+  const hybridFeatureDescriptions: Record<string, Record<string, string>> = {
+    faq: {
+      ru: 'Сначала проверяет FAQ, потом AI',
+      en: 'Checks FAQ first, then AI',
+      tr: 'Önce FAQ\'yi kontrol eder, sonra AI',
+    },
+    services: {
+      ru: 'Показ списка услуг с ценами',
+      en: 'Display list of services with prices',
+      tr: 'Fiyatlarla hizmet listesi göster',
+    },
+    booking: {
+      ru: 'Онлайн-запись на услуги',
+      en: 'Online booking for services',
+      tr: 'Hizmetler için çevrimiçi randevu',
+    },
+    operatorTransfer: {
+      ru: 'Перевод на оператора при сложных вопросах',
+      en: 'Transfer to operator for complex questions',
+      tr: 'Karmaşık sorularda operatöre aktarım',
+    },
+  };
+
+  // ── Determine which features to display per type ──
+  const showAiCapabilities = botType === 'ai' || botType === 'hybrid';
+  const showRegularFeatures = botType === 'rule-based' || botType === 'hybrid';
+  const showFaqEditor = botType !== 'ai' && features.faq;
+  const showServicesEditor = botType === 'ai' ? true : features.services;
+
+  // For AI bots show all 5 capabilities; for hybrid show 3 key ones
+  const visibleAiCaps = botType === 'ai'
+    ? AI_CAPABILITIES_CONFIG
+    : AI_CAPABILITIES_CONFIG.filter((c) => ['autoQA', 'leadCapture', 'operatorEscalation'].includes(c.key));
+
+  // For rule-based: faq, services, booking, contactCollection, operatorTransfer
+  // For hybrid: faq, services, booking, operatorTransfer
+  const regularFeatureKeys = botType === 'rule-based'
+    ? ['faq', 'services', 'booking', 'contactCollection', 'operatorTransfer']
+    : ['faq', 'services', 'booking', 'operatorTransfer'];
+
+  // Trilingual section header descriptions
+  const sectionSubtitles: Record<string, Record<string, string>> = {
+    ai: {
+      ru: 'Настройте AI-возможности вашего агента',
+      en: 'Configure your AI agent capabilities',
+      tr: 'AI ajan yeteneklerinizi yapılandırın',
+    },
+    'rule-based': {
+      ru: 'Настройте функции чат-бота',
+      en: 'Configure chatbot features',
+      tr: 'Chatbot özelliklerini yapılandırın',
+    },
+    hybrid: {
+      ru: 'Настройте гибридные функции — FAQ + AI',
+      en: 'Configure hybrid features — FAQ + AI',
+      tr: 'Hibrit özellikleri yapılandırın — FAQ + AI',
+    },
+  };
+
+  // ── Render ──
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
         <h3 className="text-lg font-semibold">{t('botBuilder.step4Title', language)}</h3>
         <p className="text-sm text-muted-foreground mt-1">
-          Включите нужные функции для вашего бота
+          {sectionSubtitles[botType]?.[language] || sectionSubtitles[botType]?.ru}
         </p>
       </div>
 
-      {/* Feature Toggles */}
-      <div className="space-y-3">
-        {FEATURES_CONFIG.map((feature) => {
-          const Icon = feature.icon;
-          const isEnabled = features[feature.key as keyof typeof features] as boolean;
-          return (
-            <Card
-              key={feature.key}
-              className={`transition-all ${isEnabled ? 'border-emerald-200 bg-emerald-50/30 dark:border-emerald-800 dark:bg-emerald-950/20' : ''}`}
-            >
-              <CardContent className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-3">
-                  <div className={`flex size-9 items-center justify-center rounded-lg ${isEnabled ? 'bg-emerald-100 dark:bg-emerald-950' : 'bg-muted'}`}>
-                    <Icon className={`size-4 ${isEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`} />
-                  </div>
-                  <span className="text-sm font-medium">{t(`botBuilder.${feature.labelKey}`, language)}</span>
-                </div>
-                <Switch
-                  checked={isEnabled}
-                  onCheckedChange={(checked) => toggleFeature(feature.key, checked)}
-                />
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      {/* ─── Contextual banner per type + niche ─── */}
+      {draftBot.niche && (
+        <div className={`flex items-start gap-2 rounded-lg border ${tc.noteBorder} ${tc.noteBg} px-3 py-2.5`}>
+          {botType === 'ai' && <Brain className={`size-4 shrink-0 mt-0.5 ${tc.accentIcon}`} />}
+          {botType === 'rule-based' && <Code2 className={`size-4 shrink-0 mt-0.5 ${tc.accentIcon}`} />}
+          {botType === 'hybrid' && <GitMerge className={`size-4 shrink-0 mt-0.5 ${tc.accentIcon}`} />}
+          <p className={`text-xs ${tc.noteText}`}>
+            {botType === 'ai' && (
+              <>
+                {language === 'ru'
+                  ? `AI-агент для ниши «${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}» отвечает на все вопросы самостоятельно, используя знания ниши. Услуги можно добавить вручную.`
+                  : language === 'en'
+                    ? `AI agent for the "${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}" niche answers all questions autonomously using niche knowledge. Services can be added manually.`
+                    : `"${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}" nişi için AI ajan tüm soruları niş bilgilerini kullanarak bağımsız olarak yanıtlar. Hizmetler manuel olarak eklenebilir.`}
+              </>
+            )}
+            {botType === 'rule-based' && (
+              <>
+                {language === 'ru'
+                  ? `Бот для ниши «${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}» отвечает строго по загруженным FAQ. Готовые вопросы уже загружены — отредактируйте их под ваш бизнес.`
+                  : language === 'en'
+                    ? `Bot for the "${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}" niche responds strictly from loaded FAQ. Pre-filled questions are already loaded — edit them for your business.`
+                    : `"${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}" nişi için bot yalnızca yüklenen FAQ'dan yanıt verir. Hazır sorular zaten yüklendi — işletmenize göre düzenleyin.`}
+              </>
+            )}
+            {botType === 'hybrid' && (
+              <>
+                {language === 'ru'
+                  ? `Гибридный бот для ниши «${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}» — сначала ищет ответ в FAQ, затем AI. Настройте оба компонента.`
+                  : language === 'en'
+                    ? `Hybrid bot for the "${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}" niche — checks FAQ first, then AI. Configure both components.`
+                    : `"${t(`botBuilder.${draftBot.niche === 'real-estate' ? 'realEstate' : draftBot.niche}`, language)}" nişi için hibrit bot — önce FAQ'yi kontrol eder, sonra AI. Her iki bileşeni de yapılandırın.`}
+              </>
+            )}
+          </p>
+        </div>
+      )}
 
-      <Separator />
-
-      {/* AI Capabilities (for AI bot type) */}
-      {draftBot.type === 'ai' && (
+      {/* ─── AI Capabilities (AI & Hybrid) ─── */}
+      {showAiCapabilities && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <Zap className="size-4 text-amber-500" />
+            <Brain className={`size-4 ${tc.accentIcon}`} />
             <Label className="text-sm font-semibold">
-              {language === 'ru'
-                ? 'AI Возможности'
-                : language === 'en'
-                  ? 'AI Capabilities'
-                  : 'AI Yetenekleri'}
+              {language === 'ru' ? 'AI Возможности' : language === 'en' ? 'AI Capabilities' : 'AI Yetenekleri'}
             </Label>
+            {botType === 'hybrid' && (
+              <Badge variant="outline" className={tc.badge}>
+                {language === 'ru' ? 'Дополнение' : language === 'en' ? 'Supplement' : 'Ek'}
+              </Badge>
+            )}
           </div>
-          {AI_CAPABILITIES_CONFIG.map((cap) => {
+          {visibleAiCaps.map((cap) => {
             const Icon = cap.icon;
             const isEnabled = draftBot.config.aiCapabilities[cap.key];
+            const desc = aiCapDescriptions[cap.key]?.[language] || aiCapDescriptions[cap.key]?.ru;
             return (
               <Card
                 key={cap.key}
-                className={`transition-all ${
-                  isEnabled
-                    ? 'border-amber-200 bg-amber-50/30 dark:border-amber-800 dark:bg-amber-950/20'
-                    : ''
-                }`}
+                className={`transition-all ${isEnabled ? `${tc.border} ${tc.bg}` : ''}`}
               >
-                <CardContent className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`flex size-9 items-center justify-center rounded-lg ${
-                        isEnabled ? 'bg-amber-100 dark:bg-amber-950' : 'bg-muted'
-                      }`}
-                    >
-                      <Icon
-                        className={`size-4 ${
-                          isEnabled
-                            ? 'text-amber-600 dark:text-amber-400'
-                            : 'text-muted-foreground'
-                        }`}
-                      />
+                <CardContent className="p-4 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex size-9 items-center justify-center rounded-lg ${isEnabled ? tc.iconBg : 'bg-muted'}`}>
+                        <Icon className={`size-4 ${isEnabled ? tc.iconColor : 'text-muted-foreground'}`} />
+                      </div>
+                      <span className="text-sm font-medium">{cap.labelKey[language] || cap.labelKey.ru}</span>
                     </div>
-                    <span className="text-sm font-medium">
-                      {cap.labelKey[language] || cap.labelKey.ru}
-                    </span>
+                    <Switch
+                      checked={isEnabled}
+                      onCheckedChange={(checked) => toggleAiCapability(cap.key, checked)}
+                    />
                   </div>
-                  <Switch
-                    checked={isEnabled}
-                    onCheckedChange={(checked) =>
-                      updateConfig({
-                        aiCapabilities: {
-                          ...draftBot.config.aiCapabilities,
-                          [cap.key]: checked,
-                        },
-                      })
-                    }
-                  />
+                  {desc && (
+                    <p className="text-xs text-muted-foreground pl-12">{desc}</p>
+                  )}
                 </CardContent>
               </Card>
             );
@@ -1029,14 +1927,61 @@ function Step4Features({ language, isDemoUser }: { language: 'ru' | 'en' | 'tr';
         </div>
       )}
 
-      <Separator />
+      {/* Separator between AI caps and regular features for hybrid */}
+      {botType === 'hybrid' && showAiCapabilities && showRegularFeatures && <Separator />}
 
-      {/* FAQ Editor */}
-      {features.faq && (
+      {/* ─── Regular Feature Toggles (Rule-based & Hybrid) ─── */}
+      {showRegularFeatures && (
+        <div className="space-y-3">
+          {botType === 'hybrid' && (
+            <div className="flex items-center gap-2">
+              <Sparkles className={`size-4 ${tc.accentIcon}`} />
+              <Label className="text-sm font-semibold">
+                {language === 'ru' ? 'Функции' : language === 'en' ? 'Features' : 'Özellikler'}
+              </Label>
+            </div>
+          )}
+          {regularFeatureKeys.map((fKey) => {
+            const featureDef = FEATURES_CONFIG.find((f) => f.key === fKey);
+            if (!featureDef) return null;
+            const Icon = featureDef.icon;
+            const isEnabled = features[fKey as keyof typeof features] as boolean;
+            const descriptions = botType === 'rule-based' ? ruleFeatureDescriptions : hybridFeatureDescriptions;
+            const desc = descriptions[fKey]?.[language] || descriptions[fKey]?.ru;
+            return (
+              <Card
+                key={fKey}
+                className={`transition-all ${isEnabled ? `${tc.border} ${tc.bg}` : ''}`}
+              >
+                <CardContent className="p-4 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex size-9 items-center justify-center rounded-lg ${isEnabled ? tc.iconBg : 'bg-muted'}`}>
+                        <Icon className={`size-4 ${isEnabled ? tc.iconColor : 'text-muted-foreground'}`} />
+                      </div>
+                      <span className="text-sm font-medium">{t(`botBuilder.${featureDef.labelKey}`, language)}</span>
+                    </div>
+                    <Switch
+                      checked={isEnabled}
+                      onCheckedChange={(checked) => toggleFeature(fKey, checked)}
+                    />
+                  </div>
+                  {desc && (
+                    <p className="text-xs text-muted-foreground pl-12">{desc}</p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ─── FAQ Editor (Rule-based & Hybrid only) ─── */}
+      {showFaqEditor && (
         <div className="space-y-3">
           <Label className="text-sm font-medium flex items-center gap-2">
-            <HelpCircle className="size-4 text-amber-500" />
-            FAQ — Вопросы и ответы
+            <HelpCircle className={`size-4 ${tc.accentIcon}`} />
+            {language === 'ru' ? 'FAQ — Вопросы и ответы' : language === 'en' ? 'FAQ — Questions & Answers' : 'FAQ — Sorular ve Cevaplar'}
           </Label>
 
           {/* Add FAQ Form */}
@@ -1045,13 +1990,13 @@ function Step4Features({ language, isDemoUser }: { language: 'ru' | 'en' | 'tr';
               <Input
                 value={faqQuestion}
                 onChange={(e) => setFaqQuestion(e.target.value)}
-                placeholder="Вопрос клиента..."
+                placeholder={language === 'ru' ? 'Вопрос клиента...' : language === 'en' ? 'Customer question...' : 'Müşteri sorusu...'}
                 className="h-9"
               />
               <Textarea
                 value={faqAnswer}
                 onChange={(e) => setFaqAnswer(e.target.value)}
-                placeholder="Ответ бота..."
+                placeholder={language === 'ru' ? 'Ответ бота...' : language === 'en' ? 'Bot answer...' : 'Bot yanıtı...'}
                 className="min-h-[60px] resize-y"
               />
               <Button
@@ -1059,10 +2004,10 @@ function Step4Features({ language, isDemoUser }: { language: 'ru' | 'en' | 'tr';
                 onClick={addFaqItem}
                 disabled={!faqQuestion.trim() || !faqAnswer.trim()}
                 size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className={tc.btnClass}
               >
                 <Plus className="size-4 mr-1" />
-                Добавить
+                {language === 'ru' ? 'Добавить' : language === 'en' ? 'Add' : 'Ekle'}
               </Button>
             </CardContent>
           </Card>
@@ -1095,18 +2040,22 @@ function Step4Features({ language, isDemoUser }: { language: 'ru' | 'en' | 'tr';
 
           {faq.length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-4">
-              Пока нет вопросов. Добавьте первый FAQ.
+              {language === 'ru'
+                ? 'Пока нет вопросов. Добавьте первый FAQ.'
+                : language === 'en'
+                  ? 'No questions yet. Add the first FAQ item.'
+                  : 'Henüz soru yok. İlk FAQ öğesini ekleyin.'}
             </p>
           )}
         </div>
       )}
 
-      {/* Services Editor */}
-      {features.services && (
+      {/* ─── Services Editor (all types — always for AI, toggle-gated for others) ─── */}
+      {showServicesEditor && (
         <div className="space-y-3">
           <Label className="text-sm font-medium flex items-center gap-2">
-            <Scissors className="size-4 text-blue-500" />
-            Услуги и цены
+            <Scissors className={`size-4 ${botType === 'ai' ? 'text-emerald-500' : botType === 'rule-based' ? 'text-amber-500' : 'text-violet-500'}`} />
+            {language === 'ru' ? 'Услуги и цены' : language === 'en' ? 'Services & Pricing' : 'Hizmetler ve Fiyatlar'}
           </Label>
 
           {/* Add Service Form */}
@@ -1115,12 +2064,14 @@ function Step4Features({ language, isDemoUser }: { language: 'ru' | 'en' | 'tr';
               <Input
                 value={serviceName}
                 onChange={(e) => setServiceName(e.target.value)}
-                placeholder="Название услуги..."
+                placeholder={language === 'ru' ? 'Название услуги...' : language === 'en' ? 'Service name...' : 'Hizmet adı...'}
                 className="h-9"
               />
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Цена (₽)</Label>
+                  <Label className="text-xs text-muted-foreground">
+                    {language === 'ru' ? 'Цена (₽)' : language === 'en' ? 'Price' : 'Fiyat'}
+                  </Label>
                   <Input
                     type="number"
                     value={servicePrice}
@@ -1130,7 +2081,9 @@ function Step4Features({ language, isDemoUser }: { language: 'ru' | 'en' | 'tr';
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Длительность (мин.)</Label>
+                  <Label className="text-xs text-muted-foreground">
+                    {language === 'ru' ? 'Длительность (мин.)' : language === 'en' ? 'Duration (min)' : 'Süre (dk)'}
+                  </Label>
                   <Input
                     type="number"
                     value={serviceDuration}
@@ -1157,10 +2110,10 @@ function Step4Features({ language, isDemoUser }: { language: 'ru' | 'en' | 'tr';
                 onClick={addServiceItem}
                 disabled={!serviceName.trim() || !servicePrice || (isDemoUser && services.length >= 1)}
                 size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className={tc.btnClass}
               >
                 <Plus className="size-4 mr-1" />
-                Добавить
+                {language === 'ru' ? 'Добавить' : language === 'en' ? 'Add' : 'Ekle'}
               </Button>
             </CardContent>
           </Card>
@@ -1175,7 +2128,7 @@ function Step4Features({ language, isDemoUser }: { language: 'ru' | 'en' | 'tr';
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">{item.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {item.price}₽ · {item.duration} мин.
+                        {item.price}₽ · {item.duration} {language === 'ru' ? 'мин.' : language === 'en' ? 'min.' : 'dk.'}
                       </p>
                     </div>
                     <Button
@@ -1195,7 +2148,11 @@ function Step4Features({ language, isDemoUser }: { language: 'ru' | 'en' | 'tr';
 
           {services.length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-4">
-              Пока нет услуг. Добавьте первую.
+              {language === 'ru'
+                ? 'Пока нет услуг. Добавьте первую.'
+                : language === 'en'
+                  ? 'No services yet. Add the first one.'
+                  : 'Henüz hizmet yok. İlk hizmeti ekleyin.'}
             </p>
           )}
         </div>

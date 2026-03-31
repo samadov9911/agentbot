@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Bot,
   Plus,
@@ -66,6 +66,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Tooltip,
   TooltipContent,
@@ -293,6 +294,51 @@ function EmptyState({
 // Embed Code Modal
 // ──────────────────────────────────────────────────────────────
 
+const WIDGET_BASE_URL = 'https://agentbot-one.vercel.app';
+
+function generateEmbedScript(embedCode: string): string {
+  // Self-contained inline widget script — fully functional
+  return `<script>
+(function(){
+var E="${embedCode}",B="${WIDGET_BASE_URL}",S="ab_"+E,M={};
+M[S]={open:false,msgs:[],sid:null,load:false,err:false};
+var W=M[S],R=document,X="https://"+location.host;
+function css(t,s){var e=document.createElement("style");e.textContent=t;document.head.appendChild(e);if(s)setTimeout(function(){document.head.removeChild(e)},s)}
+function el(tag,cls,h){var e=document.createElement(tag);if(cls)e.className=cls;e.innerHTML=h||"";return e}
+function ls(k,v){try{if(v===undefined)return JSON.parse(localStorage.getItem(k));localStorage.setItem(k,JSON.stringify(v))}catch(e){return v===undefined?null:true}}
+var sid=ls("ab_sid"+E)||function(){var s=""+Date.now()+Math.random().toString(36).slice(2);ls("ab_sid"+E,s);return s}();
+W.sid=sid;
+var hist=ls("ab_hist"+E)||[];W.msgs=hist;
+function saveHist(){ls("ab_hist"+E,W.msgs.slice(-50))}
+function save(){ls("ab_open"+E,W.open)}
+W.open=!!ls("ab_open"+E);
+if(document.getElementById("abw")){return}
+css("#abw-btn{position:fixed;z-index:99999;bottom:24px;right:24px;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#059669,#10b981);border:none;cursor:pointer;box-shadow:0 4px 24px rgba(16,185,129,0.4);display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s}#abw-btn:hover{transform:scale(1.08);box-shadow:0 6px 32px rgba(16,185,129,0.5)}#abw-btn svg{width:28px;height:28px;fill:white}#abw-badge{position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;border-radius:9px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;opacity:0;transition:opacity .2s}#abw-pan{position:fixed;z-index:99998;bottom:96px;right:24px;width:380px;max-width:calc(100vw - 32px);height:520px;max-height:calc(100vh - 120px);border-radius:16px;background:#fff;box-shadow:0 8px 40px rgba(0,0,0,0.15);display:flex;flex-direction:column;overflow:hidden;opacity:0;transform:translateY(16px) scale(0.95);transition:opacity .25s,transform .25s;pointer-events:none}#abw-pan.open{opacity:1;transform:translateY(0) scale(1);pointer-events:all}#abw-head{padding:16px;background:linear-gradient(135deg,#059669,#10b981);color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}#abw-head h3{margin:0;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}#abw-cls{background:rgba(255,255,255,0.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}#abw-cls:hover{background:rgba(255,255,255,0.3)}#abw-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}#abw-msgs::-webkit-scrollbar{width:4px}#abw-msgs::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:2px}#abw-bbl{max-width:80%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5;word-wrap:break-word;white-space:pre-wrap;animation:abIn .2s ease}@keyframes abIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}.ab-bot{background:#f3f4f6;color:#1f2937;align-self:flex-start;border-bottom-left-radius:4px}.ab-user{background:linear-gradient(135deg,#059669,#10b981);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}.ab-booking{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;align-self:center;text-align:center;cursor:pointer;padding:10px 20px;border-radius:12px;font-size:13px;font-weight:500}.ab-booking:hover{background:#d1fae5}#abw-typ{display:none;padding:10px 14px;align-self:flex-start}.ab-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#9ca3af;margin:0 2px;animation:abBounce .6s infinite alternate}.ab-dot:nth-child(2){animation-delay:.2s}.ab-dot:nth-child(3){animation-delay:.4s}@keyframes abBounce{to{opacity:.3;transform:translateY(-4px)}}#abw-inp{padding:12px 16px;border-top:1px solid #e5e7eb;display:flex;gap:8px;flex-shrink:0;background:#fff}#abw-inp input{flex:1;border:1px solid #d1d5db;border-radius:24px;padding:10px 16px;font-size:14px;outline:none;transition:border-color .2s}#abw-inp input:focus{border-color:#10b981}#abw-inp button{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#059669,#10b981);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s;flex-shrink:0}#abw-inp button:hover{transform:scale(1.05)}#abw-inp button svg{width:18px;height:18px;fill:white}");
+var btn=el("div","","<button id=\"abw-btn\"><svg viewBox=\"0 0 24 24\"><path d=\"M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z\"/></svg></button><span id=\"abw-badge\"></span>");
+btn.style.cssText="position:fixed;z-index:99999;bottom:24px;right:24px";
+var pan=el("div","","<div id=\"abw-head\"><h3><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"white\"><path d=\"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z\"/></svg><span id=\"abw-title\">AgentBot</span></h3><button id=\"abw-cls\">✕</button></div><div id=\"abw-msgs\"></div><div id=\"abw-typ\"><span class=\"ab-dot\"></span><span class=\"ab-dot\"></span><span class=\"ab-dot\"></span></div><div id=\"abw-inp\"><input type=\"text\" placeholder=\"Напишите сообщение...\" /><button><svg viewBox=\"0 0 24 24\"><path d=\"M2.01 21L23 12 2.01 3 2 10l15 2-15 2z\"/></svg></button></div>");
+R.body.appendChild(btn);R.body.appendChild(pan);
+var bBtn=R.getElementById("abw-btn"),bPan=R.getElementById("abw-pan"),bCls=R.getElementById("abw-cls"),bMsgs=R.getElementById("abw-msgs"),bTyp=R.getElementById("abw-typ"),bInp=R.getElementById("abw-inp").querySelector("input"),bSend=R.getElementById("abw-inp").querySelector("button"),bBadge=R.getElementById("abw-badge"),bTitle=R.getElementById("abw-title");
+var unread=0;
+function toggle(){W.open=!W.open;if(W.open){bPan.classList.add("open");bBtn.style.display="none";unread=0;bBadge.style.opacity="0";bInp.focus();if(W.msgs.length===0)loadConfig();else bMsgs.scrollTop=bMsgs.scrollHeight}else{bPan.classList.remove("open");bBtn.style.display="flex"}save()}
+function addMsg(text,type){W.msgs.push({text:text,type:type,t:Date.now()});saveHist();render()}
+function render(){bMsgs.innerHTML="";W.msgs.forEach(function(m){var d=el("div","ab-bbl "+(m.type==='user'?'ab-user':m.type==='booking'?'ab-bot ab-booking':'ab-bot'),"");d.textContent=m.text;if(m.type==='booking')d.onclick=function(){bInp.value=m.text;doSend()};bMsgs.appendChild(d)});bMsgs.scrollTop=bMsgs.scrollHeight}
+bBtn.onclick=toggle;bCls.onclick=toggle;
+bSend.onclick=doSend;
+bInp.onkeydown=function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doSend()}};
+function doSend(){var t=bInp.value.trim();if(!t||W.sending)return;bInp.value="";addMsg(t,"user");send(t)}
+async function loadConfig(){try{var r=await fetch(B+"/api/bots/config?embedCode="+E);if(!r.ok)throw new Error();var d=await r.json();var bot=d.bot;bTitle.textContent=bot.name||"AgentBot";var cfg=bot.config||{};if(cfg.greeting){addMsg(cfg.greeting,"bot")}else{addMsg("Здравствуйте! Чем могу помочь?","bot")}}catch(e){addMsg("Не удалось загрузить виджет. Попробуйте позже.","bot")}}
+async function send(text){W.sending=true;bTyp.style.display="flex";bMsgs.scrollTop=bMsgs.scrollHeight;try{var r=await fetch(B+"/api/bot-demo-chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text,sessionId:sid,botName:bTitle.textContent,embedCode:E,language:"ru"})});if(!r.ok)throw new Error();var d=await r.json();bTyp.style.display="none";addMsg(d.response||"Извините, ошибка","bot");if(d.bookingPrompt){setTimeout(function(){addMsg(d.bookingPrompt,"booking")},300)}}catch(e){bTyp.style.display="none";addMsg("Ошибка соединения. Попробуйте ещё раз.","bot")}W.sending=false}
+if(W.open){bPan.classList.add("open");bBtn.style.display="none";if(W.msgs.length>0)render();else loadConfig();bMsgs.scrollTop=bMsgs.scrollHeight}
+})();
+</script>`;
+}
+
+function generateEmbedScriptHtml(embedCode: string): string {
+  return `<!-- AgentBot Widget -->
+${generateEmbedScript(embedCode)}<!-- /AgentBot Widget -->`;
+}
+
 function EmbedCodeModal({
   open,
   onOpenChange,
@@ -307,8 +353,65 @@ function EmbedCodeModal({
   language: 'ru' | 'en' | 'tr';
 }) {
   const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState('code');
 
-  const scriptTag = `<script src="https://cdn.botforge.ai/widget.js" data-bot-id="${embedCode}" async></script>`;
+  const scriptTag = useMemo(() => generateEmbedScriptHtml(embedCode), [embedCode]);
+
+  const label = (ru: string, en: string, tr: string) =>
+    language === 'ru' ? ru : language === 'en' ? en : tr;
+
+  const instructions = [
+    {
+      id: 'html',
+      name: 'HTML',
+      text: label('HTML', 'HTML', 'HTML'),
+      instructions: label(
+        'Вставьте код перед закрывающим тегом &lt;/body&gt; в вашем HTML-файле.',
+        'Paste the code before the closing &lt;/body&gt; tag in your HTML file.',
+        'Kodu HTML dosyanızda &lt;/body&gt; kapanış etiketinden önce yapıştırın.'
+      ),
+    },
+    {
+      id: 'wordpress',
+      name: 'WordPress',
+      text: 'WordPress',
+      instructions: label(
+        'Перейдите в Внешний вид → Редактор тем, выберите footer.php и вставьте код перед &lt;/body&gt;. Или используйте плагин "Insert Headers and Footers".',
+        'Go to Appearance → Theme Editor, select footer.php and paste the code before &lt;/body&gt;. Or use the "Insert Headers and Footers" plugin.',
+        'Görünüm → Tema Düzenleyici\'ye gidin, footer.php dosyasını seçin ve kodu &lt;/body&gt;\'den önce yapıştırın. Veya "Insert Headers and Footers" eklentisini kullanın.'
+      ),
+    },
+    {
+      id: 'shopify',
+      name: 'Shopify',
+      text: 'Shopify',
+      instructions: label(
+        'Перейдите в Онлайн-магазин → Темы → Изменить код. Откройте theme.liquid и вставьте код перед &lt;/body&gt;.',
+        'Go to Online Store → Themes → Edit Code. Open theme.liquid and paste the code before &lt;/body&gt;.',
+        'Çevrimiçi Mağaza → Temalar → Kodu Düzenle. theme.liquid dosyasını açın ve kodu &lt;/body&gt;\'den önce yapıştırın.'
+      ),
+    },
+    {
+      id: 'react',
+      name: 'React / Next.js',
+      text: 'React / Next.js',
+      instructions: label(
+        'Создайте компонент с useEffect, который добавляет скрипт в document.body черезdangerouslySetInnerHTML или DOM API.',
+        'Create a component with useEffect that adds the script to document.body via dangerouslySetInnerHTML or DOM API.',
+        'useEffect ile document.body\'e script ekleyen bir bileşen oluşturun. dangerouslySetInnerHTML veya DOM API kullanın.'
+      ),
+    },
+    {
+      id: 'tilda',
+      name: 'Tilda',
+      text: 'Tilda',
+      instructions: label(
+        'Откройте настройки сайта → Дополнительные теги → Вставьте код в поле "HTML-код в &lt;body&gt;" для всех страниц.',
+        'Open Site Settings → More → Paste the code in the "HTML in &lt;body&gt;" field for all pages.',
+        'Site Ayarları → Diğer → Tüm sayfalar için "&lt;body&gt; içinde HTML kodu" alanına kodu yapıştırın.'
+      ),
+    },
+  ];
 
   const handleCopy = useCallback(async () => {
     try {
@@ -316,7 +419,6 @@ function EmbedCodeModal({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // fallback for older browsers
       const textarea = document.createElement('textarea');
       textarea.value = scriptTag;
       textarea.style.position = 'fixed';
@@ -330,17 +432,17 @@ function EmbedCodeModal({
     }
   }, [scriptTag]);
 
-  // reset copied state when modal closes
   useEffect(() => {
     if (!open) {
       setCopied(false);
+      setActiveTab('code');
     }
   }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="max-h-[85vh] overflow-hidden flex flex-col sm:max-w-2xl">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Code2 className="size-5 text-emerald-600 dark:text-emerald-400" />
             {t('bots.embedCode', language)}
@@ -353,22 +455,65 @@ function EmbedCodeModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Добавьте этот код перед закрывающим тегом{' '}
-            <code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">
-              &lt;/body&gt;
-            </code>{' '}
-            на вашем сайте:
-          </p>
-          <div className="relative">
-            <pre className="max-h-48 overflow-auto rounded-lg border bg-muted/50 p-4 text-xs leading-relaxed">
-              <code className="text-foreground">{scriptTag}</code>
-            </pre>
-          </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="w-full">
+            <TabsTrigger value="code" className="flex-1">
+              {label('Код виджета', 'Widget Code', 'Widget Kodu')}
+            </TabsTrigger>
+            <TabsTrigger value="instructions" className="flex-1">
+              {label('Инструкции', 'Instructions', 'Talimatlar')}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="code" className="mt-3">
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {label(
+                  'Вставьте этот код на ваш сайт — виджет будет работать автоматически:',
+                  'Paste this code on your site — the widget will work automatically:',
+                  'Bu kodu sitenize yapıştırın — widget otomatik çalışacaktır:'
+                )}
+              </p>
+              <div className="relative">
+                <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/50 p-4 text-xs leading-relaxed scroll-smooth scrollbar-thin">
+                  <code className="text-foreground">{scriptTag}</code>
+                </pre>
+              </div>
+              <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950">
+                <Info className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+                <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                  {label(
+                    'Виджет полностью самодостаточный — никаких внешних CDN. Работает на любом сайте.',
+                    'The widget is fully self-contained — no external CDN needed. Works on any site.',
+                    'Widget tamamen kendi başına çalışır — harici CDN gerekmez. Herhangi bir sitede çalışır.'
+                  )}
+                </p>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="instructions" className="mt-3">
+            <div className="max-h-64 space-y-3 overflow-y-auto pr-1 scrollbar-thin">
+              {instructions.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-lg border p-3"
+                >
+                  <h4 className="text-sm font-semibold">{item.text}</h4>
+                  <p
+                    className="mt-1 text-xs text-muted-foreground leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: item.instructions }}
+                  />
+                </div>
+              ))}
+            </div>
+          </TabsContent>
+        </Tabs>
+
         </div>
 
-        <DialogFooter className="flex-col gap-2 sm:flex-row">
+        <DialogFooter className="flex-col gap-2 shrink-0 sm:flex-row">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -787,11 +932,21 @@ function BotCard({
         {/* ── Header: Avatar + Info ── */}
         <div className="flex items-start gap-4">
           {/* Avatar */}
-          <div
-            className={`flex size-12 shrink-0 items-center justify-center rounded-xl ${nicheConfig.bg} transition-transform group-hover:scale-105`}
-          >
-            <NicheIcon className={`size-6 ${nicheConfig.text}`} />
-          </div>
+          {bot.avatar && bot.avatar.startsWith('data:') ? (
+            <div className="size-12 shrink-0 overflow-hidden rounded-xl transition-transform group-hover:scale-105">
+              <img
+                src={bot.avatar}
+                alt={bot.name}
+                className="size-full object-cover"
+              />
+            </div>
+          ) : (
+            <div
+              className={`flex size-12 shrink-0 items-center justify-center rounded-xl ${nicheConfig.bg} transition-transform group-hover:scale-105`}
+            >
+              <NicheIcon className={`size-6 ${nicheConfig.text}`} />
+            </div>
+          )}
 
           {/* Name + badges */}
           <div className="min-w-0 flex-1">

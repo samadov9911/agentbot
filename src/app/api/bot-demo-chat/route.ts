@@ -268,7 +268,7 @@ const BOOKING_PROMPTS = {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const {
+    let {
       message,
       sessionId,
       botConfig,
@@ -277,10 +277,39 @@ export async function POST(request: NextRequest) {
       language,
       calendarConfig,
       botId,
+      embedCode,
     } = body;
 
     if (!message || !sessionId) {
       return NextResponse.json({ error: 'Message and sessionId are required' }, { status: 400 });
+    }
+
+    // ── If embedCode is provided, resolve bot config from DB ──
+    if (embedCode && !botConfig) {
+      try {
+        const bot = await db.bot.findFirst({
+          where: {
+            embedCode,
+            isActive: true,
+            deletedAt: null,
+            publishedAt: { not: null },
+          },
+          select: { id: true, name: true, type: true, config: true },
+        });
+        if (bot) {
+          botId = bot.id;
+          botName = botName || bot.name;
+          try {
+            const parsed = typeof bot.config === 'string' ? JSON.parse(bot.config) : (bot.config as Record<string, unknown>) ?? {};
+            botConfig = parsed;
+            calendarConfig = (parsed as Record<string, unknown>).calendarConfig as Record<string, unknown> | undefined;
+          } catch {
+            botConfig = {};
+          }
+        }
+      } catch (dbErr) {
+        console.error('Failed to resolve embedCode:', dbErr);
+      }
     }
 
     const botType = botConfig?.type || 'rule-based';
