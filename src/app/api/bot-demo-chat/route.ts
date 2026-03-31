@@ -413,7 +413,33 @@ export async function POST(request: NextRequest) {
 
       if (!response) {
         // Use LLM
-        const zai = await ZAI.create();
+        let zai: Awaited<ReturnType<typeof ZAI.create>> | null = null;
+        try {
+          zai = await ZAI.create();
+        } catch {
+          // ZAI SDK not available — use rule-based fallback
+          const defaults: Record<string, Record<string, string>> = {
+            ru: { friendly: 'Спасибо за сообщение! К сожалению, демо-чат временно недоступен. Попробуйте позже или напишите нам напрямую.' },
+            en: { friendly: 'Thanks for your message! Unfortunately, the demo chat is temporarily unavailable. Please try again later.' },
+            tr: { friendly: 'Mesajınız için teşekkürler! Maalesef demo sohbet şu an kullanılamıyor. Lütfen daha sonra tekrar deneyin.' },
+          };
+          const langDefaults = defaults[effectiveLang] || defaults.ru;
+          response = langDefaults[tone] || langDefaults.friendly;
+          // Still try to save lead
+          try {
+            if (isFirstMessage && botId) {
+              await db.lead.create({
+                data: { botId, visitorName: null, visitorPhone: null, visitorEmail: null, ipAddress, region, message: message || null, source: 'widget' },
+              });
+            }
+          } catch { /* ignore */ }
+
+          history.push({ role: 'assistant', content: response, ts: Date.now() });
+          if (history.length > 20) history = history.slice(-20);
+          demoConversations.set(sessionId, history);
+
+          return NextResponse.json({ response });
+        }
 
         let effectiveSystemPrompt = '';
 

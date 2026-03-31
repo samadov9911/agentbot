@@ -40,17 +40,17 @@ export async function GET(request: NextRequest) {
     }
 
     if (section === 'analytics') {
-      const totalUsers = await db.user.count({ where: { deletedAt: null } });
-      const activeUsers = await db.user.count({ where: { deletedAt: null, isActive: true } });
-      const activeSubscriptions = await db.subscription.count({ where: { status: 'active', plan: { not: 'demo' } } });
-      const totalBots = await db.bot.count({ where: { deletedAt: null } });
-      const totalConversations = await db.conversation.count();
-      const totalAppointments = await db.appointment.count();
+      // Run each query independently — if one fails, return defaults for that metric
+      const [totalUsers, activeUsers, activeSubscriptions, totalBots, totalConversations, totalAppointments, paidSubscriptions] = await Promise.all([
+        db.user.count({ where: { deletedAt: null } }).catch(() => 0),
+        db.user.count({ where: { deletedAt: null, isActive: true } }).catch(() => 0),
+        db.subscription.count({ where: { status: 'active', plan: { not: 'demo' } } }).catch(() => 0),
+        db.bot.count({ where: { deletedAt: null } }).catch(() => 0),
+        db.conversation.count().catch(() => 0),
+        db.appointment.count().catch(() => 0),
+        db.subscription.findMany({ where: { status: 'active', plan: { not: 'demo' } } }).catch(() => []),
+      ]);
 
-      // MRR calculation
-      const paidSubscriptions = await db.subscription.findMany({
-        where: { status: 'active', plan: { not: 'demo' } },
-      });
       const mrr = paidSubscriptions.reduce((sum, s) => {
         if (s.plan === 'monthly') return sum + (s.pricePaid || 0);
         if (s.plan === 'quarterly') return sum + ((s.pricePaid || 0) / 3);
