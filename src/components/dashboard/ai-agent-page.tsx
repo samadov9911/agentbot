@@ -2220,6 +2220,7 @@ export function AiAgentPage() {
   const [leadDialogOpen, setLeadDialogOpen] = useState(false);
   const [reportsDialogOpen, setReportsDialogOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<ActivityItem | null>(null);
+  const [activities, setActivities] = useState<ActivityItem[]>(MOCK_ACTIVITIES);
   const [agentEnabled, setAgentEnabled] = useState(true);
 
   const [notifications, setNotifications] = useState({
@@ -2231,6 +2232,104 @@ export function AiAgentPage() {
 
   // Issue 8: Check if user has bots
   const hasBots = (user?.role === 'admin' || user?.role === 'user') ?? false;
+
+  // Fetch real activity data on mount
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+
+    async function fetchActivityData() {
+      try {
+        const headers = { 'x-user-id': user.id };
+
+        // Fetch analytics for the week
+        const [analyticsRes, botsRes] = await Promise.all([
+          fetch('/api/analytics?range=week', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch('/api/bots', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        ]);
+
+        if (cancelled) return;
+
+        const realItems: ActivityItem[] = [];
+        let idCounter = 1;
+
+        // Add bot events
+        if (botsRes?.bots && botsRes.bots.length > 0) {
+          botsRes.bots.forEach((bot: { name: string; isActive: boolean; createdAt: string }) => {
+            realItems.push({
+              id: idCounter++,
+              icon: <Bot className="size-4" />,
+              text: {
+                ru: `Бот «${bot.name}» ${bot.isActive ? 'активен' : 'отключён'}`,
+                en: `Bot "${bot.name}" ${bot.isActive ? 'is active' : 'is inactive'}`,
+                tr: `Bot "${bot.name}" ${bot.isActive ? 'aktif' : 'devre dışı'}`,
+              },
+              time: new Date(bot.createdAt).toLocaleDateString(language === 'ru' ? 'ru-RU' : language === 'en' ? 'en-US' : 'tr-TR'),
+              color: 'text-emerald-500 bg-emerald-100 dark:bg-emerald-950',
+            });
+          });
+        }
+
+        // Add conversation events
+        if (analyticsRes && analyticsRes.totalConversations > 0) {
+          realItems.push({
+            id: idCounter++,
+            icon: <MessageCircle className="size-4" />,
+            text: {
+              ru: `${analyticsRes.totalConversations} диалогов за неделю`,
+              en: `${analyticsRes.totalConversations} conversation${analyticsRes.totalConversations > 1 ? 's' : ''} this week`,
+              tr: `Bu hafta ${analyticsRes.totalConversations} görüşme`,
+            },
+            time: '7 ' + (language === 'ru' ? 'дней' : language === 'en' ? 'days' : 'gün'),
+            color: 'text-cyan-500 bg-cyan-100 dark:bg-cyan-950',
+          });
+        }
+
+        // Add appointment events
+        if (analyticsRes && analyticsRes.totalAppointments > 0) {
+          realItems.push({
+            id: idCounter++,
+            icon: <CheckCircle2 className="size-4" />,
+            text: {
+              ru: `${analyticsRes.totalAppointments} записей за неделю`,
+              en: `${analyticsRes.totalAppointments} appointment${analyticsRes.totalAppointments > 1 ? 's' : ''} this week`,
+              tr: `Bu hafta ${analyticsRes.totalAppointments} randevu`,
+            },
+            time: '7 ' + (language === 'ru' ? 'дней' : language === 'en' ? 'days' : 'gün'),
+            color: 'text-emerald-500 bg-emerald-100 dark:bg-emerald-950',
+          });
+        }
+
+        // Add visitor events
+        if (analyticsRes && analyticsRes.totalVisitors > 0) {
+          realItems.push({
+            id: idCounter++,
+            icon: <Users className="size-4" />,
+            text: {
+              ru: `${analyticsRes.totalVisitors} посетителей за неделю`,
+              en: `${analyticsRes.totalVisitors} visitor${analyticsRes.totalVisitors > 1 ? 's' : ''} this week`,
+              tr: `Bu hafta ${analyticsRes.totalVisitors} ziyaretçi`,
+            },
+            time: '7 ' + (language === 'ru' ? 'дней' : language === 'en' ? 'days' : 'gün'),
+            color: 'text-violet-500 bg-violet-100 dark:bg-violet-950',
+          });
+        }
+
+        if (realItems.length > 0) {
+          setActivities(realItems);
+        } else {
+          // No real data — show empty message
+          setActivities([]);
+        }
+      } catch {
+        // On API failure, keep MOCK_ACTIVITIES as fallback
+        setActivities(MOCK_ACTIVITIES);
+      }
+    }
+
+    fetchActivityData();
+    return () => { cancelled = true; };
+  }, [user?.id, language]);
 
   const capabilities = useMemo(
     () => [
@@ -2530,15 +2629,27 @@ export function AiAgentPage() {
                 {language === 'ru' ? 'Лента активности AI' : language === 'en' ? 'AI Activity Feed' : 'AI Aktivite Akışı'}
               </CardTitle>
               <Badge variant="secondary" className="text-xs">
-                {MOCK_ACTIVITIES.length}{' '}
+                {activities.length}{' '}
                 {language === 'ru' ? 'действий' : language === 'en' ? 'actions' : 'işlem'}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
             <ScrollArea className="max-h-96">
-              <div className="divide-y">
-                {MOCK_ACTIVITIES.map((activity) => (
+              {activities.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+                  <Zap className="size-8 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    {language === 'ru'
+                      ? 'Пока нет активности. Создайте бота и дождитесь первого визита.'
+                      : language === 'en'
+                        ? 'No activity yet. Create a bot and wait for the first visitor.'
+                        : 'Henüz aktivite yok. Bir bot oluşturun ve ilk ziyaretçiyi bekleyin.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y">
+                {activities.map((activity) => (
                   <button
                     key={activity.id}
                     className="w-full flex items-center gap-3 px-6 py-3 hover:bg-muted/30 transition-colors text-left"
@@ -2554,7 +2665,8 @@ export function AiAgentPage() {
                     <ChevronDown className="size-3.5 text-muted-foreground rotate-[-90deg]" />
                   </button>
                 ))}
-              </div>
+                </div>
+              )}
             </ScrollArea>
           </CardContent>
         </Card>

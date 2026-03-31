@@ -1040,3 +1040,80 @@ Completely rewrite `/home/z/my-project/src/components/dashboard/admin-page.tsx` 
 **Files modified:**
 - `src/components/dashboard/admin-page.tsx` — Complete rewrite
 - Removed `admin-page-fixed.tsx` (leftover file causing lint error)
+---
+Task ID: 1
+Agent: Main Orchestrator
+Task: Fix Internal server error — add forgot-password & reset-password functionality
+
+Work Log:
+- Analyzed current state: schema.prisma has provider=postgresql, db.ts uses pgbouncer=true
+- Identified missing forgot-password and reset-password API routes
+- Identified login form forgot-password button only did console.log
+- Created stateless HMAC token system (NO database table changes needed)
+- Created /src/lib/reset-token.ts — crypto-based token generation and verification
+- Created /api/auth/forgot-password/route.ts — sends reset link via Resend email
+- Created /api/auth/reset-password/route.ts — verifies token and updates password
+- Created forgot-password-form.tsx component
+- Created reset-password-form.tsx component with URL param auto-detection
+- Updated types/index.ts — added forgot-password and reset-password to AppPage
+- Updated page.tsx — routing + auto-detect ?reset=true URL params
+- Updated login-form.tsx — forgot password button now navigates correctly
+- Added postinstall: prisma generate to package.json for Vercel builds
+- All lint checks pass, pushed to GitHub (ffe5bad)
+
+Stage Summary:
+- Password reset flow fully functional without database schema changes
+- Uses stateless HMAC tokens for security (no PasswordReset table needed)
+- Email sent via Resend REST API (no new npm dependencies)
+- Auto-detection of reset links from email (URL params ?reset=true)
+- postinstall script ensures Prisma client generated on Vercel builds
+
+
+---
+## Task ID: bugfix-1-4
+Agent: full-stack-developer
+Task: Fix 4 bugs — notification bell clicks, dashboard fake stats, AI agent fake activity, subscription 500 error
+
+### Work Task
+Fix exactly 4 bugs across the AgentBot platform: (1) Notification bell clicks do nothing, (2) Dashboard overview shows hardcoded/fake stats, (3) AI Agent activity feed shows hardcoded mock data, (4) Subscription API returns 500 due to non-existent User model fields.
+
+### Work Summary
+
+**Bug 1 — Notification Bell clicks do nothing (`dashboard-layout.tsx`):**
+- Converted static `notifications` array to `useState` for mutable state tracking
+- Added `useAppStore` `setPage` for navigation and `useState` for `open` popover state
+- Added `handleNotificationClick` handler that marks notification as read and navigates: "Создайте первого бота" → `setPage('bot-builder')`, "Подсказка" → `setPage('help')`, "Добро пожаловать!" → no navigation (welcome only)
+- Added `onClick` to each notification `<div>` and to "Показать все уведомления" button → `setPage('help')`
+- Popover now controlled with `open`/`onOpenChange` props, closes after any click
+
+**Bug 2 — Dashboard Overview fake stats (`overview.tsx`):**
+- Added `case 'today'` to the analytics API switch in `/api/analytics/route.ts` — sets `startDate` to midnight of current day
+- Updated `DashboardOverview` `fetchDashboardData` to also call `/api/analytics?range=today` (wrapped in try/catch for resilience)
+- Replaced hardcoded `appointmentsToday: 0` with real value from analytics API
+- Replaced hardcoded `conversationsToday` (was sum of all bot conversations) with `analyticsData.totalConversations` from today's data
+- Built real activity items from fetched data: bot status entries, conversation count, appointment count; falls back to welcome message if empty
+- Kept `DEMO_ACTIVITY` as fallback only in the catch block
+
+**Bug 3 — AI Agent Activity Feed fake notifications (`ai-agent-page.tsx`):**
+- Added `activities` state initialized to `MOCK_ACTIVITIES` for fallback
+- Added `useEffect` that fetches `/api/analytics?range=week` and `/api/bots` in parallel on mount
+- Builds real `ActivityItem[]` from API data: bot active/inactive status, conversation count, appointment count, visitor count — all trilingual
+- If no real data exists, sets `activities` to empty array (shows empty state message)
+- `MOCK_ACTIVITIES` retained as fallback only in the catch block
+- Updated rendering: `MOCK_ACTIVITIES` references → `activities`, badge count → `activities.length`
+- Added empty state with Zap icon and trilingual "no activity yet" message
+
+**Bug 4 — Subscription 500 error (`/api/subscriptions/route.ts`):**
+- Removed `db.user.update({ data: { planName: 'none', planStatus: 'cancelled' } })` from the cancel handler (lines 80-83)
+- Removed `db.user.update({ data: { planName: plan, planStatus: 'active', demoExpiresAt: null } })` from the new subscription handler (lines 143-150)
+- These fields (`planName`, `planStatus`, `demoExpiresAt`) do not exist in the Prisma User model, causing Prisma to throw an error
+- The frontend already handles plan status via zustand store's `updateUser()` method; subscription and demoPeriod models are updated correctly
+
+**Files modified:**
+- `src/components/layout/dashboard-layout.tsx` — Bug 1: notification click handlers, popover state management
+- `src/app/api/analytics/route.ts` — Bug 2: added `case 'today'` for date range
+- `src/components/dashboard/overview.tsx` — Bug 2: real analytics fetch, real activity items
+- `src/components/dashboard/ai-agent-page.tsx` — Bug 3: real activity data fetching, empty state
+- `src/app/api/subscriptions/route.ts` — Bug 4: removed invalid db.user.update calls
+
+**Lint**: Zero errors. Dev server compiles successfully.

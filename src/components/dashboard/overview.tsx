@@ -245,7 +245,7 @@ export function DashboardOverview() {
   const demoTimer = useDemoTimer();
   const isDemoActive = demoTimer !== null && !demoTimer.expired;
 
-  // ── Fetch bots on mount ──
+  // ── Fetch bots + analytics on mount ──
   useEffect(() => {
     let cancelled = false;
 
@@ -256,6 +256,7 @@ export function DashboardOverview() {
       }
 
       try {
+        // Fetch bots
         const response = await fetch('/api/bots', {
           headers: { 'x-user-id': user.id },
         });
@@ -274,29 +275,82 @@ export function DashboardOverview() {
         }));
 
         if (cancelled) return;
-
         setBots(botList);
 
-        // Compute stats from bots
         const activeBots = botList.filter((b) => b.isActive).length;
-        const conversationsToday = botList.reduce((sum, b) => sum + b.conversationsCount, 0);
 
         const userRecord = user as Record<string, unknown>;
         const planName = (userRecord.demoExpiresAt ? 'Demo' : userRecord.planName ?? 'Free') as string;
         const planStatus = userRecord.demoExpiresAt ? 'demo' : (userRecord.planStatus ?? 'inactive') as string;
 
+        // Fetch today's analytics
+        let analyticsData: { totalConversations: number; totalAppointments: number; totalVisitors: number } | null = null;
+        try {
+          const analyticsRes = await fetch('/api/analytics?range=today', {
+            headers: { 'x-user-id': user.id },
+          });
+          if (analyticsRes.ok) {
+            analyticsData = await analyticsRes.json();
+          }
+        } catch {
+          // Analytics fetch failed, will use zeros
+        }
+
+        if (cancelled) return;
+
+        const conversationsToday = analyticsData?.totalConversations ?? 0;
+        const appointmentsToday = analyticsData?.totalAppointments ?? 0;
+
         setStats({
           activeBots,
           conversationsToday,
-          appointmentsToday: 0,
+          appointmentsToday,
           planName,
           planStatus,
         });
 
-        // Use demo activity since there's no activity API yet
-        setActivity(DEMO_ACTIVITY);
+        // Build real activity items from fetched data
+        const realActivity: ActivityItem[] = [];
+
+        botList.forEach((bot) => {
+          realActivity.push({
+            id: `bot-${bot.id}`,
+            message: `Bot "${bot.name}" ${bot.isActive ? 'is active' : 'is inactive'}`,
+            timestamp: 'Today',
+            type: 'bot',
+          });
+        });
+
+        if (conversationsToday > 0) {
+          realActivity.push({
+            id: 'conv-today',
+            message: `${conversationsToday} conversation${conversationsToday > 1 ? 's' : ''} today`,
+            timestamp: 'Today',
+            type: 'conversation',
+          });
+        }
+
+        if (appointmentsToday > 0) {
+          realActivity.push({
+            id: 'appt-today',
+            message: `${appointmentsToday} appointment${appointmentsToday > 1 ? 's' : ''} booked today`,
+            timestamp: 'Today',
+            type: 'appointment',
+          });
+        }
+
+        if (realActivity.length === 0) {
+          realActivity.push({
+            id: 'welcome',
+            message: 'Welcome to AgentBot! Create your first bot to get started.',
+            timestamp: 'Now',
+            type: 'system',
+          });
+        }
+
+        setActivity(realActivity);
       } catch {
-        // On error, still show demo data
+        // On error, still show demo data as fallback
         setStats({
           activeBots: 0,
           conversationsToday: 0,

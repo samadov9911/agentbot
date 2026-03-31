@@ -16,6 +16,9 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     let startDate: Date;
     switch (range) {
+      case 'today':
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
       case 'week':
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;

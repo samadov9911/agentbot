@@ -598,16 +598,33 @@ function DemoTimerBadge() {
 // ──────────────────────────────────────────────────────────────
 
 function NotificationBell() {
-  const notifications = [
+  const { setPage } = useAppStore();
+  const [notifList, setNotifList] = useState([
     { id: 1, title: 'Добро пожаловать!', desc: 'Ваш демо-период активирован на 7 дней', time: 'Только что', read: false, icon: '🎉' },
     { id: 2, title: 'Создайте первого бота', desc: 'Используйте конструктор для создания AI-агента', time: '1 мин назад', read: false, icon: '🤖' },
     { id: 3, title: 'Подсказка', desc: 'Настройте виджет и вставьте код на свой сайт', time: '5 мин назад', read: true, icon: '💡' },
-  ];
+  ]);
+  const [open, setOpen] = useState(false);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = notifList.filter((n) => !n.read).length;
+
+  const handleNotificationClick = (n: (typeof notifList)[number]) => {
+    setNotifList((prev) =>
+      prev.map((item) => (item.id === n.id ? { ...item, read: true } : item)),
+    );
+
+    // Navigate based on notification type
+    if (n.title === 'Создайте первого бота') {
+      setPage('bot-builder');
+    } else if (n.title === 'Подсказка') {
+      setPage('help');
+    }
+
+    setOpen(false);
+  };
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className="relative size-8">
           <Bell className="size-4" />
@@ -626,12 +643,13 @@ function NotificationBell() {
         </div>
         <ScrollArea className="max-h-80">
           <div className="flex flex-col">
-            {notifications.map((n) => (
+            {notifList.map((n) => (
               <div
                 key={n.id}
                 className={`flex items-start gap-3 px-4 py-3 hover:bg-muted/50 transition-colors cursor-pointer ${
                   !n.read ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : ''
                 }`}
+                onClick={() => handleNotificationClick(n)}
               >
                 <span className="text-lg mt-0.5">{n.icon}</span>
                 <div className="flex-1 min-w-0">
@@ -645,7 +663,10 @@ function NotificationBell() {
           </div>
         </ScrollArea>
         <div className="border-t px-4 py-2">
-          <button className="w-full text-center text-xs font-medium text-emerald-600 hover:text-emerald-700 py-1">
+          <button
+            className="w-full text-center text-xs font-medium text-emerald-600 hover:text-emerald-700 py-1"
+            onClick={() => { setPage('help'); setOpen(false); }}
+          >
             Показать все уведомления
           </button>
         </div>

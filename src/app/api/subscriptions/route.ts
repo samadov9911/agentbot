@@ -76,12 +76,6 @@ export async function POST(request: NextRequest) {
         data: { status: 'cancelled', autoRenew: false },
       });
 
-      // Also update the user's plan
-      await db.user.update({
-        where: { id: userId },
-        data: { planName: 'none', planStatus: 'cancelled' },
-      });
-
       return NextResponse.json({
         subscription: updated,
         message: 'Subscription cancelled successfully',
@@ -136,16 +130,6 @@ export async function POST(request: NextRequest) {
         currency: 'USD',
         plan,
         status: 'completed',
-      },
-    });
-
-    // Update user — clear demoExpiresAt so the client stops showing demo banner
-    await db.user.update({
-      where: { id: userId },
-      data: {
-        planName: plan,
-        planStatus: 'active',
-        demoExpiresAt: null,
       },
     });
 
