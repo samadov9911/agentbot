@@ -179,7 +179,46 @@ async function callOpenRouter(
 }
 
 // ──────────────────────────────────────────────────────────────
-// Provider 4: HuggingFace FREE Inference — NO KEY NEEDED
+// Provider 4: Pollinations AI — FREE, NO KEY, works everywhere
+// ──────────────────────────────────────────────────────────────
+
+async function callPollinations(
+  systemPrompt: string,
+  userMessage: string,
+  history: ChatMessage[] = [],
+): Promise<string | null> {
+  // Build a single prompt from system + history + user message
+  const parts: string[] = [];
+  parts.push(`[System instructions]: ${systemPrompt}`);
+
+  const recent = history.slice(-6);
+  for (const msg of recent) {
+    const label = msg.role === 'assistant' ? 'Assistant' : 'User';
+    parts.push(`[${label}]: ${msg.content}`);
+  }
+  parts.push(`[User]: ${userMessage}`);
+  parts.push('[Assistant]:');
+
+  const prompt = parts.join('\n');
+  const encodedPrompt = encodeURIComponent(prompt);
+
+  try {
+    const res = await fetch(`https://text.pollinations.ai/${encodedPrompt}`, {
+      signal: AbortSignal.timeout(45_000),
+    });
+
+    if (!res.ok) return null;
+
+    const text = await res.text();
+    if (text?.trim()?.length > 3) return text.trim();
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// Provider 5: HuggingFace FREE Inference — NO KEY NEEDED
 // Uses free community models with rate limits
 // ──────────────────────────────────────────────────────────────
 
@@ -270,7 +309,13 @@ export async function chatWithAi(
     return { ok: true, text: orResult, provider: 'OpenRouter AI' };
   }
 
-  // 4. HuggingFace FREE — no key needed
+  // 4. Pollinations (FREE, no key, works on Vercel)
+  const pollResult = await callPollinations(systemPrompt, userMessage, history);
+  if (pollResult) {
+    return { ok: true, text: pollResult, provider: 'Pollinations AI' };
+  }
+
+  // 5. HuggingFace FREE — no key needed
   const hfResult = await callHuggingFace(systemPrompt, userMessage, history);
   if (hfResult) {
     return { ok: true, text: hfResult, provider: 'HuggingFace AI' };
@@ -293,7 +338,7 @@ export function getAiProviders(): { name: string; key: string; available: boolea
     { name: 'Groq AI', key: 'GROQ_API_KEY', available: !!process.env.GROQ_API_KEY },
     { name: 'Gemini AI', key: 'GEMINI_API_KEY', available: !!process.env.GEMINI_API_KEY },
     { name: 'OpenRouter', key: 'OPENROUTER_API_KEY', available: !!process.env.OPENROUTER_API_KEY },
-    { name: 'HuggingFace AI', key: 'always-free', available: true },
+    { name: 'Pollinations AI', key: 'always-free', available: true },
   ];
 }
 
