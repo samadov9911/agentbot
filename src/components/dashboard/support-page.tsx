@@ -122,9 +122,18 @@ export function SupportPage() {
   const [isSending, setIsSending] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [category, setCategory] = useState('all');
+  const [aiProvider, setAiProvider] = useState<string | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Check AI status on mount
+  useEffect(() => {
+    fetch('/api/ai-status')
+      .then((r) => r.json())
+      .then((data) => setAiProvider(data.provider || 'offline'))
+      .catch(() => setAiProvider('offline'));
+  }, []);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -258,7 +267,7 @@ export function SupportPage() {
             </div>
             <div className="hidden md:flex items-center gap-2 text-white/80 text-sm">
               <Sparkles className="size-4" />
-              <span>AI-powered</span>
+              <span>{aiProvider === 'gemini' ? 'Powered by Gemini AI' : 'AI-powered'}</span>
             </div>
           </div>
         </div>

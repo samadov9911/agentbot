@@ -222,6 +222,7 @@ export function AiAssistantWidget() {
   const [error, setError] = useState<string | null>(null);
   const [hasMounted, setHasMounted] = useState(false);
   const [hasEverOpened, setHasEverOpened] = useState(false);
+  const [aiProvider, setAiProvider] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -233,6 +234,11 @@ export function AiAssistantWidget() {
     if (saved.length > 0) {
       setMessages(saved);
     }
+    // Check AI status
+    fetch('/api/ai-status')
+      .then((r) => r.json())
+      .then((data) => setAiProvider(data.provider || 'offline'))
+      .catch(() => setAiProvider('offline'));
   }, []);
 
   // ── Track first open ──
@@ -427,7 +433,9 @@ export function AiAssistantWidget() {
                       <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-300 opacity-75" />
                       <span className="relative inline-flex size-2 rounded-full bg-emerald-200" />
                     </span>
-                    {t('aiAssistant.online', language)}
+                    {aiProvider === 'gemini'
+                      ? (language === 'ru' ? 'Gemini AI — Онлайн' : language === 'tr' ? 'Gemini AI — Çevrimiçi' : 'Gemini AI — Online')
+                      : t('aiAssistant.online', language)}
                   </span>
                 </div>
               </div>
