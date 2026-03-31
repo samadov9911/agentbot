@@ -192,7 +192,9 @@ export type AppPage =
   | 'admin-logs'
   | 'admin-embed'
   | 'support'
-  | 'bookings';
+  | 'bookings'
+  | 'forgot-password'
+  | 'reset-password';
 
 export interface PricingPlan {
   id: string;

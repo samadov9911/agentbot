@@ -72,7 +72,7 @@ export function LoginForm() {
   };
 
   const handleForgotPassword = () => {
-    console.log('[LoginForm] Forgot password clicked for:', email || '(empty)');
+    setPage('forgot-password');
   };
 
   const handleSwitchToRegister = () => {

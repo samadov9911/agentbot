@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useSyncExternalStore } from 'react';
+import React, { useSyncExternalStore, useEffect } from 'react';
 import { useAuthStore, useAppStore } from '@/stores';
 
 import LandingPage from '@/components/landing/landing-page';
 import { LoginForm } from '@/components/auth/login-form';
 import { RegisterForm } from '@/components/auth/register-form';
+import { ForgotPasswordForm } from '@/components/auth/forgot-password-form';
+import { ResetPasswordForm } from '@/components/auth/reset-password-form';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { DashboardOverview } from '@/components/dashboard/overview';
 import { MyBotsPage } from '@/components/dashboard/my-bots';
@@ -119,6 +121,15 @@ export default function Home() {
     () => false,
   );
 
+  // Auto-detect reset-password link from URL params (?reset=true&email=...&token=...&expires=...&sig=...)
+  useEffect(() => {
+    if (!mounted || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('reset') === 'true' && params.get('email') && params.get('token')) {
+      useAppStore.getState().setPage('reset-password');
+    }
+  }, [mounted]);
+
   if (!mounted) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -137,6 +148,14 @@ export default function Home() {
 
   if (page === 'register') {
     return <RegisterForm />;
+  }
+
+  if (page === 'forgot-password') {
+    return <ForgotPasswordForm />;
+  }
+
+  if (page === 'reset-password') {
+    return <ResetPasswordForm />;
   }
 
   // Dashboard pages - with layout
