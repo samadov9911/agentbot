@@ -732,9 +732,10 @@ function DashboardHeader() {
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
+  floatingWidget?: React.ReactNode;
 }
 
-export function DashboardLayout({ children }: DashboardLayoutProps) {
+export function DashboardLayout({ children, floatingWidget }: DashboardLayoutProps) {
   return (
     <SidebarProvider>
       <DashboardSidebar />
@@ -744,6 +745,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {children}
         </div>
       </SidebarInset>
+      {/* Floating widgets must be outside SidebarInset to avoid
+          transform breaking position:fixed on the widget */}
+      {floatingWidget}
     </SidebarProvider>
   );
 }

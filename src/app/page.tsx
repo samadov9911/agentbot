@@ -161,9 +161,8 @@ export default function Home() {
   // Dashboard pages - with layout
   if (isAuthenticated && page !== 'landing') {
     return (
-      <DashboardLayout>
+      <DashboardLayout floatingWidget={<AiAssistantWidget />}>
         <DashboardContent page={page} />
-        <AiAssistantWidget />
       </DashboardLayout>
     );
   }
