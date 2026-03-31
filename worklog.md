@@ -1479,3 +1479,26 @@ Stage Summary:
 - This is the ROOT CAUSE fix: without CORS headers, browser blocks widget API calls from external sites
 - User needs to redeploy to Vercel to get the fix + the correct embed code format
 - Old `cdn.botforge.ai` embed code was from stuck production deployment; local code already uses correct self-contained inline script
+
+---
+Task ID: 11
+Agent: Main Orchestrator
+Task: Deploy CORS middleware to Vercel production
+
+Work Log:
+- Discovered root cause of production not updating: Vercel production branch was `main`, but all pushes were to `master`
+- Branch `main` was stuck on old commit `c292ef8` (no CORS, no middleware)
+- `git push origin master:main` updated main branch to latest code
+- Vercel automatically detected push to `main` and triggered production deploy
+- Added `vercel.json` with CORS headers as additional layer
+- Production deployment ID 4232388748 completed successfully
+- Verified CORS headers on production:
+  - OPTIONS preflight → 204 with `access-control-allow-origin: *` ✅
+  - GET requests → 200 with CORS headers ✅
+  - POST preflight → 204 with correct methods ✅
+
+Stage Summary:
+- CORS middleware is LIVE on production at agentbot-one.vercel.app
+- Widget embedded on external sites can now communicate with API
+- Embed code in My Bots section generates correct self-contained inline script
+- User can copy new embed code and paste on any website
