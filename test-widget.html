@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Widget Test Page</title>
+  <style>
+    body { font-family: sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
+    h1 { color: #333; }
+    .info { background: #f0f0f0; padding: 16px; border-radius: 8px; margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <h1>Test Page — AgentBot Widget</h1>
+  <div class="info">
+    <p>This page tests the AgentBot widget embed code.</p>
+    <p>The widget should appear as a green circle button in the bottom-right corner.</p>
+    <p>Clicking the button should open a chat panel.</p>
+  </div>
+  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+
+  <!-- AgentBot Widget -->
+  <script
+    src="https://agentbot-one.vercel.app/api/widget.js"
+    data-bot-id="bf_ac7b0b7b-fd14-4fb2-bba2-a34d42d2cfe1"
+    async>
+  </script>
+</body>
+</html>

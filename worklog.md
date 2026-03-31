@@ -1526,3 +1526,25 @@ Stage Summary:
 - Clean 5-line embed code instead of 3KB minified inline script
 - Lint: zero errors
 - Git: pushed e8a370f to master and main
+
+---
+Task ID: 11
+Agent: Main Orchestrator
+Task: Fix widget panel not opening when clicked on external sites
+
+Work Log:
+- User reported: widget button visible on customer site but clicking does nothing
+- Investigated /api/widget.js endpoint on Vercel — HTTP 200, valid JS syntax
+- Found root cause: panel wrapper div created WITHOUT id="abw-pan"
+  - getElementById("abw-pan") always returned null
+  - Panel had no CSS (opacity:0, no positioning, invisible)
+  - toggle() crashed on bPan.classList.add("open") — TypeError
+- Fix: Added pan.id="abw-pan" after creating the panel element
+- Verified fix deployed to Vercel: syntax valid, pan.id present
+
+Stage Summary:
+- Bug was in the original widget code (not just the new endpoint)
+- Panel wrapper div never had id="abw-pan" — a latent bug since the beginning
+- Fix: 1 line addition (pan.id="abw-pan")
+- Pushed 6316468 to master + main, deployed to Vercel
+- Customer should hard-refresh (Ctrl+F5) to get new widget.js (1hr browser cache)

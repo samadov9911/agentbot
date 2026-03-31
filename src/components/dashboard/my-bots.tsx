@@ -305,7 +305,7 @@ const WIDGET_BASE_URL = 'https://agentbot-one.vercel.app';
 function generateEmbedScript(embedCode: string): string {
   return `<!-- AgentBot Widget -->
 <script
-  src="${WIDGET_BASE_URL}/api/widget.js"
+  src="${WIDGET_BASE_URL}/api/widget.js?v=2"
   data-bot-id="${embedCode}"
   async>
 </script>`;
@@ -324,7 +324,7 @@ function generateEmbedScriptHtml(embedCode: string): string {
 function getFormattedDisplayCode(embedCode: string, language: string): string {
   return `<!-- AgentBot Widget -->
 <script
-  src="${WIDGET_BASE_URL}/api/widget.js"
+  src="${WIDGET_BASE_URL}/api/widget.js?v=2"
   data-bot-id="${embedCode}"
   async>
 </script>`;
@@ -485,9 +485,9 @@ function EmbedCodeModal({
           tr: 'Aşağıdaki kodu yapıştırın:',
         },
         {
-          ru: '<pre>useEffect(() =&gt; {\n  const s = document.createElement("script");\n  s.src = "https://agentbot-one.vercel.app/api/widget.js";\n  s.setAttribute("data-bot-id", "ВАШ_BOT_ID");\n  s.async = true;\n  document.body.appendChild(s);\n}, []);</pre>',
-          en: '<pre>useEffect(() =&gt; {\n  const s = document.createElement("script");\n  s.src = "https://agentbot-one.vercel.app/api/widget.js";\n  s.setAttribute("data-bot-id", "YOUR_BOT_ID");\n  s.async = true;\n  document.body.appendChild(s);\n}, []);</pre>',
-          tr: '<pre>useEffect(() =&gt; {\n  const s = document.createElement("script");\n  s.src = "https://agentbot-one.vercel.app/api/widget.js";\n  s.setAttribute("data-bot-id", "BOT_ID_NIZ");\n  s.async = true;\n  document.body.appendChild(s);\n}, []);</pre>',
+          ru: '<pre>useEffect(() =&gt; {\n  const s = document.createElement("script");\n  s.src = "https://agentbot-one.vercel.app/api/widget.js?v=2";\n  s.setAttribute("data-bot-id", "ВАШ_BOT_ID");\n  s.async = true;\n  document.body.appendChild(s);\n}, []);</pre>',
+          en: '<pre>useEffect(() =&gt; {\n  const s = document.createElement("script");\n  s.src = "https://agentbot-one.vercel.app/api/widget.js?v=2";\n  s.setAttribute("data-bot-id", "YOUR_BOT_ID");\n  s.async = true;\n  document.body.appendChild(s);\n}, []);</pre>',
+          tr: '<pre>useEffect(() =&gt; {\n  const s = document.createElement("script");\n  s.src = "https://agentbot-one.vercel.app/api/widget.js?v=2";\n  s.setAttribute("data-bot-id", "BOT_ID_NIZ");\n  s.async = true;\n  document.body.appendChild(s);\n}, []);</pre>',
         },
         {
           ru: 'Замените <code>ВАШ_BOT_ID</code> на ваш реальный embed-код бота (например, <code>bf_ac7b0b7b-...</code>).',
