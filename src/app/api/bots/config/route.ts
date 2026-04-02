@@ -1,23 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getCached, setConfigCache } from '@/lib/config-cache';
 
-// In-memory cache: embedCode -> { data, timestamp }
-const configCache = new Map<string, { data: Record<string, unknown>; timestamp: number }>();
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-function getCached(embedCode: string): Record<string, unknown> | null {
-  const entry = configCache.get(embedCode);
-  if (!entry) return null;
-  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
-    configCache.delete(embedCode);
-    return null;
-  }
-  return entry.data;
-}
-
-function setCache(embedCode: string, data: Record<string, unknown>) {
-  configCache.set(embedCode, { data, timestamp: Date.now() });
-}
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,14 +16,17 @@ export async function GET(request: NextRequest) {
     if (!embedCode) {
       return NextResponse.json(
         { error: 'embedCode query parameter is required' },
-        { status: 400 }
+        { status: 400, headers: NO_CACHE_HEADERS }
       );
     }
 
-    // Check cache first
+    // Check cache first (short TTL — 30s)
     const cached = getCached(embedCode);
     if (cached) {
-      return NextResponse.json(cached);
+      return new NextResponse(JSON.stringify(cached), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...NO_CACHE_HEADERS },
+      });
     }
 
     // Look up bot by embedCode
@@ -54,13 +46,14 @@ export async function GET(request: NextRequest) {
         config: true,
         appearance: true,
         embedCode: true,
+        updatedAt: true,
       },
     });
 
     if (!bot) {
       return NextResponse.json(
         { error: 'Bot not found or inactive' },
-        { status: 404 }
+        { status: 404, headers: NO_CACHE_HEADERS }
       );
     }
 
@@ -92,20 +85,24 @@ export async function GET(request: NextRequest) {
         niche: bot.niche,
         avatar: bot.avatar,
         embedCode: bot.embedCode,
+        updatedAt: bot.updatedAt?.toISOString(),
         config: parsedConfig,
         appearance: parsedAppearance,
       },
     };
 
-    // Cache the result
-    setCache(embedCode, responseData);
+    // Cache the result (short TTL)
+    setConfigCache(embedCode, responseData);
 
-    return NextResponse.json(responseData);
+    return new NextResponse(JSON.stringify(responseData), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...NO_CACHE_HEADERS },
+    });
   } catch (error) {
     console.error('Bot config API error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: NO_CACHE_HEADERS }
     );
   }
 }

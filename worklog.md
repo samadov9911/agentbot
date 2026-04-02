@@ -1641,3 +1641,30 @@ Stage Summary:
 - AI agents/chatbots/hybrids now ask for email during booking flow
 - All 3 language variants updated (ru/en/tr)
 - Lint clean
+
+---
+Task ID: 1
+Agent: Main Orchestrator
+Task: Fix 'Аноним' bug — visitor name not saved to lead records despite client providing it
+
+Work Log:
+- Traced full data flow: widget → bot-demo-chat → lead DB → analytics dashboard
+- Identified ROOT CAUSE: server stores conversation history in-memory (Map), which is LOST on every Vercel deploy
+- Widget stores history in localStorage (survives deploys) but NEVER sent it to server
+- After deploy, server can only see messages sent AFTER the deploy
+- extractName() scans only server-side history → can't find name from pre-deploy messages
+- leadSavedSessions (in-memory Set) also cleared on deploy → lead update logic never triggered
+- extractName() couldn't catch single-word names (e.g. "Иван" response to "Как вас зовут?")
+
+Fix 1: Widget now sends full history (msgs) with every POST request
+Fix 2: Server restores history from widget msgs, handles duplicates
+Fix 3: Lead capture always finds existing lead by botId+IP (48h window), no in-memory dependency
+Fix 4: extractName() now catches single-word names with expanded exclude list
+
+Pushed to main (0312121)
+
+Stage Summary:
+- The fundamental architecture issue was: in-memory state lost on Vercel deploys
+- Solution: widget becomes the source of truth, sends history to server every message
+- Lead updates now work across deploys via DB lookup (botId + IP)
+- Name extraction covers: "меня зовут X", "я X", start-of-message "X, ...", and single-word "X"

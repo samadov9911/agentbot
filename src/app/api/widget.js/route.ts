@@ -12,10 +12,11 @@ import { NextResponse } from 'next/server';
  * - Dynamic theming from bot appearance config
  * - Dynamic position (bottom-left / bottom-right)
  * - Bot avatar support
+ * - Config refresh on every open (no stale appearance)
  * - DOMContentLoaded-safe, addEventListener, try/catch
  */
 
-const WIDGET_VERSION = '4';
+const WIDGET_VERSION = '5';
 
 const WIDGET_JS = `
 /* AgentBot Widget v${WIDGET_VERSION} */
@@ -63,6 +64,15 @@ function browserLang(){
 function init(){
 try{
 var B="https://agentbot-one.vercel.app",S="ab_"+E;
+
+/* ── Clean up any existing widget elements from previous embed codes ── */
+var oldWrap=document.getElementById("abw-btn-wrap");
+if(oldWrap){oldWrap.parentNode&&oldWrap.parentNode.removeChild(oldWrap)}
+var oldPan=document.getElementById("abw-pan");
+if(oldPan){oldPan.parentNode&&oldPan.parentNode.removeChild(oldPan)}
+var oldStyle=document.getElementById("abw-css");
+if(oldStyle){oldStyle.parentNode&&oldStyle.parentNode.removeChild(oldStyle)}
+
 if(document.getElementById("abw-"+E)){return}
 var M={};M[S]={open:false,msgs:[],sid:null};
 var W=M[S],R=document;
@@ -74,7 +84,7 @@ W.lang=lang;
 
 function t(k){return(L[lang]&&L[lang][k])||(L.en&&L.en[k])||k}
 
-function css(t){var e=document.createElement("style");e.textContent=t;document.head.appendChild(e)}
+function css(t){var e=document.createElement("style");e.id="abw-css";e.textContent=t;document.head.appendChild(e)}
 
 function el(tag,cls,h){var e=document.createElement(tag);if(cls)e.className=cls;e.innerHTML=h||"";return e}
 
@@ -93,11 +103,17 @@ function applyPosition(pos){
   var btn=R.getElementById("abw-btn");
   var pan=R.getElementById("abw-pan");
   if(!btn||!pan)return;
+  /* Reset to default right position first */
+  if(wrap){wrap.style.right="24px";wrap.style.left="auto"}
+  btn.style.right="24px";btn.style.left="auto";
+  pan.style.right="24px";pan.style.left="24px";
+  var badge=R.getElementById("abw-badge");
+  if(badge){badge.style.right="-2px";badge.style.left="auto"}
+  /* Apply left if needed */
   if(pos==="bottom-left"){
     if(wrap){wrap.style.right="auto";wrap.style.left="24px"}
     btn.style.right="auto";btn.style.left="24px";
     pan.style.right="auto";pan.style.left="24px";
-    var badge=R.getElementById("abw-badge");
     if(badge){badge.style.right="auto";badge.style.left="-2px"}
   }
 }
@@ -108,6 +124,9 @@ var hist=ls("ab_hist"+E)||[];W.msgs=hist;
 function saveHist(){ls("ab_hist"+E,W.msgs.slice(-50))}
 function save(){ls("ab_open"+E,W.open)}
 W.open=!!ls("ab_open"+E);
+
+/* Track last config version to detect changes */
+var lastConfigHash=ls("ab_cfg"+E)||"";
 
 css(":root{--ab-primary:#059669;--ab-secondary:#10b981;--ab-secondary-rgb:16,185,129}#abw-btn{position:fixed;z-index:99999;bottom:24px;right:24px;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--ab-primary),var(--ab-secondary));border:none;cursor:pointer;box-shadow:0 4px 24px rgba(var(--ab-secondary-rgb),0.4);display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s}#abw-btn:hover{transform:scale(1.08);box-shadow:0 6px 32px rgba(var(--ab-secondary-rgb),0.5)}#abw-btn svg{width:28px;height:28px;fill:white}#abw-badge{position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;border-radius:9px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;opacity:0;transition:opacity .2s}#abw-pan{position:fixed;z-index:99998;bottom:96px;right:24px;width:380px;max-width:calc(100vw - 32px);height:520px;max-height:calc(100vh - 120px);border-radius:16px;background:#fff;box-shadow:0 8px 40px rgba(0,0,0,0.15);display:flex;flex-direction:column;overflow:hidden;opacity:0;transform:translateY(16px) scale(0.95);transition:opacity .25s,transform .25s;pointer-events:none}#abw-pan.open{opacity:1;transform:translateY(0) scale(1);pointer-events:all}#abw-head{padding:16px;background:linear-gradient(135deg,var(--ab-primary),var(--ab-secondary));color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}#abw-head h3{margin:0;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}#abw-cls{background:rgba(255,255,255,0.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}#abw-cls:hover{background:rgba(255,255,255,0.3)}#abw-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}#abw-msgs::-webkit-scrollbar{width:4px}#abw-msgs::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:2px}#abw-bbl{max-width:80%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5;word-wrap:break-word;white-space:pre-wrap;animation:abIn .2s ease}@keyframes abIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}.ab-bot{background:#f3f4f6;color:#1f2937;align-self:flex-start;border-bottom-left-radius:4px}.ab-user{background:linear-gradient(135deg,var(--ab-primary),var(--ab-secondary));color:#fff;align-self:flex-end;border-bottom-right-radius:4px}.ab-booking{background:#f9fafb;border:1px solid var(--ab-secondary);color:#374151;align-self:center;text-align:center;cursor:pointer;padding:10px 20px;border-radius:12px;font-size:13px;font-weight:500}.ab-booking:hover{background:#f3f4f6}#abw-typ{display:none;padding:10px 14px;align-self:flex-start}.ab-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#9ca3af;margin:0 2px;animation:abBounce .6s infinite alternate}.ab-dot:nth-child(2){animation-delay:.2s}.ab-dot:nth-child(3){animation-delay:.4s}@keyframes abBounce{to{opacity:.3;transform:translateY(-4px)}}#abw-inp{padding:12px 16px;border-top:1px solid #e5e7eb;display:flex;gap:8px;flex-shrink:0;background:#fff}#abw-inp input{flex:1;border:1px solid #d1d5db;border-radius:24px;padding:10px 16px;font-size:14px;outline:none;transition:border-color .2s}#abw-inp input:focus{border-color:var(--ab-secondary)}#abw-inp button{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--ab-primary),var(--ab-secondary));border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s;flex-shrink:0}#abw-inp button:hover{transform:scale(1.05)}#abw-inp button svg{width:18px;height:18px;fill:white}");
 
@@ -133,13 +152,58 @@ var bTitle=R.getElementById("abw-title");
 
 if(!bBtn||!bPan){return}
 
+/* Simple hash function to detect config changes */
+function hashStr(s){var h=0;for(var i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0}return""+h}
+
+var configLoading=false;
+
+/**
+ * refreshConfig() — Fetches bot config and applies appearance (name, theme, position, avatar, language).
+ * Called EVERY TIME the widget opens to ensure fresh data.
+ * Only adds greeting if this is the first visit (no messages yet) or if greeting changed.
+ */
+function refreshConfig(){
+  if(configLoading)return;
+  configLoading=true;
+  fetch(B+"/api/bots/config?embedCode="+E+"&_t="+Date.now()).then(function(r){if(!r.ok)throw new Error();return r.json()}).then(function(d){
+    configLoading=false;
+    var bot=d.bot;
+    /* Compute config hash to detect changes */
+    var newHash=hashStr(JSON.stringify(d));
+    ls("ab_cfg"+E,newHash);
+    var greetingChanged=(newHash!==lastConfigHash);
+    lastConfigHash=newHash;
+
+    /* Always update appearance */
+    bTitle.textContent=bot.name||"AgentBot";
+    var appearance=bot.appearance||{};
+    if(appearance.primaryColor&&appearance.secondaryColor){applyTheme(appearance.primaryColor,appearance.secondaryColor)}
+    applyPosition(appearance.position);
+    if(bot.avatar){var av=R.getElementById("abw-avatar");if(av){av.innerHTML='<img src=\\"'+bot.avatar+'\\" style=\\"width:24px;height:24px;border-radius:50%;object-fit:cover\\" alt=\\"\\" />';var gl=R.getElementById("abw-globe-icon");if(gl)gl.style.display="none"}}
+    if(appearance.language&&L[appearance.language]){W.lang=appearance.language;ls("ab_lang"+E,appearance.language);bInp.placeholder=t("placeholder")}
+
+    /* Only add greeting on first visit or when config changed */
+    if(W.msgs.length===0){
+      var cfg=bot.config||{};
+      if(cfg.greeting){addMsg(cfg.greeting,"bot")}else{addMsg(t("greeting"),"bot")}
+    }
+    render();
+    bMsgs.scrollTop=bMsgs.scrollHeight;
+  }).catch(function(){
+    configLoading=false;
+    if(W.msgs.length===0){addMsg(t("loadErr"),"bot")}
+    render();
+  })
+}
+
 function toggle(){
 W.open=!W.open;
 if(W.open){
 bPan.classList.add("open");
 bBtn.style.display="none";
 bInp.focus();
-if(W.msgs.length===0){loadConfig()}else{bMsgs.scrollTop=bMsgs.scrollHeight}
+/* ALWAYS refresh config on every open to get fresh appearance */
+refreshConfig();
 }else{
 bPan.classList.remove("open");
 bBtn.style.display="flex"
@@ -183,25 +247,6 @@ addMsg(txt,"user");
 send(txt)
 }
 
-function loadConfig(){
-fetch(B+"/api/bots/config?embedCode="+E).then(function(r){if(!r.ok)throw new Error();return r.json()}).then(function(d){
-var bot=d.bot;
-bTitle.textContent=bot.name||"AgentBot";
-var appearance=bot.appearance||{};
-/* Apply colors */
-if(appearance.primaryColor&&appearance.secondaryColor){applyTheme(appearance.primaryColor,appearance.secondaryColor)}
-/* Apply position */
-applyPosition(appearance.position);
-/* Apply avatar */
-if(bot.avatar){var av=R.getElementById("abw-avatar");if(av){av.innerHTML='<img src=\\"'+bot.avatar+'\\" style=\\"width:24px;height:24px;border-radius:50%;object-fit:cover\\" alt=\\"\\" />';var gl=R.getElementById("abw-globe-icon");if(gl)gl.style.display="none"}}
-/* Apply language from config if set */
-if(appearance.language&&L[appearance.language]){W.lang=appearance.language;ls("ab_lang"+E,appearance.language);bInp.placeholder=t("placeholder")}
-/* Greeting */
-var cfg=bot.config||{};
-if(cfg.greeting){addMsg(cfg.greeting,"bot")}else{addMsg(t("greeting"),"bot")}
-}).catch(function(){addMsg(t("loadErr"),"bot")})
-}
-
 function send(text){
 W.sending=true;
 bTyp.style.display="flex";
@@ -217,7 +262,11 @@ addMsg(t("netErr"),"bot")
 W.sending=false
 }
 
-if(W.open){bPan.classList.add("open");bBtn.style.display="none";if(W.msgs.length>0){render()}else{loadConfig()}bMsgs.scrollTop=bMsgs.scrollHeight}
+/* On initial page load, always refresh config if widget was open */
+if(W.open){bPan.classList.add("open");bBtn.style.display="none";refreshConfig()}else if(W.msgs.length===0){
+  /* Pre-fetch config silently even when closed, so appearance is ready on first open */
+  refreshConfig();
+}
 
 }catch(err){console.error("[AgentBot] Init error:",err)}
 }
@@ -237,7 +286,7 @@ export async function GET(request: Request) {
     status: 200,
     headers: {
       'Content-Type': 'application/javascript; charset=utf-8',
-      'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=600',
+      'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=120',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { generateEmbedCode, generateCuid } from '@/lib/auth';
+import { invalidateConfigCache } from '@/lib/config-cache';
 
 export async function GET(request: NextRequest) {
   try {
@@ -163,6 +164,11 @@ export async function PATCH(request: NextRequest) {
       data: updateData,
     });
 
+    // Invalidate config cache so widget gets fresh data
+    if (existingBot.embedCode) {
+      invalidateConfigCache(existingBot.embedCode);
+    }
+
     return NextResponse.json({ success: true, bot: updated });
   } catch (error) {
     console.error('Bots PATCH error:', error);
@@ -183,10 +189,21 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Bot ID is required' }, { status: 400 });
     }
 
+    // Look up bot to get embedCode for cache invalidation
+    const existingBot = await db.bot.findFirst({
+      where: { id: botId, userId, deletedAt: null },
+      select: { embedCode: true },
+    });
+
     await db.bot.update({
       where: { id: botId, userId },
       data: { deletedAt: new Date(), isActive: false },
     });
+
+    // Invalidate config cache
+    if (existingBot?.embedCode) {
+      invalidateConfigCache(existingBot.embedCode);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
