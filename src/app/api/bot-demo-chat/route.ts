@@ -43,17 +43,27 @@ function extractEmail(text: string): string | null {
 
 /**
  * Extract a person's name from text.
- * Handles full names (ФИО) and various phrasings across languages.
+ * Handles full names (ФИО), single names, and various phrasings across languages.
  * Returns the full name or null.
  */
 function extractName(text: string): string | null {
   const excludeWords = new Set([
+    // Russian common words
     'не', 'так', 'это', 'ещё', 'уже', 'здесь', 'там', 'тут', 'как', 'что', 'все',
-    'буду', 'могу', 'хочу', 'надо', 'нужно', 'можно', 'можно', 'пожалуйста',
+    'буду', 'могу', 'хочу', 'надо', 'нужно', 'можно', 'пожалуйста',
+    'можете', 'подскажите', 'скажите', 'помогите', 'запишите', 'записать',
+    'спасибо', 'хорошо', 'конечно', 'давайте', 'ладно', 'окей',
+    'отлично', 'прекрасно', 'замечательно', 'здорово', 'супер',
+    'привет', 'здравствуйте', 'добрый', 'вечер', 'день', 'утро',
+    'да', 'нет', 'ок', 'ага', 'угу',
+    // English common words
     'not', 'this', 'that', 'here', 'there', 'how', 'what', 'all', 'yes', 'no', 'would',
     'will', 'can', 'just', 'also', 'very', 'really', 'please', 'want', 'need',
+    'thanks', 'great', 'good', 'fine', 'okay', 'sure', 'well', 'hello', 'hi',
+    'morning', 'evening', 'afternoon',
+    // Turkish common words
     'değil', 'bu', 'şu', 'nasıl', 'ne', 'evet', 'hayır', 'istiyorum', 'lazım',
-    'можете', 'можно', 'нужно', 'подскажите', 'скажите', 'помогите',
+    'teşekkürler', 'güzel', 'tamam', 'tabii', 'merhaba', 'günaydın',
   ]);
 
   // Patterns that capture full name (1-3 words after the trigger)
@@ -75,14 +85,13 @@ function extractName(text: string): string | null {
     if (match && match[1]) {
       const candidate = match[1].trim();
       const words = candidate.split(/\s+/);
-      // All words must not be in exclude list
       if (words.every(w => !excludeWords.has(w.toLowerCase())) && candidate.length > 1 && candidate.length < 60) {
         return candidate;
       }
     }
   }
 
-  // Pattern: name at the start of message (capitalized word before a comma or period)
+  // Pattern: name at the start of message (capitalized word(s) before punctuation)
   // e.g. "Иванов Иван, хочу записаться" or "Мухаммад. Запишите на завтра"
   const startNamePatterns = [
     /^([А-ЯA-Z][а-яa-z]+(?:\s+[А-ЯA-Z][а-яa-z]+){0,2})\s*[,\.\-:;!?]/,
@@ -98,13 +107,28 @@ function extractName(text: string): string | null {
     }
   }
 
-  // Pattern: "я [Name]" — but only if followed by punctuation or space + non-verb
+  // Pattern: "я [Name]" — e.g. "я Иванов" or "я Мухаммад"
   const yaPattern = /я\s+([А-ЯA-Z][а-яa-z]+(?:\s+[А-ЯA-Z][а-яa-z]+){0,2})\b/i;
   const yaMatch = text.match(yaPattern);
   if (yaMatch && yaMatch[1]) {
     const candidate = yaMatch[1].trim();
     const words = candidate.split(/\s+/);
     if (words.every(w => !excludeWords.has(w.toLowerCase()) && w.length > 1 && w.length < 30)) {
+      return candidate;
+    }
+  }
+
+  // Pattern: name as the ONLY content in message (response to "как вас зовут?")
+  // e.g. "Иван" or "Иванов Иван" — a single capitalized name, possibly with period/comma
+  const singleNamePattern = /^(?:Да,?\s*)?([А-ЯA-ZÇĞİÖŞÜ][а-яa-zçğıöşüñ]+(?:\s+[А-ЯA-ZÇĞİÖŞÜ][а-яa-zçğıöşüñ]+){0,2})[.,!?\s]*$/;
+  const singleMatch = text.match(singleNamePattern);
+  if (singleMatch && singleMatch[1]) {
+    const candidate = singleMatch[1].trim();
+    const words = candidate.split(/\s+/);
+    // Single name must be at least 3 chars to filter out "Да", "Ок" etc.
+    // Multi-word names: each word must be at least 2 chars
+    const minLen = words.length === 1 ? 3 : 2;
+    if (words.every(w => w.length >= minLen && w.length < 30 && !excludeWords.has(w.toLowerCase()))) {
       return candidate;
     }
   }
@@ -334,6 +358,7 @@ export async function POST(request: NextRequest) {
       calendarConfig,
       botId,
       embedCode,
+      msgs: widgetMsgs,
     } = body;
 
     if (!message || !sessionId) {
@@ -389,10 +414,42 @@ export async function POST(request: NextRequest) {
 
     // Get or create conversation history
     let history = demoConversations.get(sessionId) || [];
-    const historyLengthBeforeAdd = history.length;
+    let userMessageAlreadyInHistory = false;
 
-    // Add user message
-    history.push({ role: 'user', content: message, ts: Date.now() });
+    // ── CRITICAL: Restore history from widget if provided ──
+    // Widget stores full history in localStorage (survives deploys).
+    // Server in-memory history is LOST on every Vercel deploy.
+    // By receiving history from widget, we can scan ALL messages for contacts.
+    if (widgetMsgs && Array.isArray(widgetMsgs) && widgetMsgs.length > 0) {
+      const widgetHistory = widgetMsgs
+        .filter((m: { type: string; text: string }) => m.type === 'user' || m.type === 'bot')
+        .map((m: { type: string; text: string }) => ({
+          role: m.type === 'user' ? 'user' as const : 'assistant' as const,
+          content: m.text,
+          ts: Date.now(),
+        }));
+
+      // Use widget history if it's more complete than in-memory history
+      if (widgetHistory.length > history.length) {
+        history = widgetHistory;
+        demoConversations.set(sessionId, history);
+      }
+
+      // Widget adds user message BEFORE calling send(), so it's already in msgs.
+      // Check if current message is already present to avoid duplicates.
+      const lastMsg = history.length > 0 ? history[history.length - 1] : null;
+      if (lastMsg && lastMsg.role === 'user' && lastMsg.content === message) {
+        userMessageAlreadyInHistory = true;
+      }
+    }
+
+    // historyLengthBeforeAdd: how many messages existed before the current user message
+    const historyLengthBeforeAdd = userMessageAlreadyInHistory ? history.length - 1 : history.length;
+
+    // Add user message only if not already in history from widget
+    if (!userMessageAlreadyInHistory) {
+      history.push({ role: 'user', content: message, ts: Date.now() });
+    }
 
     // Current history length (after user message push)
     const currentHistoryLength = history.length;
@@ -611,90 +668,79 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Lead capture: save lead on first message of session ──
-    const isFirstMessage = historyLengthBeforeAdd === 0;
-    if (isFirstMessage && botId) {
-      // Scan for contact info in the first message
-      const contacts = scanHistoryForContacts([history[0]]);
+    // ── Lead capture: unified logic ──
+    // Scans FULL conversation history (now includes widget-side history via msgs param).
+    // No longer depends on in-memory leadSavedSessions — works across Vercel deploys.
 
-      try {
-        await db.lead.create({
-          data: {
-            botId,
-            visitorName: contacts.name || null,
-            visitorPhone: contacts.phone || null,
-            visitorEmail: contacts.email || null,
-            ipAddress,
-            region,
-            message: message || null,
-            source: 'widget',
-          },
-        });
-        leadSavedSessions.add(sessionId);
-      } catch (leadError) {
-        // Silently fail — don't break the chat experience
-        console.error('Lead save error:', leadError);
+    if (botId) {
+      const allContacts = scanHistoryForContacts(history);
+      const hasContacts = allContacts.name || allContacts.phone || allContacts.email;
+
+      if (hasContacts) {
+        try {
+          // Find existing lead by botId + IP from last 48 hours
+          const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+          const existingLead = await db.lead.findFirst({
+            where: { botId, ipAddress, createdAt: { gte: twoDaysAgo } },
+          });
+
+          if (existingLead) {
+            // Update existing lead with any newly found contacts
+            const updateData: Record<string, unknown> = { updatedAt: new Date() };
+            let needsUpdate = false;
+
+            if (allContacts.name && !existingLead.visitorName) {
+              updateData.visitorName = allContacts.name;
+              needsUpdate = true;
+            }
+            if (allContacts.phone && !existingLead.visitorPhone) {
+              updateData.visitorPhone = allContacts.phone;
+              needsUpdate = true;
+            }
+            if (allContacts.email && !existingLead.visitorEmail) {
+              updateData.visitorEmail = allContacts.email;
+              needsUpdate = true;
+            }
+
+            if (needsUpdate) {
+              updateData.status = 'contacted';
+              await db.lead.update({ where: { id: existingLead.id }, data: updateData });
+              console.log(`[AgentBot] Lead ${existingLead.id} updated: name=${!!updateData.visitorName} phone=${!!updateData.visitorPhone} email=${!!updateData.visitorEmail}`);
+            }
+          } else if (!leadSavedSessions.has(sessionId)) {
+            // Create new lead only if not already created in this server session
+            await db.lead.create({
+              data: {
+                botId,
+                visitorName: allContacts.name || null,
+                visitorPhone: allContacts.phone || null,
+                visitorEmail: allContacts.email || null,
+                ipAddress,
+                region,
+                message: history[0]?.content || null,
+                source: 'widget',
+                status: (allContacts.phone || allContacts.email) ? 'contacted' : 'new',
+              },
+            });
+            leadSavedSessions.add(sessionId);
+            console.log(`[AgentBot] New lead created: name=${allContacts.name} phone=${allContacts.phone} email=${allContacts.email}`);
+          }
+        } catch (leadError) {
+          console.error('Lead save/update error:', leadError);
+        }
       }
     }
 
     // ── Lead capture: contact nudge after 3+ messages if no contacts detected ──
     if (currentHistoryLength >= 6) { // 6 = 3 user + 3 bot messages
-      const allContacts = scanHistoryForContacts(history);
-      if (!allContacts.phone && !allContacts.email) {
+      const nudgeContacts = scanHistoryForContacts(history);
+      if (!nudgeContacts.phone && !nudgeContacts.email) {
         // No contacts detected — add nudge
         if (botType === 'rule-based') {
-          // Append nudge to rule-based response
           const nudge = CONTACT_NUDGE_RESPONSES[effectiveLang as keyof typeof CONTACT_NUDGE_RESPONSES] || CONTACT_NUDGE_RESPONSES.ru;
           if (!response.includes(nudge.trim())) {
             response += nudge;
           }
-        }
-      }
-    }
-
-    // ── Lead capture: update lead if new contacts detected in this message ──
-    if (botId && !leadSavedSessions.has(sessionId)) {
-      const latestContacts = scanHistoryForContacts(history);
-      if (latestContacts.phone || latestContacts.email || latestContacts.name) {
-        try {
-          await db.lead.create({
-            data: {
-              botId,
-              visitorName: latestContacts.name || null,
-              visitorPhone: latestContacts.phone || null,
-              visitorEmail: latestContacts.email || null,
-              ipAddress,
-              region,
-              message: history[0]?.content || null,
-              source: 'widget',
-              status: (latestContacts.phone || latestContacts.email) ? 'contacted' : 'new',
-            },
-          });
-          leadSavedSessions.add(sessionId);
-        } catch (leadErr) {
-          console.error('Lead update error:', leadErr);
-        }
-      }
-    } else if (botId && leadSavedSessions.has(sessionId) && currentHistoryLength > 2) {
-      // Update existing lead — scan FULL conversation history for contacts
-      const allContacts = scanHistoryForContacts(history);
-      if (allContacts.phone || allContacts.email || allContacts.name) {
-        try {
-          // Find lead by botId + IP from last 24h
-          const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-          const existingLead = await db.lead.findFirst({
-            where: { botId, ipAddress, createdAt: { gte: oneDayAgo } },
-          });
-          if (existingLead) {
-            const updateData: Record<string, unknown> = { updatedAt: new Date() };
-            if (allContacts.name && !existingLead.visitorName) updateData.visitorName = allContacts.name;
-            if (allContacts.phone && !existingLead.visitorPhone) updateData.visitorPhone = allContacts.phone;
-            if (allContacts.email && !existingLead.visitorEmail) updateData.visitorEmail = allContacts.email;
-            if (allContacts.phone || allContacts.email) updateData.status = 'contacted';
-            await db.lead.update({ where: { id: existingLead.id }, data: updateData });
-          }
-        } catch (leadErr) {
-          console.error('Lead update error:', leadErr);
         }
       }
     }

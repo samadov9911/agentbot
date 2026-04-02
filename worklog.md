@@ -1610,3 +1610,34 @@ Stage Summary:
 - This bug also affected colors and language-from-config (all three were reading from the wrong path)
 - Widget v5 effectively — position, colors, and config language all now work correctly
 - Lint clean, pushed to main branch
+
+---
+Task ID: 1
+Agent: Main Orchestrator
+Task: Fix visitor name showing as "Аноним" in dashboard + add email collection
+
+Work Log:
+- Investigated full data flow: widget chat → bot-demo-chat → Lead records → analytics page
+- Found root cause on analytics-page.tsx line 1146: `{lead.visitorName || t('leads.anonymous', lang)}` shows "Аноним" when visitorName is null
+- Root cause in bot-demo-chat route.ts:
+  1. Name regex only captured first word (e.g. "меня зовут Иванов Иван" → only "Иванов")
+  2. Only 6 limited name patterns, many natural phrasings not covered
+  3. Lead update scanned only last message, not full history
+  4. Email was never requested by AI during booking flow
+- Created new extractName() function with:
+  - 10+ patterns covering ru/en/tr languages
+  - Full name capture (ФИО, 1-3 words)
+  - Pattern for names at start of message ("Иванов Иван, запишите...")
+  - Expanded exclude words to prevent false positives
+- Fixed lead update to scan FULL conversation history instead of just last message
+- Added rule #14 to all 3 system prompt variants (ru/en/tr): AI asks name + phone + email during booking
+- Added rule #6 to universal rules for custom system prompts
+- Updated CONTACT_NUDGE and CONTACT_NUDGE_RESPONSES to ask for email too
+- Pushed to main (dfc3e2a)
+
+Stage Summary:
+- Visitor names now properly extracted from chat history (full ФИО support)
+- Lead records get updated with name from any message in conversation
+- AI agents/chatbots/hybrids now ask for email during booking flow
+- All 3 language variants updated (ru/en/tr)
+- Lint clean

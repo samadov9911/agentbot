@@ -206,7 +206,7 @@ function send(text){
 W.sending=true;
 bTyp.style.display="flex";
 bMsgs.scrollTop=bMsgs.scrollHeight;
-fetch(B+"/api/bot-demo-chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text,sessionId:sid,botName:bTitle.textContent,embedCode:E,language:W.lang})}).then(function(r){if(!r.ok)throw new Error();return r.json()}).then(function(d){
+fetch(B+"/api/bot-demo-chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text,sessionId:sid,botName:bTitle.textContent,embedCode:E,language:W.lang,msgs:W.msgs.filter(function(m){return m.type==="user"||m.type==="bot"}).map(function(m){return{text:m.text,type:m.type}})})}).then(function(r){if(!r.ok)throw new Error();return r.json()}).then(function(d){
 bTyp.style.display="none";
 addMsg(d.response||t("apiErr"),"bot");
 if(d.bookingPrompt){setTimeout(function(){addMsg(d.bookingPrompt,"booking")},300)}
