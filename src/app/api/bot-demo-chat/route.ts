@@ -305,6 +305,12 @@ export async function POST(request: NextRequest) {
           try {
             const parsed = typeof bot.config === 'string' ? JSON.parse(bot.config) : (bot.config as Record<string, unknown>) ?? {};
             botConfig = parsed;
+            // CRITICAL FIX: bot.type lives in the Prisma 'type' column, not inside
+            // the JSON 'config' field. Without this, botType always falls back to
+            // 'rule-based' and AI/Hybrid bots never call the AI provider.
+            if (bot.type && !(parsed as Record<string, unknown>).type) {
+              (parsed as Record<string, unknown>).type = bot.type;
+            }
             calendarConfig = (parsed as Record<string, unknown>).calendarConfig as Record<string, unknown> | undefined;
           } catch {
             botConfig = {};
