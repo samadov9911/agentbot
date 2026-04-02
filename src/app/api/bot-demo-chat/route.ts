@@ -14,16 +14,16 @@ const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 
 // Contact nudge instructions per language (added to system prompt after 3+ messages)
 const CONTACT_NUDGE = {
-  ru: '\n\nЛЕД-КАПЧЕР: Если в переписке ещё не было номера телефона или email — вежливо спроси имя и телефон клиента для обратной связи. Сделай это естественно, например: «Кстати, как вас зовут? И оставьте номер, чтобы мы могли вам перезвонить».',
-  en: '\n\nLEAD CAPTURE: If no phone number or email has been shared in the conversation yet — politely ask for the person\'s name and phone for follow-up. Do it naturally, e.g.: "By the way, what\'s your name? And could you leave a number so we can reach you?"',
-  tr: '\n\nLEAD YAKALAMA: Sohbet boyunca henüz telefon numarası veya e-posta paylaşılmadıysa — nazikçe kişinin adını ve geri bildirim için telefon numarasını sor. Bunu doğal yap, örn.: "Ayrıca adınız ne? Ve size ulaşabilmemiz için bir numara bırakır mısınız?"',
+  ru: '\n\nЛЕД-КАПЧЕР: Если в переписке ещё не было имени, номера телефона или email — вежливо спроси имя, телефон и email клиента. Это нужно для обратной связи и записи. Сделай это естественно, например: «Кстати, как вас зовут? Оставьте номер телефона и email — чтобы мы могли подтвердить запись и на связи оставаться».',
+  en: '\n\nLEAD CAPTURE: If no name, phone number or email has been shared yet — politely ask for the person\'s full name, phone and email. This is needed for follow-up and booking confirmation. Do it naturally, e.g.: "By the way, what\'s your name? Could you leave your phone number and email so we can confirm the booking and reach you?"',
+  tr: '\n\nLEAD YAKALAMA: Sohbet boyunca henüz ad, telefon numarası veya e-posta paylaşılmadıysa — nazikçe kişinin tam adını, telefon numarasını ve e-posta adresini sor. Bu geri bildirim ve randevu onayı için gereklidir. Bunu doğal yap, örn.: "Ayrıca adınız ne? Telefon numaranızı ve e-posta adresinizi bırakır mısınız? Randevuyu onaylamak ve size ulaşmak için lazım."',
 };
 
-// Contact nudge for rule-based bots (trilingual)
+// Contact nudge for rule-based bots (trilingual) — now includes email
 const CONTACT_NUDGE_RESPONSES = {
-  ru: ' Кстати, как вас зовут? И номер телефона оставьте — чтобы мы могли на связи оставаться 😊',
-  en: ' By the way, what\'s your name? And could you leave a phone number so we can stay in touch? 😊',
-  tr: ' Ayrıca adınız ne? Ve iletişimde kalmak için bir telefon numarası bırakır mısınız? 😊',
+  ru: ' Кстати, как вас зовут? Оставьте номер телефона и email — чтобы мы могли подтвердить запись и на связи оставаться 😊',
+  en: ' By the way, what\'s your name? Could you leave your phone number and email so we can confirm the booking and reach you? 😊',
+  tr: ' Ayrıca adınız ne? Telefon numaranızı ve e-posta adresinizi bırakır mısınız? Randevuyu onaylamak için gerekli 😊',
 };
 
 function extractPhone(text: string): string | null {
@@ -41,37 +41,87 @@ function extractEmail(text: string): string | null {
   return matches[0];
 }
 
+/**
+ * Extract a person's name from text.
+ * Handles full names (ФИО) and various phrasings across languages.
+ * Returns the full name or null.
+ */
+function extractName(text: string): string | null {
+  const excludeWords = new Set([
+    'не', 'так', 'это', 'ещё', 'уже', 'здесь', 'там', 'тут', 'как', 'что', 'все',
+    'буду', 'могу', 'хочу', 'надо', 'нужно', 'можно', 'можно', 'пожалуйста',
+    'not', 'this', 'that', 'here', 'there', 'how', 'what', 'all', 'yes', 'no', 'would',
+    'will', 'can', 'just', 'also', 'very', 'really', 'please', 'want', 'need',
+    'değil', 'bu', 'şu', 'nasıl', 'ne', 'evet', 'hayır', 'istiyorum', 'lazım',
+    'можете', 'можно', 'нужно', 'подскажите', 'скажите', 'помогите',
+  ]);
+
+  // Patterns that capture full name (1-3 words after the trigger)
+  const fullNamePatterns = [
+    /меня зовут\s+([А-Яа-яЁёA-Za-z]+(?:\s+[А-Яа-яЁёA-Za-z]+){0,2})/i,
+    /моё имя\s+([А-Яа-яЁёA-Za-z]+(?:\s+[А-Яа-яЁёA-Za-z]+){0,2})/i,
+    /мои данные:\s*([А-Яа-яЁёA-Za-z]+(?:\s+[А-Яа-яЁёA-Za-z]+){0,2})/i,
+    /my name is\s+([A-Za-z]+(?:\s+[A-Za-z]+){0,2})/i,
+    /my name\'?s\s+([A-Za-z]+(?:\s+[A-Za-z]+){0,2})/i,
+    /i\'?m\s+([A-Za-z]+(?:\s+[A-Za-z]+){0,2})/i,
+    /call me\s+([A-Za-z]+(?:\s+[A-Za-z]+){0,2})/i,
+    /adım\s+([A-Za-zÇçĞğİıÖöŞşÜü]+(?:\s+[A-Za-zÇçĞğİıÖöŞşÜü]+){0,2})/i,
+    /benim adım\s+([A-Za-zÇçĞğİıÖöŞşÜü]+(?:\s+[A-Za-zÇçĞğİıÖöŞşÜü]+){0,2})/i,
+    /ben\s+([A-Za-zÇçĞğİıÖöŞşÜü]+(?:\s+[A-Za-zÇçĞğİıÖöŞşÜü]+){0,2})\s*[,\.]/i,
+  ];
+
+  for (const pattern of fullNamePatterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      const candidate = match[1].trim();
+      const words = candidate.split(/\s+/);
+      // All words must not be in exclude list
+      if (words.every(w => !excludeWords.has(w.toLowerCase())) && candidate.length > 1 && candidate.length < 60) {
+        return candidate;
+      }
+    }
+  }
+
+  // Pattern: name at the start of message (capitalized word before a comma or period)
+  // e.g. "Иванов Иван, хочу записаться" or "Мухаммад. Запишите на завтра"
+  const startNamePatterns = [
+    /^([А-ЯA-Z][а-яa-z]+(?:\s+[А-ЯA-Z][а-яa-z]+){0,2})\s*[,\.\-:;!?]/,
+  ];
+  for (const pattern of startNamePatterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      const candidate = match[1].trim();
+      const words = candidate.split(/\s+/);
+      if (words.length >= 2 && words.every(w => w.length > 1 && w.length < 30 && !excludeWords.has(w.toLowerCase()))) {
+        return candidate;
+      }
+    }
+  }
+
+  // Pattern: "я [Name]" — but only if followed by punctuation or space + non-verb
+  const yaPattern = /я\s+([А-ЯA-Z][а-яa-z]+(?:\s+[А-ЯA-Z][а-яa-z]+){0,2})\b/i;
+  const yaMatch = text.match(yaPattern);
+  if (yaMatch && yaMatch[1]) {
+    const candidate = yaMatch[1].trim();
+    const words = candidate.split(/\s+/);
+    if (words.every(w => !excludeWords.has(w.toLowerCase()) && w.length > 1 && w.length < 30)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
 function scanHistoryForContacts(messages: Array<{ role: string; content: string }>): { phone: string | null; email: string | null; name: string | null } {
   let phone: string | null = null;
   let email: string | null = null;
   let name: string | null = null;
 
+  // Scan all messages text
   const allText = messages.map(m => m.content).join(' ');
   phone = extractPhone(allText);
   email = extractEmail(allText);
-
-  // Try to detect name from messages that look like introductions
-  const namePatterns = [
-    /меня зовут\s+([А-Яа-яЁёA-Za-z]+)/i,
-    /я\s+([А-Яа-яЁёA-Za-z]{2,})\b/i,
-    /my name is\s+([A-Za-z]+)/i,
-    /i\'?m\s+([A-Za-z]+)/i,
-    /adım\s+([A-Za-zÇçĞğİıÖöŞşÜü]+)/i,
-    /ben\s+([A-Za-zÇçĞğİıÖöŞşÜü]{2,})\b/i,
-  ];
-
-  for (const pattern of namePatterns) {
-    const match = allText.match(pattern);
-    if (match && match[1]) {
-      const candidate = match[1].trim();
-      // Exclude common false positives
-      const excludeWords = ['не', 'так', 'это', 'ещё', 'уже', 'здесь', 'там', 'тут', 'как', 'что', 'все', 'not', 'this', 'that', 'here', 'there', 'how', 'what', 'all', 'değil', 'bu', 'şu', 'nasıl', 'ne'];
-      if (!excludeWords.includes(candidate.toLowerCase()) && candidate.length > 1 && candidate.length < 30) {
-        name = candidate;
-        break;
-      }
-    }
-  }
+  name = extractName(allText);
 
   return { phone, email, name };
 }
@@ -202,6 +252,7 @@ CRITICAL RULES:
 11. When mentioning the company, use "${companyName || 'the company'}" naturally — don't force it into every response.
 12. Use emojis occasionally (1-2 per message max) but only when it feels natural — not in every message.
 13. Support multi-turn conversation. Remember what was discussed earlier in the conversation and build on it. Be able to discuss different aspects of your domain naturally, but stay within your area of expertise.
+14. When someone wants to book an appointment, ALWAYS ask for their name, phone number AND email address. You need this information to confirm the booking and send a reminder. Ask naturally, e.g.: "Great! What's your name? And please leave your phone number and email so I can confirm the booking."
 ${buildCalendarContext(calendarConfig, 'en')}`;
   }
 
@@ -230,6 +281,7 @@ KRİTİK KURALLAR:
 11. Şirketten bahsederken "${companyName || 'şirket'}" ifadesini doğal kullan — her cevaba zorlama.
 12. Emoji kullan (her mesajda en fazla 1-2) ama sadece doğal hissettirdiğinde — her mesajda değil.
 13. Çoklu konuşmayı destekle. Konuşmada daha önce ne tartışıldığını hatırla ve üzerine inşa et. Uzmanlık alanının farklı yönlerini doğal olarak tartış, ama uzmanlık alanının içinde kal.
+14. Birisi randevu almak istediğinde, HER ZAMAN adını, telefon numarasını VE e-posta adresini sor. Bu bilgi randevuyu onaylamak ve hatırlatma göndermek için gereklidir. Doğal sor, örn.: "Harika! Adınız ne? Lütfen randevuyu onaylayabilmem için telefon numaranızı ve e-posta adresinizi bırakın."
 ${buildCalendarContext(calendarConfig, 'tr')}`;
   }
 
@@ -258,6 +310,7 @@ ${buildCalendarContext(calendarConfig, 'tr')}`;
 11. Упоминай "${companyName || 'компанию'}" естественно, не вставляй в каждое сообщение.
 12. Используй эмодзи иногда (1-2 на сообщение, не больше) и только когда это естественно, не в каждом сообщении.
 13. Поддерживай многоходовой разговор. Помни, что обсуждалось раньше, и развивай диалог. Умей обсуждать разные аспекты своей сферы естественно, но оставайся в рамках своей компетенции.
+14. Когда человек хочет записаться, ОБЯЗАТЕЛЬНО спроси имя, номер телефона И email. Эта информация нужна для подтверждения записи и отправки напоминания. Спрашивай естественно, например: «Отлично! Как вас зовут? Оставьте номер телефона и email — чтобы мы подтвердили запись».
 ${buildCalendarContext(calendarConfig, 'ru')}`;
 }
 
@@ -456,7 +509,8 @@ export async function POST(request: NextRequest) {
 2. NEVER use robotic phrases like "How can I help?", "Чем могу помочь?" or their equivalents in any language.
 3. Don't repeat what the user said. Be natural and conversational.
 4. LANGUAGE: Always reply in the SAME LANGUAGE the user writes in. If the user writes in English — reply in English. If in Russian — reply in Russian. If in Turkish — reply in Turkish. If in German, French, Spanish, Arabic, Chinese, Japanese, Portuguese, or any other language — reply in that same language. This is the most important rule.
-5. Stay on topic within your area of expertise, but be able to discuss different aspects of it naturally. Support multi-turn conversation — remember what was discussed earlier and build on it.`;
+5. Stay on topic within your area of expertise, but be able to discuss different aspects of it naturally. Support multi-turn conversation — remember what was discussed earlier and build on it.
+6. When someone wants to book, ALWAYS ask for their name, phone number AND email. This is needed to confirm the booking and send reminders.`;
           effectiveSystemPrompt += langRule;
         } else {
           effectiveSystemPrompt = buildDefaultSystemPrompt(
@@ -622,9 +676,9 @@ export async function POST(request: NextRequest) {
         }
       }
     } else if (botId && leadSavedSessions.has(sessionId) && currentHistoryLength > 2) {
-      // Update existing lead with newly detected contacts
-      const newContacts = scanHistoryForContacts([history[history.length - 1]]);
-      if (newContacts.phone || newContacts.email || newContacts.name) {
+      // Update existing lead — scan FULL conversation history for contacts
+      const allContacts = scanHistoryForContacts(history);
+      if (allContacts.phone || allContacts.email || allContacts.name) {
         try {
           // Find lead by botId + IP from last 24h
           const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -633,10 +687,10 @@ export async function POST(request: NextRequest) {
           });
           if (existingLead) {
             const updateData: Record<string, unknown> = { updatedAt: new Date() };
-            if (newContacts.name && !existingLead.visitorName) updateData.visitorName = newContacts.name;
-            if (newContacts.phone && !existingLead.visitorPhone) updateData.visitorPhone = newContacts.phone;
-            if (newContacts.email && !existingLead.visitorEmail) updateData.visitorEmail = newContacts.email;
-            if (newContacts.phone || newContacts.email) updateData.status = 'contacted';
+            if (allContacts.name && !existingLead.visitorName) updateData.visitorName = allContacts.name;
+            if (allContacts.phone && !existingLead.visitorPhone) updateData.visitorPhone = allContacts.phone;
+            if (allContacts.email && !existingLead.visitorEmail) updateData.visitorEmail = allContacts.email;
+            if (allContacts.phone || allContacts.email) updateData.status = 'contacted';
             await db.lead.update({ where: { id: existingLead.id }, data: updateData });
           }
         } catch (leadErr) {

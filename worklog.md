@@ -1591,3 +1591,22 @@ Rewrite `/api/widget.js/route.ts` to use CSS custom properties for theming, fetc
 
 **Lint:** Zero errors. Dev server compiles successfully.
 
+
+---
+Task ID: 1
+Agent: Main Orchestrator
+Task: Fix widget position always appearing on right side regardless of config
+
+Work Log:
+- Investigated full data flow: bot-builder store → publish API → config API → widget JS
+- Found TWO bugs in widget.js:
+  1. **Main bug**: `var appearance=d.appearance||{}` should be `var appearance=bot.appearance||{}` — the API returns `{ bot: { appearance: {...} } }` but widget was reading from `d.appearance` which is always `undefined`
+  2. **Wrapper bug**: `btnW` wrapper div had `position:fixed;right:24px` inline but `applyPosition()` only moved the button and panel, not the wrapper. Badge (`position:absolute`) is relative to this wrapper so it stayed on the right side
+- Fixed: `d.appearance` → `bot.appearance` on line 190
+- Fixed: Added `btnW.id="abw-btn-wrap"` and updated `applyPosition()` to also move the wrapper div
+- Pushed to main (02a9150)
+
+Stage Summary:
+- This bug also affected colors and language-from-config (all three were reading from the wrong path)
+- Widget v5 effectively — position, colors, and config language all now work correctly
+- Lint clean, pushed to main branch
