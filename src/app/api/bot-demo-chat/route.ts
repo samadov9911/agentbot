@@ -97,11 +97,12 @@ function extractName(text: string): string | null {
   // ── CRITICAL FIX: name at start followed by phone/email WITHOUT punctuation ──
   // This is the #1 most common format: "Мухаммад +79991234567 muhammad@mail.ru"
   // Previous patterns ALL missed this because they required punctuation after the name.
+  // Unicode-aware: Cyrillic includes Ёё, Turkish includes ÇçĞğİıÖöŞşÜü
   const nameBeforeContactPatterns = [
     // Name followed by phone number (+ or digit)
-    /^([А-ЯA-ZÇĞİÖŞÜ][а-яa-zçğıöşüñ]+(?:\s+[А-ЯA-ZÇĞİÖŞÜ][а-яa-zçğıöşüñ]+){0,2})\s*[+\d]/,
+    /^([А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]+(?:\s+[А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]+){0,2})\s*[+\d]/,
     // Name followed by email (@)
-    /^([А-ЯA-ZÇĞİÖŞÜ][а-яa-zçğıöşüñ]+(?:\s+[А-ЯA-ZÇĞİÖŞÜ][а-яa-zçğıöşüñ]+){0,2})\s+[a-zA-Z0-9._%+-]+@/,
+    /^([А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]+(?:\s+[А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]+){0,2})\s+[a-zA-Z0-9._%+-]+@/,
   ];
   for (const pattern of nameBeforeContactPatterns) {
     const match = text.match(pattern);
@@ -117,7 +118,7 @@ function extractName(text: string): string | null {
   }
 
   // Pattern: "ФИО:" prefix — e.g. "ФИО: Иванов Иван Иванович" or "ФИО Иванов Иван"
-  const fioMatch = text.match(/(?:ФИО|фио)[:\s]+([А-ЯA-ZÇĞİÖŞÜ][а-яa-zçğıöşüñ]+(?:\s+[А-ЯA-ZÇĞİÖŞÜ][а-яa-zçğıöşüñ]+){0,2})/i);
+  const fioMatch = text.match(/(?:ФИО|фио)[:\s]+([А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]+(?:\s+[А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]+){0,2})/i);
   if (fioMatch && fioMatch[1]) {
     const candidate = fioMatch[1].trim();
     const words = candidate.split(/\s+/);
@@ -127,7 +128,7 @@ function extractName(text: string): string | null {
   }
 
   // Pattern: "Имя:" or "Name:" prefix — e.g. "Имя: Мухаммад" or "Name: John Smith"
-  const nameKwMatch = text.match(/(?:Имя|имя|Name|name|Ad|ad)[:\s]+([А-ЯA-ZÇĞİÖŞÜ][а-яa-zçğıöşüñ]+(?:\s+[А-ЯA-ZÇĞİÖŞÜ][а-яa-zçğıöşüñ]+){0,2})/i);
+  const nameKwMatch = text.match(/(?:Имя|имя|Name|name|Ad|ad)[:\s]+([А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]+(?:\s+[А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]+){0,2})/i);
   if (nameKwMatch && nameKwMatch[1]) {
     const candidate = nameKwMatch[1].trim();
     const words = candidate.split(/\s+/);
@@ -139,7 +140,7 @@ function extractName(text: string): string | null {
 
   // Pattern: name after comma in info context
   // e.g. "Запишите, Иванов Иван, на завтра" or "Хочу записаться, Мухаммад, на 15:00"
-  const afterCommaPattern = /,\s*([А-ЯA-Z][а-яa-z]{2,}(?:\s+[А-ЯA-Z][а-яa-z]{2,}){0,2})\b/i;
+  const afterCommaPattern = /,\s*([А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]{2,}(?:\s+[А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]{2,}){0,2})\b/i;
   const afterCommaMatch = text.match(afterCommaPattern);
   if (afterCommaMatch && afterCommaMatch[1]) {
     const candidate = afterCommaMatch[1].trim();
@@ -150,7 +151,7 @@ function extractName(text: string): string | null {
   }
 
   // Pattern: "Это [Name]" — e.g. "Это Мухаммад"
-  const etoPattern = /это\s+([А-ЯA-Z][а-яa-z]+(?:\s+[А-ЯA-Z][а-яa-z]+){0,2})\b/i;
+  const etoPattern = /это\s+([А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]+(?:\s+[А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]+){0,2})\b/i;
   const etoMatch = text.match(etoPattern);
   if (etoMatch && etoMatch[1]) {
     const candidate = etoMatch[1].trim();
@@ -163,7 +164,7 @@ function extractName(text: string): string | null {
   // Pattern: name at the start of message (capitalized word(s) before punctuation)
   // e.g. "Иванов Иван, хочу записаться" or "Мухаммад. Запишите на завтра"
   const startNamePatterns = [
-    /^([А-ЯA-Z][а-яa-z]+(?:\s+[А-ЯA-Z][а-яa-z]+){0,2})\s*[,\.\-:;!?]/,
+    /^([А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]+(?:\s+[А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]+){0,2})\s*[,\.\-:;!?]/,
   ];
   for (const pattern of startNamePatterns) {
     const match = text.match(pattern);
@@ -177,7 +178,7 @@ function extractName(text: string): string | null {
   }
 
   // Pattern: "я [Name]" — e.g. "я Иванов" or "я Мухаммад"
-  const yaPattern = /я\s+([А-ЯA-Z][а-яa-z]+(?:\s+[А-ЯA-Z][а-яa-z]+){0,2})\b/i;
+  const yaPattern = /я\s+([А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]+(?:\s+[А-ЯЁA-ZÇĞİÖŞÜ][а-яёa-zçğıöşüñ]+){0,2})\b/i;
   const yaMatch = text.match(yaPattern);
   if (yaMatch && yaMatch[1]) {
     const candidate = yaMatch[1].trim();
