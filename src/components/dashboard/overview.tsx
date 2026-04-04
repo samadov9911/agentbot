@@ -11,6 +11,7 @@ import {
   ArrowRight,
   Clock,
   Sparkles,
+  RefreshCw,
 } from 'lucide-react';
 
 import { useAuthStore, useAppStore } from '@/stores';
@@ -245,133 +246,137 @@ export function DashboardOverview() {
   const demoTimer = useDemoTimer();
   const isDemoActive = demoTimer !== null && !demoTimer.expired;
 
-  // ── Fetch bots + analytics on mount ──
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchDashboardData() {
-      if (!user?.id) {
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        // Fetch bots
-        const response = await fetch('/api/bots', {
-          headers: { 'x-user-id': user.id },
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch bots');
-        }
-
-        const data = await response.json();
-        const botList: BotSummary[] = (data.bots ?? []).map((b: Record<string, unknown>) => ({
-          id: b.id as string,
-          name: b.name as string,
-          type: b.type as string,
-          isActive: b.isActive as boolean,
-          conversationsCount: (b.conversationsCount as number) ?? 0,
-        }));
-
-        if (cancelled) return;
-        setBots(botList);
-
-        const activeBots = botList.filter((b) => b.isActive).length;
-
-        const userRecord = user as Record<string, unknown>;
-        const planName = (userRecord.demoExpiresAt ? 'Demo' : userRecord.planName ?? 'Free') as string;
-        const planStatus = userRecord.demoExpiresAt ? 'demo' : (userRecord.planStatus ?? 'inactive') as string;
-
-        // Fetch today's analytics
-        let analyticsData: { totalConversations: number; totalAppointments: number; totalVisitors: number } | null = null;
-        try {
-          const analyticsRes = await fetch('/api/analytics?range=today', {
-            headers: { 'x-user-id': user.id },
-          });
-          if (analyticsRes.ok) {
-            analyticsData = await analyticsRes.json();
-          }
-        } catch {
-          // Analytics fetch failed, will use zeros
-        }
-
-        if (cancelled) return;
-
-        const conversationsToday = analyticsData?.totalConversations ?? 0;
-        const appointmentsToday = analyticsData?.totalAppointments ?? 0;
-
-        setStats({
-          activeBots,
-          conversationsToday,
-          appointmentsToday,
-          planName,
-          planStatus,
-        });
-
-        // Build real activity items from fetched data
-        const realActivity: ActivityItem[] = [];
-
-        botList.forEach((bot) => {
-          realActivity.push({
-            id: `bot-${bot.id}`,
-            message: `Bot "${bot.name}" ${bot.isActive ? 'is active' : 'is inactive'}`,
-            timestamp: 'Today',
-            type: 'bot',
-          });
-        });
-
-        if (conversationsToday > 0) {
-          realActivity.push({
-            id: 'conv-today',
-            message: `${conversationsToday} conversation${conversationsToday > 1 ? 's' : ''} today`,
-            timestamp: 'Today',
-            type: 'conversation',
-          });
-        }
-
-        if (appointmentsToday > 0) {
-          realActivity.push({
-            id: 'appt-today',
-            message: `${appointmentsToday} appointment${appointmentsToday > 1 ? 's' : ''} booked today`,
-            timestamp: 'Today',
-            type: 'appointment',
-          });
-        }
-
-        if (realActivity.length === 0) {
-          realActivity.push({
-            id: 'welcome',
-            message: 'Welcome to AgentBot! Create your first bot to get started.',
-            timestamp: 'Now',
-            type: 'system',
-          });
-        }
-
-        setActivity(realActivity);
-      } catch {
-        // On error, still show demo data as fallback
-        setStats({
-          activeBots: 0,
-          conversationsToday: 0,
-          appointmentsToday: 0,
-          planName: 'Demo',
-          planStatus: 'demo',
-        });
-        setActivity(DEMO_ACTIVITY);
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
+  // BUGFIX: Refactored fetchDashboardData to useCallback for refresh capability
+  const fetchDashboardData = useCallback(async () => {
+    if (!user?.id) {
+      setIsLoading(false);
+      return;
     }
 
-    fetchDashboardData();
+    setIsLoading(true);
+    try {
+      // Fetch bots
+      const response = await fetch('/api/bots', {
+        headers: { 'x-user-id': user.id },
+      });
 
-    return () => {
-      cancelled = true;
+      if (!response.ok) {
+        throw new Error('Failed to fetch bots');
+      }
+
+      const data = await response.json();
+      const botList: BotSummary[] = (data.bots ?? []).map((b: Record<string, unknown>) => ({
+        id: b.id as string,
+        name: b.name as string,
+        type: b.type as string,
+        isActive: b.isActive as boolean,
+        conversationsCount: (b.conversationsCount as number) ?? 0,
+      }));
+
+      setBots(botList);
+
+      const activeBots = botList.filter((b) => b.isActive).length;
+
+      const userRecord = user as Record<string, unknown>;
+      const planName = (userRecord.demoExpiresAt ? 'Demo' : userRecord.planName ?? 'Free') as string;
+      const planStatus = userRecord.demoExpiresAt ? 'demo' : (userRecord.planStatus ?? 'inactive') as string;
+
+      // Fetch today's analytics
+      let analyticsData: { totalConversations: number; totalAppointments: number; totalVisitors: number } | null = null;
+      try {
+        const analyticsRes = await fetch('/api/analytics?range=today', {
+          headers: { 'x-user-id': user.id },
+        });
+        if (analyticsRes.ok) {
+          analyticsData = await analyticsRes.json();
+        }
+      } catch {
+        // Analytics fetch failed, will use zeros
+      }
+
+      const conversationsToday = analyticsData?.totalConversations ?? 0;
+      const appointmentsToday = analyticsData?.totalAppointments ?? 0;
+
+      setStats({
+        activeBots,
+        conversationsToday,
+        appointmentsToday,
+        planName,
+        planStatus,
+      });
+
+      // Build real activity items from fetched data
+      const realActivity: ActivityItem[] = [];
+
+      botList.forEach((bot) => {
+        realActivity.push({
+          id: `bot-${bot.id}`,
+          message: `Bot "${bot.name}" ${bot.isActive ? 'is active' : 'is inactive'}`,
+          timestamp: 'Today',
+          type: 'bot',
+        });
+      });
+
+      if (conversationsToday > 0) {
+        realActivity.push({
+          id: 'conv-today',
+          message: `${conversationsToday} conversation${conversationsToday > 1 ? 's' : ''} today`,
+          timestamp: 'Today',
+          type: 'conversation',
+        });
+      }
+
+      if (appointmentsToday > 0) {
+        realActivity.push({
+          id: 'appt-today',
+          message: `${appointmentsToday} appointment${appointmentsToday > 1 ? 's' : ''} booked today`,
+          timestamp: 'Today',
+          type: 'appointment',
+        });
+      }
+
+      if (realActivity.length === 0) {
+        realActivity.push({
+          id: 'welcome',
+          message: 'Welcome to AgentBot! Create your first bot to get started.',
+          timestamp: 'Now',
+          type: 'system',
+        });
+      }
+
+      setActivity(realActivity);
+    } catch {
+      // On error, still show demo data as fallback
+      setStats({
+        activeBots: 0,
+        conversationsToday: 0,
+        appointmentsToday: 0,
+        planName: 'Demo',
+        planStatus: 'demo',
+      });
+      setActivity(DEMO_ACTIVITY);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  // ── Fetch bots + analytics on mount ──
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  // BUGFIX: Auto-refresh when page becomes visible again (user returns to tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchDashboardData();
+      }
     };
-  }, [user?.id]);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchDashboardData]);
 
   // ── Derived values ──
   const userName = user?.name ?? user?.email ?? 'User';
@@ -427,11 +432,24 @@ export function DashboardOverview() {
   return (
     <div className="flex flex-col gap-6">
       {/* ── Welcome Section ── */}
-      <div className="flex flex-col gap-1">
-        <h2 className="text-2xl font-bold tracking-tight">
-          {t('dashboard.welcome', language)}, {userName}!
-        </h2>
-        <p className="text-sm text-muted-foreground capitalize">{formattedDate}</p>
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">
+            {t('dashboard.welcome', language)}, {userName}!
+          </h2>
+          <p className="text-sm text-muted-foreground capitalize">{formattedDate}</p>
+        </div>
+        {/* BUGFIX: Refresh button to manually update stats cards */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 w-fit"
+          onClick={fetchDashboardData}
+          disabled={isLoading}
+        >
+          <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} />
+          <span className="hidden sm:inline">{t('common.refresh', language) || 'Refresh'}</span>
+        </Button>
       </div>
 
       {/* ── Demo Banner ── */}

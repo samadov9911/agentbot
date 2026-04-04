@@ -47,6 +47,17 @@ function extractEmail(text: string): string | null {
  * Returns the full name or null.
  */
 function extractName(text: string): string | null {
+  // BUGFIX: If the text looks like just an email address, don't extract the email login as a name
+  // e.g., "john.doe@mail.com" should NOT be extracted as name "john.doe" or "john"
+  const trimmedText = text.trim();
+  if (EMAIL_REGEX.test(trimmedText) && !PHONE_REGEX.test(trimmedText.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, ''))) {
+    // Text is primarily an email address - don't extract name from it
+    const emailMatch = trimmedText.match(EMAIL_REGEX);
+    if (emailMatch && emailMatch.length === 1 && trimmedText.replace(emailMatch[0], '').trim().length < 5) {
+      return null; // Text is mostly just an email, don't extract
+    }
+  }
+
   const excludeWords = new Set([
     // Russian common words
     'не', 'так', 'это', 'ещё', 'уже', 'здесь', 'там', 'тут', 'как', 'что', 'все',
@@ -851,19 +862,23 @@ export async function POST(request: NextRequest) {
           }
 
           if (existingLead) {
-            // Update existing lead with any newly found contacts
+            // BUGFIX: Update existing lead with any newly found or CORRECTED contacts
+            // Previously, only empty fields were updated. Now we also update if the value has changed (correction).
             const updateData: Record<string, unknown> = { updatedAt: new Date() };
             let needsUpdate = false;
 
-            if (allContacts.name && !existingLead.visitorName) {
+            // Update name if we have a new one AND (field is empty OR value has changed)
+            if (allContacts.name && (!existingLead.visitorName || existingLead.visitorName !== allContacts.name)) {
               updateData.visitorName = allContacts.name;
               needsUpdate = true;
             }
-            if (allContacts.phone && !existingLead.visitorPhone) {
+            // Update phone if we have a new one AND (field is empty OR value has changed)
+            if (allContacts.phone && (!existingLead.visitorPhone || existingLead.visitorPhone !== allContacts.phone)) {
               updateData.visitorPhone = allContacts.phone;
               needsUpdate = true;
             }
-            if (allContacts.email && !existingLead.visitorEmail) {
+            // Update email if we have a new one AND (field is empty OR value has changed)
+            if (allContacts.email && (!existingLead.visitorEmail || existingLead.visitorEmail !== allContacts.email)) {
               updateData.visitorEmail = allContacts.email;
               needsUpdate = true;
             }

@@ -13,6 +13,7 @@ import {
   Eye,
   Inbox,
   UserPlus,
+  RefreshCw,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -459,6 +460,24 @@ export function AnalyticsPage() {
     fetchLeads();
   }, [fetchLeads]);
 
+  // BUGFIX: Add refresh function to update all data (stats cards, charts, sections)
+  const refreshData = useCallback(async () => {
+    await Promise.all([fetchAnalytics(), fetchLeads()]);
+  }, [fetchAnalytics, fetchLeads]);
+
+  // BUGFIX: Auto-refresh when page becomes visible again (user returns to tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [refreshData]);
+
   // ── Lead status badge color ──
   function leadStatusBadge(status: string) {
     switch (status) {
@@ -635,6 +654,18 @@ export function AnalyticsPage() {
               ))}
             </SelectContent>
           </Select>
+
+          {/* BUGFIX: Refresh button to manually update stats cards, charts, and sections */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={refreshData}
+            disabled={isLoading || isLoadingLeads}
+          >
+            <RefreshCw className={`size-4 ${(isLoading || isLoadingLeads) ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{t('common.refresh', lang) || 'Refresh'}</span>
+          </Button>
 
           {/* Export buttons */}
           <Button
