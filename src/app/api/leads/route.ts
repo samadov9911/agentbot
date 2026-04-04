@@ -101,23 +101,49 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingLead) {
-      // Update existing lead with any new contact info
+      // BUGFIX: Update existing lead with any new or CORRECTED contact info
+      // Previously, only empty fields were updated. Now we also update if the value has changed (correction).
       const updateData: Record<string, unknown> = { updatedAt: new Date() };
-      if (visitorName && !existingLead.visitorName) updateData.visitorName = visitorName;
-      if (visitorPhone && !existingLead.visitorPhone) updateData.visitorPhone = visitorPhone;
-      if (visitorEmail && !existingLead.visitorEmail) updateData.visitorEmail = visitorEmail;
-      if (message && !existingLead.message) updateData.message = message;
-      if (visitorName || visitorPhone || visitorEmail) updateData.status = 'contacted';
+      let needsUpdate = false;
 
-      await db.lead.update({
-        where: { id: existingLead.id },
-        data: updateData,
-      });
+      // Update name if we have a new one AND (field is empty OR value has changed)
+      if (visitorName && (!existingLead.visitorName || existingLead.visitorName !== visitorName)) {
+        updateData.visitorName = visitorName;
+        needsUpdate = true;
+      }
+      // Update phone if we have a new one AND (field is empty OR value has changed)
+      if (visitorPhone && (!existingLead.visitorPhone || existingLead.visitorPhone !== visitorPhone)) {
+        updateData.visitorPhone = visitorPhone;
+        needsUpdate = true;
+      }
+      // Update email if we have a new one AND (field is empty OR value has changed)
+      if (visitorEmail && (!existingLead.visitorEmail || existingLead.visitorEmail !== visitorEmail)) {
+        updateData.visitorEmail = visitorEmail;
+        needsUpdate = true;
+      }
+      // Update message if provided and empty or different
+      if (message && (!existingLead.message || existingLead.message !== message)) {
+        updateData.message = message;
+        needsUpdate = true;
+      }
+      // Update status if we have contact info
+      if (visitorName || visitorPhone || visitorEmail) {
+        updateData.status = 'contacted';
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
+        await db.lead.update({
+          where: { id: existingLead.id },
+          data: updateData,
+        });
+        console.log(`[AgentBot] Lead ${existingLead.id} updated via API: name=${!!updateData.visitorName} phone=${!!updateData.visitorPhone} email=${!!updateData.visitorEmail}`);
+      }
 
       return NextResponse.json({
         success: true,
         lead: { id: existingLead.id },
-        updated: true,
+        updated: needsUpdate,
       });
     }
 
