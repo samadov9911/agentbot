@@ -1,0 +1,1 @@
+console.log('[FIX#1] Found ' + conversations.length + ' conversations'); return NextResponse.json({ conversations: conversations.map(c = id:c.id, botId:c.botId, botName:c.bot?.name

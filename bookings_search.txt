@@ -1,0 +1,43 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+  useEffect(() => {
+      const res = await fetch('/api/bookings', {
+  useEffect(() => {
+      const res = await fetch('/api/bookings', {
+  // Appointments state
+  const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(false);
+  // ── Fetch bots ──
+  useEffect(() => {
+    async function fetchBots() {
+        const res = await fetch('/api/bots', {
+        if (!res.ok) throw new Error('Failed to fetch bots');
+    fetchBots();
+  useEffect(() => {
+  // ── Fetch slots when bot + date selected ──
+  useEffect(() => {
+    async function fetchSlots() {
+        const res = await fetch(`/api/bookings?${params}`, {
+    fetchSlots();
+  // ── Fetch upcoming appointments when bot selected ──
+  useEffect(() => {
+      setAppointments([]);
+    async function fetchAppointments() {
+      setAppointmentsLoading(true);
+        const res = await fetch(`/api/bookings?${params}`, {
+        setAppointments(data.appointments ?? []);
+        setAppointments([]);
+        setAppointmentsLoading(false);
+    fetchAppointments();
+      fetch(`/api/bookings?${params}`, {
+      // Also refresh appointments
+      fetch(`/api/bookings?botId=${selectedBotId}`, {
+        .then((data) => setAppointments(data.appointments ?? []))
+          {/* ── Right: Slots + Appointments ── */}
+            {/* ── Upcoming Appointments Card ── */}
+                  {t('bookings.upcomingAppointments', language)}
+                  {!appointmentsLoading && (
+                      {appointments.length}
+                {appointmentsLoading ? (
+                ) : appointments.length === 0 ? (
+                      {t('bookings.noAppointments', language)}
+                      {appointments.map((apt) => (
