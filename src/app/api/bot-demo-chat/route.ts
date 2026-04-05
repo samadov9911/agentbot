@@ -835,6 +835,9 @@ export async function POST(request: NextRequest) {
     // Scans FULL conversation history (now includes widget-side history via msgs param).
     // Uses botId + email for deduplication (more reliable than IP on Vercel).
 
+    // BUGFIX: Variable to store lead data for response
+    let capturedLead: { name: string | null; phone: string | null; email: string | null } | null = null;
+
     if (botId) {
       const allContacts = scanHistoryForContacts(history);
       const hasContacts = allContacts.name || allContacts.phone || allContacts.email;
@@ -888,6 +891,13 @@ export async function POST(request: NextRequest) {
               await db.lead.update({ where: { id: existingLead.id }, data: updateData });
               console.log(`[AgentBot] Lead ${existingLead.id} updated: name=${!!updateData.visitorName} phone=${!!updateData.visitorPhone} email=${!!updateData.visitorEmail}`);
             }
+
+            // BUGFIX: Return captured lead data so widget can display/update it
+            capturedLead = {
+              name: (updateData.visitorName as string) || existingLead.visitorName,
+              phone: (updateData.visitorPhone as string) || existingLead.visitorPhone,
+              email: (updateData.visitorEmail as string) || existingLead.visitorEmail,
+            };
           } else if (!leadSavedSessions.has(sessionId)) {
             // Create new lead only if not already created in this server session
             await db.lead.create({
@@ -905,6 +915,13 @@ export async function POST(request: NextRequest) {
             });
             leadSavedSessions.add(sessionId);
             console.log(`[AgentBot] New lead created: name=${allContacts.name} phone=${allContacts.phone} email=${allContacts.email}`);
+
+            // BUGFIX: Return captured lead data for new leads too
+            capturedLead = {
+              name: allContacts.name,
+              phone: allContacts.phone,
+              email: allContacts.email,
+            };
           }
         } catch (leadError) {
           console.error('Lead save/update error:', leadError);
@@ -954,9 +971,13 @@ export async function POST(request: NextRequest) {
     demoConversations.set(sessionId, history);
 
     // Build response — bookingPrompt is only included when non-null
-    const jsonResponse: { response: string; bookingPrompt?: string } = { response };
+    // BUGFIX: Also include captured lead data for widget to display
+    const jsonResponse: { response: string; bookingPrompt?: string; lead?: { name: string | null; phone: string | null; email: string | null } } = { response };
     if (bookingPrompt) {
       jsonResponse.bookingPrompt = bookingPrompt;
+    }
+    if (capturedLead) {
+      jsonResponse.lead = capturedLead;
     }
 
     return NextResponse.json(jsonResponse);
