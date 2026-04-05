@@ -1143,13 +1143,26 @@ export function AnalyticsPage() {
       {/* ── Leads Table ── */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-            <UserPlus className="size-4 text-muted-foreground" />
-            {t('leads.title', lang)}
-            <Badge variant="secondary" className="ml-1 tabular-nums">
-              {leads.length}
-            </Badge>
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+              <UserPlus className="size-4 text-muted-foreground" />
+              {t('leads.title', lang)}
+              <Badge variant="secondary" className="ml-1 tabular-nums">
+                {leads.length}
+              </Badge>
+            </CardTitle>
+            {/* BUGFIX: Separate refresh button for leads table */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 h-7"
+              onClick={fetchLeads}
+              disabled={isLoadingLeads}
+            >
+              <RefreshCw className={`size-3.5 ${isLoadingLeads ? 'animate-spin' : ''}`} />
+              <span className="text-xs">{t('common.refresh', lang) || 'Refresh'}</span>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="p-6 pt-2">
           {isLoadingLeads ? (
