@@ -147,6 +147,39 @@ export async function GET(request: NextRequest) {
       topQuestions: [],
       topServices: topServices.slice(0, 5),
       sources: Array.from(sourceMap.entries()).map(([source, count]) => ({ source, count })),
+      // BUGFIX: Return real conversations for the list
+      conversations: conversations.slice(0, 50).map(c => ({
+        id: c.id,
+        date: c.createdAt.toISOString(),
+        source: c.source,
+        visitorName: c.visitorName || null,
+        status: c.status,
+        messagesCount: c.Message?.length || 0,
+        lastMessage: c.Message?.length > 0 ? c.Message[c.Message.length - 1].content : null,
+      })),
+      // BUGFIX: Return real appointments for the list
+      appointments: appointments.slice(0, 50).map(a => ({
+        id: a.id,
+        visitorName: a.visitorName,
+        visitorPhone: a.visitorPhone,
+        visitorEmail: a.visitorEmail,
+        service: a.service,
+        date: a.date.toISOString(),
+        duration: a.duration,
+        status: a.status,
+        createdAt: a.createdAt.toISOString(),
+      })),
+      // BUGFIX: Return leads for CSV export
+      leads: leads.map(l => ({
+        id: l.id,
+        visitorName: l.visitorName,
+        visitorPhone: l.visitorPhone,
+        visitorEmail: l.visitorEmail,
+        message: l.message,
+        source: l.source,
+        status: l.status,
+        createdAt: l.createdAt.toISOString(),
+      })),
     });
   } catch (error) {
     console.error('Analytics error:', error);

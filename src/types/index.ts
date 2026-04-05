@@ -166,6 +166,43 @@ export interface AnalyticsData {
   topQuestions: { question: string; count: number }[];
   topServices: { service: string; count: number }[];
   sources: { source: string; count: number }[];
+  // BUGFIX: Add conversations, appointments, leads for real data display
+  conversations?: ConversationItem[];
+  appointments?: AppointmentItem[];
+  leads?: LeadItem[];
+}
+
+export interface ConversationItem {
+  id: string;
+  date: string;
+  source: string;
+  visitorName: string | null;
+  status: string;
+  messagesCount: number;
+  lastMessage: string | null;
+}
+
+export interface AppointmentItem {
+  id: string;
+  visitorName: string;
+  visitorPhone: string;
+  visitorEmail?: string;
+  service?: string;
+  date: string;
+  duration: number;
+  status: string;
+  createdAt: string;
+}
+
+export interface LeadItem {
+  id: string;
+  visitorName: string | null;
+  visitorPhone: string | null;
+  visitorEmail: string | null;
+  message: string | null;
+  source: string;
+  status: string;
+  createdAt: string;
 }
 
 export interface DailyStat {

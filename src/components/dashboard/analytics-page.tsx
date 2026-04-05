@@ -31,7 +31,7 @@ import {
 } from 'recharts';
 
 import { useAuthStore, useAppStore } from '@/stores';
-import { t } from '@/lib/i18n';
+import { t, type Language } from '@/lib/i18n';
 import type { AnalyticsData } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -270,10 +270,36 @@ function EmptyState({ message }: { message: string }) {
 // CSV export helper
 // ──────────────────────────────────────────────────────────────
 
-function exportToCSV(data: AnalyticsData, language: string) {
+function exportToCSV(data: AnalyticsData, language: Language) {
   const rows: string[][] = [];
 
-  // Header
+  // Summary header
+  rows.push([
+    language === 'ru' ? 'Сводка статистики' : language === 'tr' ? 'Özet İstatistikler' : 'Statistics Summary',
+  ]);
+  rows.push([
+    language === 'ru' ? 'Посетители' : language === 'tr' ? 'Ziyaretçiler' : 'Visitors',
+    String(data.totalVisitors),
+  ]);
+  rows.push([
+    language === 'ru' ? 'Диалоги' : language === 'tr' ? 'Sohbetler' : 'Conversations',
+    String(data.totalConversations),
+  ]);
+  rows.push([
+    language === 'ru' ? 'Записи' : language === 'tr' ? 'Randevular' : 'Appointments',
+    String(data.totalAppointments),
+  ]);
+  rows.push([
+    language === 'ru' ? 'Лиды' : language === 'tr' ? 'Potansiyel Müşteriler' : 'Leads',
+    String(data.totalLeads || 0),
+  ]);
+  rows.push([
+    language === 'ru' ? 'Конверсия' : language === 'tr' ? 'Dönüşüm' : 'Conversion',
+    String(data.conversionRate) + '%',
+  ]);
+  rows.push([]);
+
+  // Daily stats header
   rows.push([
     t('analytics.daily', language),
     t('analytics.visitors', language),
@@ -313,6 +339,58 @@ function exportToCSV(data: AnalyticsData, language: string) {
     });
   }
 
+  // BUGFIX: Add leads to CSV export
+  if (data.leads && data.leads.length > 0) {
+    rows.push([]);
+    rows.push([
+      language === 'ru' ? 'ЛИДЫ' : language === 'tr' ? 'POTANSİYEL MÜŞTERİLER' : 'LEADS',
+    ]);
+    rows.push([
+      language === 'ru' ? 'Имя' : language === 'tr' ? 'Ad' : 'Name',
+      language === 'ru' ? 'Телефон' : language === 'tr' ? 'Telefon' : 'Phone',
+      language === 'ru' ? 'Email' : 'Email',
+      language === 'ru' ? 'Статус' : language === 'tr' ? 'Durum' : 'Status',
+      language === 'ru' ? 'Источник' : language === 'tr' ? 'Kaynak' : 'Source',
+      language === 'ru' ? 'Дата' : language === 'tr' ? 'Tarih' : 'Date',
+    ]);
+    data.leads.forEach((lead) => {
+      rows.push([
+        lead.visitorName || '',
+        lead.visitorPhone || '',
+        lead.visitorEmail || '',
+        lead.status,
+        lead.source,
+        lead.createdAt.split('T')[0],
+      ]);
+    });
+  }
+
+  // BUGFIX: Add appointments to CSV export
+  if (data.appointments && data.appointments.length > 0) {
+    rows.push([]);
+    rows.push([
+      language === 'ru' ? 'ЗАПИСИ' : language === 'tr' ? 'RANDEVULAR' : 'APPOINTMENTS',
+    ]);
+    rows.push([
+      language === 'ru' ? 'Имя' : language === 'tr' ? 'Ad' : 'Name',
+      language === 'ru' ? 'Телефон' : language === 'tr' ? 'Telefon' : 'Phone',
+      language === 'ru' ? 'Email' : 'Email',
+      language === 'ru' ? 'Услуга' : language === 'tr' ? 'Hizmet' : 'Service',
+      language === 'ru' ? 'Дата и время' : language === 'tr' ? 'Tarih ve Saat' : 'Date & Time',
+      language === 'ru' ? 'Статус' : language === 'tr' ? 'Durum' : 'Status',
+    ]);
+    data.appointments.forEach((apt) => {
+      rows.push([
+        apt.visitorName,
+        apt.visitorPhone,
+        apt.visitorEmail || '',
+        apt.service || '',
+        apt.date,
+        apt.status,
+      ]);
+    });
+  }
+
   const csvContent = rows
     .map((row) =>
       row.map((cell) => {
@@ -326,7 +404,7 @@ function exportToCSV(data: AnalyticsData, language: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `botforge-analytics-${new Date().toISOString().split('T')[0]}.csv`;
+  link.download = `agentbot-analytics-${new Date().toISOString().split('T')[0]}.csv`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -348,6 +426,9 @@ const EMPTY_ANALYTICS: AnalyticsData = {
   topQuestions: [],
   topServices: [],
   sources: [],
+  conversations: [],
+  appointments: [],
+  leads: [],
 };
 
 // ──────────────────────────────────────────────────────────────
@@ -513,7 +594,7 @@ export function AnalyticsPage() {
           existing.conversations += stat.conversations;
           existing.appointments += stat.appointments;
         } else {
-          monthMap.set(monthKey, { date: monthKey, ...stat });
+          monthMap.set(monthKey, { date: monthKey, visitors: stat.visitors, conversations: stat.conversations, appointments: stat.appointments });
         }
       });
       return Array.from(monthMap.values());
@@ -522,8 +603,21 @@ export function AnalyticsPage() {
     return analyticsData.dailyStats.slice(0, rangeDays);
   }, [analyticsData, timeRange]);
 
-  // ── Conversations list (derived) ──
+  // ── Conversations list (derived from real data) ──
   const conversationsList = useMemo<ConversationRow[]>(() => {
+    // BUGFIX: Use real conversations from API instead of generating fake data
+    if (analyticsData?.conversations && analyticsData.conversations.length > 0) {
+      return analyticsData.conversations.map(c => ({
+        id: c.id,
+        date: c.date,
+        source: c.source || 'widget',
+        visitorName: c.visitorName || (lang === 'ru' ? 'Гость' : lang === 'tr' ? 'Misafir' : 'Guest'),
+        messagesCount: c.messagesCount,
+        status: c.status,
+        lastMessage: c.lastMessage || '',
+      }));
+    }
+    // Fallback: generate from dailyStats only if no real conversations exist
     if (!analyticsData?.dailyStats) return [];
     const list: ConversationRow[] = [];
     const sources = Object.keys(SOURCE_LABELS);
@@ -544,7 +638,7 @@ export function AnalyticsPage() {
 
     // Show the most recent 20
     return list.slice(-20).reverse();
-  }, [analyticsData]);
+  }, [analyticsData, lang]);
 
   // ── Handle conversation click ──
   async function handleConversationClick(conv: ConversationRow) {
@@ -674,7 +768,7 @@ export function AnalyticsPage() {
             variant="outline"
             size="sm"
             className="gap-1.5"
-            onClick={() => analyticsData && exportToCSV(analyticsData, lang)}
+            onClick={() => analyticsData && exportToCSV(analyticsData, lang as Language)}
             disabled={!analyticsData}
           >
             <Download className="size-4" />
@@ -1163,6 +1257,91 @@ export function AnalyticsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* ── Appointments Table (Записи) ── BUGFIX: Added missing appointments section */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+            <CalendarCheck className="size-4 text-muted-foreground" />
+            {t('analytics.appointments', lang) || (lang === 'ru' ? 'Записи' : lang === 'tr' ? 'Randevular' : 'Appointments')}
+            <Badge variant="secondary" className="ml-1 tabular-nums">
+              {analyticsData?.appointments?.length || 0}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6 pt-2">
+          {!analyticsData?.appointments || analyticsData.appointments.length === 0 ? (
+            <EmptyState message={lang === 'ru' ? 'Нет записей' : lang === 'tr' ? 'Randevu yok' : 'No appointments'} />
+          ) : (
+            <div className="max-h-[420px] overflow-y-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>{lang === 'ru' ? 'Клиент' : lang === 'tr' ? 'Müşteri' : 'Client'}</TableHead>
+                    <TableHead>{lang === 'ru' ? 'Телефон' : lang === 'tr' ? 'Telefon' : 'Phone'}</TableHead>
+                    <TableHead className="hidden md:table-cell">{lang === 'ru' ? 'Email' : 'Email'}</TableHead>
+                    <TableHead className="hidden md:table-cell">{lang === 'ru' ? 'Услуга' : lang === 'tr' ? 'Hizmet' : 'Service'}</TableHead>
+                    <TableHead>{lang === 'ru' ? 'Дата и время' : lang === 'tr' ? 'Tarih ve Saat' : 'Date & Time'}</TableHead>
+                    <TableHead>{lang === 'ru' ? 'Статус' : lang === 'tr' ? 'Durum' : 'Status'}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {analyticsData.appointments.map((apt) => {
+                    const aptDate = new Date(apt.date);
+                    const timeStr = aptDate.toLocaleTimeString(lang === 'ru' ? 'ru-RU' : lang === 'tr' ? 'tr-TR' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+                    const dateStr = aptDate.toLocaleDateString(lang === 'ru' ? 'ru-RU' : lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'short' });
+                    
+                    return (
+                      <TableRow key={apt.id}>
+                        <TableCell className="text-sm font-medium">
+                          {apt.visitorName}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {apt.visitorPhone}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                          {apt.visitorEmail || '—'}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-sm">
+                          {apt.service || '—'}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{dateStr}</span>
+                            <span className="text-xs text-muted-foreground">{timeStr}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs font-normal ${
+                              apt.status === 'confirmed'
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                                : apt.status === 'pending'
+                                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                                  : apt.status === 'cancelled'
+                                    ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                            }`}
+                          >
+                            {apt.status === 'confirmed'
+                              ? (lang === 'ru' ? 'Подтверждено' : lang === 'tr' ? 'Onaylandı' : 'Confirmed')
+                              : apt.status === 'pending'
+                                ? (lang === 'ru' ? 'Ожидание' : lang === 'tr' ? 'Bekliyor' : 'Pending')
+                                : apt.status === 'cancelled'
+                                  ? (lang === 'ru' ? 'Отменено' : lang === 'tr' ? 'İptal' : 'Cancelled')
+                                  : apt.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ── Leads Table ── */}
       <Card>
