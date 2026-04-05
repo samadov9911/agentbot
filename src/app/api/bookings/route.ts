@@ -545,3 +545,6 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+export async function GET(request: NextRequest) { try { const userId = request.headers.get('x-user-id'); if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); const botId = new URL(request.url).searchParams.get('botId'); if (!botId) return NextResponse.json({ error: 'botId is required' }, { status: 400 }); const bot = await db.bot.findFirst({ where: { id: botId, userId } }); if (!bot) return NextResponse.json({ error: 'Bot not found' }, { status: 404 }); const now = new Date(); 
+// FIX: Get appointments from widget + dashboard 
+const appointments = await db.appointment.findMany({ where: { OR: [ { botId, date: { gte: now }, status: { notIn: ['cancelled'] } }, { conversation: { botId, source: 'widget' }, date: { gte: now } } ], include: { conversation: true } }, orderBy: { date: 'asc' }, take: 100 }); 
