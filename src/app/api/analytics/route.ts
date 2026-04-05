@@ -51,6 +51,11 @@ export async function GET(request: NextRequest) {
       where: { userId, createdAt: { gte: startDate } },
     });
 
+    // BUGFIX: Get leads for statistics
+    const leads = await db.lead.findMany({
+      where: { botId: { in: botIds }, createdAt: { gte: startDate } },
+    });
+
     // Build daily stats
     const dailyMap = new Map<string, { date: string; visitors: number; conversations: number; appointments: number }>();
     const dayMs = 24 * 60 * 60 * 1000;
@@ -86,19 +91,61 @@ export async function GET(request: NextRequest) {
       sourceMap.set(c.source, (sourceMap.get(c.source) || 0) + 1);
     });
 
-    const totalVisitors = events.filter(e => e.eventType === 'widget_opened').length;
+    // BUGFIX: Count leads in daily stats
+    leads.forEach(l => {
+      const key = l.createdAt.toISOString().split('T')[0];
+      const entry = dailyMap.get(key);
+      if (entry) {
+        // Count leads as visitors too if they have contact info
+        if (l.visitorName || l.visitorPhone || l.visitorEmail) {
+          entry.visitors++;
+        }
+      }
+    });
+
+    // BUGFIX: Add leads to source map
+    leads.forEach(l => {
+      const source = l.source || 'widget';
+      sourceMap.set(source, (sourceMap.get(source) || 0) + 1);
+    });
+
+    const totalVisitors = events.filter(e => e.eventType === 'widget_opened').length + leads.filter(l => l.visitorName || l.visitorPhone || l.visitorEmail).length;
     const totalConversations = conversations.length;
     const totalAppointments = appointments.length;
-    const conversionRate = totalVisitors > 0 ? Math.round((totalAppointments / totalVisitors) * 100) : 0;
+    // BUGFIX: Include leads with contact info as conversions
+    const contactedLeads = leads.filter(l => l.status === 'contacted' || l.visitorPhone || l.visitorEmail).length;
+    const conversionRate = totalVisitors > 0 ? Math.round(((totalAppointments + contactedLeads) / totalVisitors) * 100) : 0;
+
+    // BUGFIX: Build top services from leads messages
+    const serviceKeywords = leads
+      .filter(l => l.message)
+      .map(l => l.message as string);
+    
+    const topServices: Array<{ service: string; count: number }> = [];
+    serviceKeywords.forEach(msg => {
+      // Simple keyword extraction - could be enhanced
+      const keywords = msg.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+      keywords.forEach(kw => {
+        const existing = topServices.find(s => s.service.toLowerCase() === kw);
+        if (existing) {
+          existing.count++;
+        } else if (topServices.length < 10) {
+          topServices.push({ service: kw, count: 1 });
+        }
+      });
+    });
+    topServices.sort((a, b) => b.count - a.count);
 
     return NextResponse.json({
       totalVisitors,
       totalConversations,
       totalAppointments,
+      totalLeads: leads.length, // BUGFIX: Add total leads count
+      contactedLeads, // BUGFIX: Add contacted leads count
       conversionRate,
       dailyStats: Array.from(dailyMap.values()),
       topQuestions: [],
-      topServices: [],
+      topServices: topServices.slice(0, 5),
       sources: Array.from(sourceMap.entries()).map(([source, count]) => ({ source, count })),
     });
   } catch (error) {

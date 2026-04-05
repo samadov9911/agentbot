@@ -171,3 +171,70 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+// ──────────────────────────────────────────────────────────────
+// PUT /api/leads — Update a lead (for data correction)
+// ──────────────────────────────────────────────────────────────
+
+export async function PUT(request: NextRequest) {
+  try {
+    const userId = request.headers.get('x-user-id');
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { leadId, visitorName, visitorPhone, visitorEmail, message, status } = body;
+
+    if (!leadId) {
+      return NextResponse.json({ error: 'leadId is required' }, { status: 400 });
+    }
+
+    // Find the lead and verify it belongs to a bot owned by this user
+    const lead = await db.lead.findFirst({
+      where: { id: leadId },
+      include: { Bot: { select: { userId: true } } },
+    });
+
+    if (!lead) {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+
+    if (lead.Bot.userId !== userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
+    // Build update data
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    
+    if (visitorName !== undefined) updateData.visitorName = visitorName;
+    if (visitorPhone !== undefined) updateData.visitorPhone = visitorPhone;
+    if (visitorEmail !== undefined) updateData.visitorEmail = visitorEmail;
+    if (message !== undefined) updateData.message = message;
+    if (status !== undefined) updateData.status = status;
+
+    // Update the lead
+    const updatedLead = await db.lead.update({
+      where: { id: leadId },
+      data: updateData,
+    });
+
+    console.log(`[AgentBot] Lead ${leadId} updated via PUT API`);
+
+    return NextResponse.json({
+      success: true,
+      lead: {
+        id: updatedLead.id,
+        visitorName: updatedLead.visitorName,
+        visitorPhone: updatedLead.visitorPhone,
+        visitorEmail: updatedLead.visitorEmail,
+        message: updatedLead.message,
+        status: updatedLead.status,
+        updatedAt: updatedLead.updatedAt?.toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('PUT /api/leads error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

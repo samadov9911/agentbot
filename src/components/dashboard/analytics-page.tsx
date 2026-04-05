@@ -341,6 +341,8 @@ const EMPTY_ANALYTICS: AnalyticsData = {
   totalVisitors: 0,
   totalConversations: 0,
   totalAppointments: 0,
+  totalLeads: 0,
+  contactedLeads: 0,
   conversionRate: 0,
   dailyStats: [],
   topQuestions: [],
@@ -702,7 +704,7 @@ export function AnalyticsPage() {
       {isLoading ? (
         <StatsCardsSkeleton />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {/* Total Visitors */}
           <Card className="transition-shadow hover:shadow-md">
             <CardContent className="p-4">
@@ -738,6 +740,28 @@ export function AnalyticsPage() {
                   </p>
                   <p className="text-2xl font-bold tabular-nums text-teal-600 dark:text-teal-400">
                     {analyticsData?.totalConversations.toLocaleString() ?? 0}
+                  </p>
+                </div>
+                <div className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground">
+                  —
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Total Leads - BUGFIX: New card for leads */}
+          <Card className="transition-shadow hover:shadow-md">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-950 dark:text-sky-400">
+                  <UserPlus className="size-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {t('leads.title', lang)}
+                  </p>
+                  <p className="text-2xl font-bold tabular-nums text-sky-600 dark:text-sky-400">
+                    {analyticsData?.totalLeads?.toLocaleString() ?? 0}
                   </p>
                 </div>
                 <div className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground">

@@ -159,6 +159,8 @@ export interface AnalyticsData {
   totalVisitors: number;
   totalConversations: number;
   totalAppointments: number;
+  totalLeads?: number;
+  contactedLeads?: number;
   conversionRate: number;
   dailyStats: DailyStat[];
   topQuestions: { question: string; count: number }[];
