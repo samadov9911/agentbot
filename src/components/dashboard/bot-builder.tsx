@@ -2612,6 +2612,11 @@ export function BotBuilderPage() {
             const bots = data.bots || [];
             setExistingBotsCount(bots.length);
             setHasPublishedBot(bots.some((b: { publishedAt?: string }) => !!b.publishedAt));
+            // Auto-set selectedBotId if user has bots but none is selected
+            // This ensures conversations from dashboard preview are saved to DB
+            if (bots.length > 0 && !useAppStore.getState().selectedBotId) {
+              useAppStore.getState().setSelectedBot(bots[0].id);
+            }
           }
         }
       } catch { /* ignore */ }

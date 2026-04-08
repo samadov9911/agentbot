@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Bot, CalendarCheck, MessageSquare, Send, RotateCcw, Sparkles } from 'lucide-react';
-import { useBotBuilderStore, useAppStore } from '@/stores';
+import { useAuthStore, useBotBuilderStore, useAppStore } from '@/stores';
 
 interface ChatMessage {
   id: string;
@@ -25,6 +25,7 @@ function nextId() {
 export function LiveChatPreview() {
   const { draftBot } = useBotBuilderStore();
   const { language, selectedBotId } = useAppStore();
+  const { user } = useAuthStore();
   const { appearance, config, name: botName, type: botType, calendarConfig, avatar } = draftBot;
   const hasAvatar = avatar && avatar.startsWith('data:');
 
@@ -98,7 +99,10 @@ export function LiveChatPreview() {
     try {
       const res = await fetch('/api/bot-demo-chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(user?.id ? { 'x-user-id': user.id } : {}),
+        },
         body: JSON.stringify({
           message: trimmed,
           sessionId,
@@ -161,7 +165,7 @@ export function LiveChatPreview() {
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, sessionId, botType, config, botName, companyName, language, calendarConfig, selectedBotId]);
+  }, [isLoading, sessionId, botType, config, botName, companyName, language, calendarConfig, selectedBotId, user?.id]);
 
   const handleReset = useCallback(async () => {
     setMessages([]);

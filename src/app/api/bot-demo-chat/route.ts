@@ -814,6 +814,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── FALLBACK: If botId is still null, resolve from x-user-id header ──
+    // This handles the dashboard preview case where selectedBotId might be null.
+    // The live-chat-preview now sends x-user-id so we can auto-resolve the bot.
+    if (!botId) {
+      const userId = request.headers.get('x-user-id');
+      if (userId) {
+        try {
+          const userBots = await db.bot.findMany({
+            where: { userId, deletedAt: null, publishedAt: { not: null } },
+            select: { id: true, name: true, type: true, config: true },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          });
+          if (userBots.length > 0) {
+            const resolvedBot = userBots[0];
+            botId = resolvedBot.id;
+            botName = botName || resolvedBot.name;
+            console.log(`[AgentBot] Auto-resolved botId=${botId} from x-user-id for user ${userId.slice(0, 8)}`);
+            // Load bot config for AI if not already provided
+            if (!botConfig || !botConfig.type) {
+              try {
+                const parsed = typeof resolvedBot.config === 'string' ? JSON.parse(resolvedBot.config) : (resolvedBot.config as Record<string, unknown>) ?? {};
+                if (!botConfig) botConfig = parsed;
+                if (resolvedBot.type && !(parsed as Record<string, unknown>).type) {
+                  (parsed as Record<string, unknown>).type = resolvedBot.type;
+                }
+                calendarConfig = calendarConfig || (parsed as Record<string, unknown>).calendarConfig as Record<string, unknown> | undefined;
+              } catch {
+                // keep existing botConfig
+              }
+            }
+          }
+        } catch (fallbackErr) {
+          console.error('[AgentBot] Failed to auto-resolve botId from x-user-id:', fallbackErr);
+        }
+      }
+    }
+
     const botType = botConfig?.type || 'rule-based';
     const faq = botConfig?.faq || [];
     const services = botConfig?.services || [];
