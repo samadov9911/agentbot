@@ -235,16 +235,23 @@ export function AnalyticsPage() {
 
   // ── Fetch conversations list ──
   const fetchConversations = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.warn('[Analytics] fetchConversations skipped: no user.id');
+      return;
+    }
     setConvLoading(true);
     try {
       const res = await fetch('/api/conversations', {
         headers: { 'x-user-id': user.id },
       });
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) {
+        console.error(`[Analytics] Conversations API returned ${res.status}`);
+        throw new Error(`HTTP ${res.status}`);
+      }
       const data = await res.json();
-      setConversations(data.conversations ?? []);
-      console.log(`[Analytics] Loaded ${data.conversations?.length ?? 0} conversations`);
+      const items = Array.isArray(data.conversations) ? data.conversations : [];
+      setConversations(items);
+      console.log(`[Analytics] Loaded ${items.length} conversations (user=${user.id.slice(0, 8)})`);
     } catch (err) {
       console.error('[Analytics] Conversations fetch error:', err);
       setConversations([]);
@@ -255,16 +262,23 @@ export function AnalyticsPage() {
 
   // ── Fetch appointments list ──
   const fetchAppointments = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.warn('[Analytics] fetchAppointments skipped: no user.id');
+      return;
+    }
     setAptLoading(true);
     try {
       const res = await fetch('/api/bookings', {
         headers: { 'x-user-id': user.id },
       });
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) {
+        console.error(`[Analytics] Appointments API returned ${res.status}`);
+        throw new Error(`HTTP ${res.status}`);
+      }
       const data = await res.json();
-      setAppointments(data.appointments ?? []);
-      console.log(`[Analytics] Loaded ${data.appointments?.length ?? 0} appointments`);
+      const items = Array.isArray(data.appointments) ? data.appointments : [];
+      setAppointments(items);
+      console.log(`[Analytics] Loaded ${items.length} appointments (user=${user.id.slice(0, 8)})`);
     } catch (err) {
       console.error('[Analytics] Appointments fetch error:', err);
       setAppointments([]);
@@ -275,16 +289,23 @@ export function AnalyticsPage() {
 
   // ── Fetch leads list ──
   const fetchLeads = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.warn('[Analytics] fetchLeads skipped: no user.id');
+      return;
+    }
     setLeadsLoading(true);
     try {
       const res = await fetch('/api/leads', {
         headers: { 'x-user-id': user.id },
       });
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) {
+        console.error(`[Analytics] Leads API returned ${res.status}`);
+        throw new Error(`HTTP ${res.status}`);
+      }
       const data = await res.json();
-      setLeads(data.leads ?? []);
-      console.log(`[Analytics] Loaded ${data.leads?.length ?? 0} leads`);
+      const items = Array.isArray(data.leads) ? data.leads : [];
+      setLeads(items);
+      console.log(`[Analytics] Loaded ${items.length} leads (user=${user.id.slice(0, 8)})`);
     } catch (err) {
       console.error('[Analytics] Leads fetch error:', err);
       setLeads([]);
@@ -306,12 +327,14 @@ export function AnalyticsPage() {
     fetchAnalytics();
   }, [fetchAnalytics]);
 
-  // Fetch lists on mount
+  // Fetch lists on mount — use direct user?.id dependency for reliability
   useEffect(() => {
-    fetchConversations();
-    fetchAppointments();
-    fetchLeads();
-  }, [fetchConversations, fetchAppointments, fetchLeads]);
+    if (user?.id) {
+      fetchConversations();
+      fetchAppointments();
+      fetchLeads();
+    }
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-refresh every 30 seconds (only when page is visible)
   useEffect(() => {
@@ -449,14 +472,12 @@ export function AnalyticsPage() {
 
   const stats = data?.stats;
   const chartData = data?.chartData ?? [];
-  const activity = data?.activity ?? [];
   const hasAnyData = (stats?.activeBots ?? 0) > 0 ||
     (stats?.conversationsToday ?? 0) > 0 ||
     (stats?.appointmentsToday ?? 0) > 0 ||
     (stats?.leadsToday ?? 0) > 0 ||
     (data?.totalConversations ?? 0) > 0 ||
-    (data?.totalAppointments ?? 0) > 0 ||
-    activity.length > 0;
+    (data?.totalAppointments ?? 0) > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -733,69 +754,7 @@ export function AnalyticsPage() {
             </div>
           ) : null}
 
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader className="pb-0">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Clock className="size-4 text-muted-foreground" />
-                {label('Последняя активность', 'Recent activity', 'Son etkinlikler')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-2">
-              {activity.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-                  <Clock className="size-10 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">
-                    {stats?.activeBots
-                      ? label(
-                          'Активность появится после взаимодействия с виджетом',
-                          'Activity will appear after widget interactions',
-                          'Widget etkileşimlerinden sonra aktivite görünecektir'
-                        )
-                      : label('Нет активности', 'No activity', 'Etkinlik yok')
-                    }
-                  </p>
-                </div>
-              ) : (
-                <div className="max-h-96 overflow-y-auto">
-                  <div className="flex flex-col gap-1">
-                    {activity.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/50"
-                      >
-                        <div
-                          className={`flex size-8 shrink-0 items-center justify-center rounded-full ${
-                            item.type === 'conversation'
-                              ? 'bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400'
-                              : item.type === 'appointment'
-                                ? 'bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400'
-                                : item.type === 'lead'
-                                  ? 'bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-400'
-                                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                          }`}
-                        >
-                          {item.type === 'conversation' ? (
-                            <MessageSquare className="size-3.5" />
-                          ) : item.type === 'appointment' ? (
-                            <CalendarCheck className="size-3.5" />
-                          ) : item.type === 'lead' ? (
-                            <Users className="size-3.5" />
-                          ) : (
-                            <Bot className="size-3.5" />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate">{item.message}</p>
-                          <p className="text-xs text-muted-foreground">{item.timestamp}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+
         </TabsContent>
 
         {/* ═══════════════════════════════════════════════════════ */}
