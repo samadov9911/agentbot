@@ -817,16 +817,19 @@ export async function POST(request: NextRequest) {
     // ── FALLBACK: If botId is still null, resolve from x-user-id header ──
     // This handles the dashboard preview case where selectedBotId might be null.
     // The live-chat-preview now sends x-user-id so we can auto-resolve the bot.
+    // NOTE: We include draft bots (no publishedAt filter) so that dashboard preview
+    // conversations are saved to DB and appear in Analytics > Dialogs.
     if (!botId) {
       const userId = request.headers.get('x-user-id');
       if (userId) {
         try {
           const userBots = await db.bot.findMany({
-            where: { userId, deletedAt: null, publishedAt: { not: null } },
+            where: { userId, deletedAt: null },
             select: { id: true, name: true, type: true, config: true },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { publishedAt: 'desc' }, // Prefer published bots
             take: 1,
           });
+          console.log(`[AgentBot] Fallback: found ${userBots.length} bots for user ${userId.slice(0, 8)}`);
           if (userBots.length > 0) {
             const resolvedBot = userBots[0];
             botId = resolvedBot.id;
@@ -1387,6 +1390,8 @@ export async function POST(request: NextRequest) {
       } catch (convErr) {
         console.error('[AgentBot] Failed to save conversation:', convErr);
       }
+    } else {
+      console.warn('[AgentBot] Skipping conversation save: botId is not set');
     }
 
     // Build response — bookingPrompt is only included when non-null

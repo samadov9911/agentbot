@@ -334,7 +334,7 @@ export function AnalyticsPage() {
       fetchAppointments();
       fetchLeads();
     }
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Auto-refresh every 30 seconds (only when page is visible)
   useEffect(() => {
@@ -671,7 +671,7 @@ export function AnalyticsPage() {
           <Card>
             <CardHeader className="pb-0">
               <CardTitle className="text-base">
-                {label('График за 7 дней', '7-day chart', '7 günlük grafik')}
+                {label('График за 14 дней', '14-day chart', '14 günlük grafik')}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-2">

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,7 +11,8 @@ export async function GET(request: NextRequest) {
     }
 
     const botId = new URL(request.url).searchParams.get("botId");
-    let whereClause: Record<string, unknown> = {};
+    // Use proper Prisma type to avoid runtime query issues
+    let whereClause: Prisma.ConversationWhereInput = {};
 
     if (botId) {
       const bot = await db.bot.findFirst({
@@ -24,13 +26,21 @@ export async function GET(request: NextRequest) {
     } else {
       const bots = await db.bot.findMany({
         where: { userId, deletedAt: null },
-        select: { id: true },
+        select: { id: true, name: true, publishedAt: true },
       });
-      console.log(`[Conversations] User ${userId} has ${bots.length} bots: ${bots.map(b => b.id).join(',')}`);
+      console.log(`[Conversations] User ${userId.slice(0, 8)} has ${bots.length} bots: ${bots.map(b => `${b.name}(${b.id.slice(0, 8)})`).join(', ')}`);
+
       if (bots.length === 0) {
+        console.log(`[Conversations] No bots found for user ${userId.slice(0, 8)}`);
         return NextResponse.json({ conversations: [] });
       }
-      whereClause = { botId: { in: bots.map((b) => b.id) } };
+
+      const botIds = bots.map((b) => b.id);
+      whereClause = { botId: { in: botIds } };
+
+      // Quick count check for diagnostics
+      const totalCount = await db.conversation.count({ where: whereClause });
+      console.log(`[Conversations] Total conversations for user's bots: ${totalCount}`);
     }
 
     const conversations = await db.conversation.findMany({
@@ -48,7 +58,7 @@ export async function GET(request: NextRequest) {
       take: 50,
     });
 
-    console.log(`[Conversations] Found ${conversations.length} conversations for user ${userId}`);
+    console.log(`[Conversations] Returning ${conversations.length} conversations for user ${userId.slice(0, 8)}`);
 
     return NextResponse.json({
       conversations: conversations.map((c) => ({
@@ -60,9 +70,11 @@ export async function GET(request: NextRequest) {
         status: c.status || "active",
         messageCount: c._count.messages,
         lastMessage: c.messages[0]?.content || "No messages",
-        lastMessageAt: c.messages[0]?.createdAt || c.updatedAt,
-        createdAt: c.createdAt ? c.createdAt.toISOString() : new Date().toISOString(),
-        updatedAt: c.updatedAt ? c.updatedAt.toISOString() : new Date().toISOString(),
+        lastMessageAt: c.messages[0]?.createdAt
+          ? (c.messages[0].createdAt instanceof Date ? c.messages[0].createdAt.toISOString() : String(c.messages[0].createdAt))
+          : (c.updatedAt instanceof Date ? c.updatedAt.toISOString() : new Date().toISOString()),
+        createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : new Date().toISOString(),
+        updatedAt: c.updatedAt instanceof Date ? c.updatedAt.toISOString() : new Date().toISOString(),
       })),
     });
   } catch (e) {

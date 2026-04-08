@@ -79,3 +79,36 @@ Stage Summary:
 - Root cause: selectedBotId lost on page refresh → no botId sent → no conversations saved → empty Dialogs tab
 - Fix: persist selectedBotId + set it after bot publish + touch updatedAt on new messages
 - Deployed to https://agentbot-one.vercel.app
+---
+Task ID: 2
+Agent: Main
+Task: Fix Dialogs tab still empty - robust fallback for botId resolution
+
+Work Log:
+- Deep-investigated full chain: live-chat-preview → bot-demo-chat → conversation creation → conversations API → analytics-page
+- Identified that previous fix (persist selectedBotId) was INSUFFICIENT:
+  - User's localStorage had selectedBotId=null from before the fix
+  - Even with persist, the null value was retained
+  - selectedBotId was only set via "My Bots → Edit" or "Publish" flows
+  - If user went directly to bot builder or refreshed, selectedBotId stayed null
+  - Without botId in request, bot-demo-chat skipped Conversation creation entirely
+- Implemented TRIPLE protection:
+
+1. live-chat-preview.tsx: Now sends x-user-id header from useAuthStore
+   - Every chat request includes user authentication context
+   - Backend can resolve botId even without selectedBotId
+
+2. bot-demo-chat/route.ts: Added FALLBACK botId resolution
+   - If botId is null after embedCode resolution, checks x-user-id header
+   - Finds user's latest published bot and uses its ID
+   - Also loads bot config for correct AI responses
+   - Logged: "[AgentBot] Auto-resolved botId=... from x-user-id"
+
+3. bot-builder.tsx: Auto-sets selectedBotId on mount
+   - When fetching user's bots, if selectedBotId is null, sets it to first bot's ID
+   - Prevents null state from persisting across sessions
+
+Stage Summary:
+- Root cause: selectedBotId could remain null even after persist fix
+- Fix: 3-layer fallback ensures botId is ALWAYS resolved
+- Deployed to https://agentbot-one.vercel.app

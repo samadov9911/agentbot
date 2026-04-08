@@ -77,10 +77,12 @@ async function buildChartData(botIds: string[]) {
   const chartData: Array<{ date: string; conversations: number; appointments: number; leads: number }> = [];
 
   // Calculate day boundaries (use fixed dates, avoid mutations)
+  // Chart shows: 6 days ago → today → 7 days ahead (14 days total)
+  // This ensures upcoming appointments (tomorrow, next week) are visible.
   const days: Array<{ start: Date; end: Date; label: string }> = [];
-  for (let i = 6; i >= 0; i--) {
+  for (let i = -7; i <= 6; i++) {
     const dayStart = new Date();
-    dayStart.setDate(dayStart.getDate() - i);
+    dayStart.setDate(dayStart.getDate() + i);
     dayStart.setHours(0, 0, 0, 0);
 
     const dayEnd = new Date(dayStart);
@@ -90,24 +92,27 @@ async function buildChartData(botIds: string[]) {
     days.push({ start: dayStart, end: dayEnd, label });
   }
 
-  // Fetch all conversations created in the last 7 days for these bots
-  const weekStart = days[0].start;
-  const weekEnd = days[days.length - 1].end;
+  // Fetch data across the full chart range
+  const rangeStart = days[0].start;
+  const rangeEnd = days[days.length - 1].end;
 
   const [conversations, appointments, leads] = await Promise.all([
     db.conversation.findMany({
-      where: { botId: { in: botIds }, createdAt: { gte: weekStart, lt: new Date(weekEnd.getTime() + 1) } },
+      where: { botId: { in: botIds }, createdAt: { gte: rangeStart, lt: new Date(rangeEnd.getTime() + 1) } },
       select: { createdAt: true },
     }),
+    // Appointments use `date` (scheduled date) — can be in the future
     db.appointment.findMany({
-      where: { botId: { in: botIds }, date: { gte: weekStart, lt: new Date(weekEnd.getTime() + 1) } },
+      where: { botId: { in: botIds }, date: { gte: rangeStart, lt: new Date(rangeEnd.getTime() + 1) } },
       select: { date: true },
     }),
     db.lead.findMany({
-      where: { botId: { in: botIds }, createdAt: { gte: weekStart, lt: new Date(weekEnd.getTime() + 1) } },
+      where: { botId: { in: botIds }, createdAt: { gte: rangeStart, lt: new Date(rangeEnd.getTime() + 1) } },
       select: { createdAt: true },
     }),
   ]);
+
+  console.log(`[ChartData] conversations=${conversations.length}, appointments=${appointments.length}, leads=${leads.length}`);
 
   // Bucket each record into its day
   for (const day of days) {
