@@ -11,7 +11,6 @@ export async function GET(request: NextRequest) {
     }
 
     const botId = new URL(request.url).searchParams.get("botId");
-    // Use proper Prisma type to avoid runtime query issues
     let whereClause: Prisma.ConversationWhereInput = {};
 
     if (botId) {
@@ -28,7 +27,7 @@ export async function GET(request: NextRequest) {
         where: { userId, deletedAt: null },
         select: { id: true, name: true, publishedAt: true },
       });
-      console.log(`[Conversations] User ${userId.slice(0, 8)} has ${bots.length} bots: ${bots.map(b => `${b.name}(${b.id.slice(0, 8)})`).join(', ')}`);
+      console.log(`[Conversations] User ${userId.slice(0, 8)} has ${bots.length} bots`);
 
       if (bots.length === 0) {
         console.log(`[Conversations] No bots found for user ${userId.slice(0, 8)}`);
@@ -37,48 +36,76 @@ export async function GET(request: NextRequest) {
 
       const botIds = bots.map((b) => b.id);
       whereClause = { botId: { in: botIds } };
-
-      // Quick count check for diagnostics
-      const totalCount = await db.conversation.count({ where: whereClause });
-      console.log(`[Conversations] Total conversations for user's bots: ${totalCount}`);
     }
 
-    const conversations = await db.conversation.findMany({
-      where: whereClause,
-      include: {
-        _count: { select: { messages: true } },
-        messages: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: { id: true, content: true, role: true, createdAt: true },
+    // ── Try full query with includes first ──
+    let conversations;
+    let useFallback = false;
+    try {
+      conversations = await db.conversation.findMany({
+        where: whereClause,
+        include: {
+          _count: { select: { messages: true } },
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: { id: true, content: true, role: true, createdAt: true },
+          },
+          bot: { select: { id: true, name: true } },
         },
-        bot: { select: { id: true, name: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 50,
-    });
+        orderBy: { updatedAt: "desc" },
+        take: 50,
+      });
+    } catch (includeErr) {
+      console.error("[Conversations] Full query failed, trying fallback:", includeErr);
+      useFallback = true;
+    }
 
-    console.log(`[Conversations] Returning ${conversations.length} conversations for user ${userId.slice(0, 8)}`);
+    // ── Fallback: simpler query without includes ──
+    if (useFallback) {
+      try {
+        conversations = await db.conversation.findMany({
+          where: whereClause,
+          orderBy: { updatedAt: "desc" },
+          take: 50,
+        });
+      } catch (fallbackErr) {
+        console.error("[Conversations] Fallback query also failed:", fallbackErr);
+        // Last resort: just count
+        const count = await db.conversation.count({ where: whereClause }).catch(() => 0);
+        console.log(`[Conversations] Count fallback: ${count}`);
+        return NextResponse.json({ conversations: [], _debug: { count, error: String(includeErr) } });
+      }
+    }
+
+    console.log(`[Conversations] Returning ${conversations?.length || 0} conversations (fallback=${useFallback})`);
 
     return NextResponse.json({
-      conversations: conversations.map((c) => ({
-        id: c.id,
-        botId: c.botId,
-        botName: c.bot?.name || "Unknown",
-        visitorName: c.visitorName || "Client",
-        source: c.source || "widget",
-        status: c.status || "active",
-        messageCount: c._count.messages,
-        lastMessage: c.messages[0]?.content || "No messages",
-        lastMessageAt: c.messages[0]?.createdAt
-          ? (c.messages[0].createdAt instanceof Date ? c.messages[0].createdAt.toISOString() : String(c.messages[0].createdAt))
-          : (c.updatedAt instanceof Date ? c.updatedAt.toISOString() : new Date().toISOString()),
-        createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : new Date().toISOString(),
-        updatedAt: c.updatedAt instanceof Date ? c.updatedAt.toISOString() : new Date().toISOString(),
-      })),
+      conversations: (conversations || []).map((c: Record<string, unknown>) => {
+        // Handle both full (with includes) and fallback (without includes) results
+        const messages = (c.messages as Array<Record<string, unknown>> | undefined) || [];
+        const bot = c.bot as Record<string, unknown> | undefined;
+        const count = c._count as Record<string, unknown> | undefined;
+
+        return {
+          id: c.id as string,
+          botId: c.botId as string,
+          botName: (bot?.name as string) || "Unknown",
+          visitorName: (c.visitorName as string) || "Client",
+          source: (c.source as string) || "widget",
+          status: (c.status as string) || "active",
+          messageCount: (count?.messages as number) ?? 0,
+          lastMessage: (messages[0]?.content as string) || "No messages",
+          lastMessageAt: messages[0]?.createdAt
+            ? new Date(messages[0].createdAt as string).toISOString()
+            : (c.updatedAt instanceof Date ? (c.updatedAt as Date).toISOString() : new Date().toISOString()),
+          createdAt: c.createdAt instanceof Date ? (c.createdAt as Date).toISOString() : new Date(c.createdAt as string).toISOString(),
+          updatedAt: c.updatedAt instanceof Date ? (c.updatedAt as Date).toISOString() : new Date(c.updatedAt as string).toISOString(),
+        };
+      }),
     });
   } catch (e) {
-    console.error("[Conversations] Error:", e);
+    console.error("[Conversations] Top-level error:", e);
     return NextResponse.json({ error: "Server error", conversations: [] }, { status: 500 });
   }
 }
