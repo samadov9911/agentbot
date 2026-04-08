@@ -406,6 +406,257 @@ Biri randevu almak istediğinde, bu saatler içinde uygun zamanlar öner. Spesif
 Когда кто-то хочет записаться, предлагай доступные слоты в этих часах. Если человек выбирает конкретный день — упомяни рабочие часы. Если выходит на нерабочий день — мягко подскажи и предложи ближайший рабочий день.`;
 }
 
+// ──────────────────────────────────────────────────────────────
+// Date awareness: resolve relative dates like "завтра", "послезавтра", etc.
+// ──────────────────────────────────────────────────────────────
+
+function getDayOfWeekIso(date: Date): number {
+  const dow = date.getDay();
+  return dow === 0 ? 7 : dow;
+}
+
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function formatDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+function buildDateContext(lang: string): string {
+  const now = new Date();
+  const dayNames = lang === 'tr' ? DAY_NAMES_TR : lang === 'en' ? DAY_NAMES_EN : DAY_NAMES_RU;
+  const todayName = dayNames[getDayOfWeekIso(now)] || '';
+  const tomorrow = addDays(now, 1);
+  const dayAfterTomorrow = addDays(now, 2);
+
+  const todayStr = now.toLocaleDateString(
+    lang === 'tr' ? 'tr-TR' : lang === 'en' ? 'en-US' : 'ru-RU',
+    { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
+  );
+  const tomorrowStr = tomorrow.toLocaleDateString(
+    lang === 'tr' ? 'tr-TR' : lang === 'en' ? 'en-US' : 'ru-RU',
+    { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
+  );
+  const dayAfterTomorrowStr = dayAfterTomorrow.toLocaleDateString(
+    lang === 'tr' ? 'tr-TR' : lang === 'en' ? 'en-US' : 'ru-RU',
+    { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
+  );
+
+  if (lang === 'en') {
+    return `\n\n📅 TODAY'S DATE CONTEXT (CRITICAL — you MUST know the current date):
+- Today is: ${todayStr}
+- Tomorrow is: ${tomorrowStr}
+- Day after tomorrow is: ${dayAfterTomorrowStr}
+- Current time: ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+
+IMPORTANT: When someone says "tomorrow", "next Monday", "the 15th", etc., you MUST calculate the actual calendar date using today's date (${formatDateStr(now)}). Never guess or make up dates. Always confirm the actual date with the client before booking.`;
+  }
+
+  if (lang === 'tr') {
+    return `\n\n📅 BUGÜNK TARİH BİLGİLERİ (KRİTİK — güncel tarihi bilmelisin):
+- Bugün: ${todayStr}
+- Yarın: ${tomorrowStr}
+- Öbür gün: ${dayAfterTomorrowStr}
+- Şu anki saat: ${now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+
+ÖNEMLİ: Biri "yarın", "gelecek pazartesi", "15'i" vs. dediğinde, güncel tarihi kullanarak (${formatDateStr(now)}) GERÇEK takvim tarihini hesaplamalısın. Tarih tahmin etme veya uydurma. Randevu onaylamadan önce her zaman gerçek tarihi istemciyle doğrula.`;
+  }
+
+  // Russian (default)
+  return `\n\n📅 КОНТЕКСТ ТЕКУЩЕЙ ДАТЫ (КРИТИЧЕСКИ ВАЖНО — ты ДОЛЖЕН ЗНАТЬ ТЕКУЩУЮ ДАТУ):
+- Сегодня: ${todayStr}
+- Завтра: ${tomorrowStr}
+- Послезавтра: ${dayAfterTomorrowStr}
+- Текущее время: ${now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+
+ВАЖНО: Когда клиент говорит «завтра», «в следующий понедельник», «15-го» и т.д. — ты ДОЛЖЕН вычислить реальную календарную дату, используя сегодняшнюю дату (${formatDateStr(now)}). Никогда не угадывай и не придумывай даты. Всегда подтверждай реальную дату с клиентом перед записью.`;
+  }
+}
+
+/**
+ * Parse date/time from message text. Returns { date: string (YYYY-MM-DD), time: string (HH:MM) } or null.
+ * Supports: "завтра", "послезавтра", day names, "15 числа", "15.01", "в 15:00", etc.
+ */
+function parseBookingDate(message: string, lang: string): { date: string; time: string } | null {
+  const now = new Date();
+  const lower = message.toLowerCase();
+  const dateRegex = /(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/;
+
+  // Helper: extract time from text or return default
+  const extractTime = (text: string): string => {
+    const timeMatch = text.match(/(\d{1,2})[:\.](\d{2})/);
+    return timeMatch ? `${String(timeMatch[1]).padStart(2, '0')}:${timeMatch[2]}` : '10:00';
+  };
+
+  // Check for "today" / "сегодня" / "bugün"
+  if (lower.includes('сегодня') || lower.includes('today') || lower.includes('bugün') || lower.includes('bugun')) {
+    // For today, default to next hour to avoid past times
+    const nextHour = new Date(now.getTime() + 60 * 60 * 1000);
+    nextHour.setMinutes(0, 0, 0);
+    const defaultTime = `${String(nextHour.getHours()).padStart(2, '0')}:00`;
+    const time = extractTime(lower);
+    // If user said today but didn't specify time past, use next hour
+    const finalTime = time !== '10:00' ? time : defaultTime;
+    return { date: formatDateStr(now), time: finalTime };
+  }
+
+  // Check for "завтра" / "tomorrow" / "yarın" (but NOT послезавтра/after tomorrow)
+  if ((lower.includes('завтра') && !lower.includes('послезавтра')) ||
+      (lower.includes('tomorrow') && !lower.includes('day after')) ||
+      (lower.includes('yarın') && !lower.includes('öbür'))) {
+    const tomorrow = addDays(now, 1);
+    return { date: formatDateStr(tomorrow), time: extractTime(lower) };
+  }
+
+  // Check for "послезавтра" / "day after tomorrow" / "öbür gün"
+  if (lower.includes('послезавтра') || lower.includes('после завтра') ||
+      lower.includes('day after tomorrow') || lower.includes('öbür gün') || lower.includes('öbür gün')) {
+    const dayAfter = addDays(now, 2);
+    return { date: formatDateStr(dayAfter), time: extractTime(lower) };
+  }
+
+  // Check for day of week names (Russian, English, Turkish)
+  const dayNameMap: Record<string, number> = {
+    'понедельник': 1, 'вторник': 2, 'среда': 3, 'четверг': 4, 'пятница': 5, 'суббота': 6, 'воскресенье': 7,
+    'monday': 1, 'tuesday': 2, 'wednesday': 3, 'thursday': 4, 'friday': 5, 'saturday': 6, 'sunday': 7,
+    'pazartesi': 1, 'salı': 2, 'çarşamba': 3, 'perşembe': 4, 'cuma': 5, 'cumartesi': 6, 'pazar': 7,
+    // Short forms
+    'пн': 1, 'вт': 2, 'ср': 3, 'чт': 4, 'пт': 5, 'сб': 6, 'вс': 7,
+    'mon': 1, 'tue': 2, 'wed': 3, 'thu': 4, 'fri': 5, 'sat': 6, 'sun': 7,
+    'pts': 1, 'sal': 2, 'car': 3, 'per': 4, 'cum': 5, 'cmt': 6, 'paz': 7,
+  };
+
+  for (const [name, targetDow] of Object.entries(dayNameMap)) {
+    if (lower.includes(name)) {
+      const currentDow = getDayOfWeekIso(now);
+      let daysAhead = targetDow - currentDow;
+      if (daysAhead <= 0) daysAhead += 7; // Next occurrence
+      const targetDate = addDays(now, daysAhead);
+      return { date: formatDateStr(targetDate), time: extractTime(lower) };
+    }
+  }
+
+  // Check for specific calendar dates: DD.MM, DD/MM/YYYY, YYYY-MM-DD
+  const dateMatch = message.match(dateRegex);
+  if (dateMatch) {
+    let day = parseInt(dateMatch[1], 10);
+    let month = parseInt(dateMatch[2], 10);
+    let year = dateMatch[3] ? parseInt(dateMatch[3], 10) : now.getFullYear();
+
+    if (month > 12) {
+      [day, month] = [month, day];
+    }
+    if (year < 100) year += 2000;
+
+    const parsed = new Date(year, month - 1, day);
+    if (!isNaN(parsed.getTime()) && parsed >= now) {
+      return { date: formatDateStr(parsed), time: extractTime(lower) };
+    }
+  }
+
+  // Check for "N числа" (Nth of the month) in Russian
+  const numMatch = message.match(/(\d{1,2})\s*(?:числа|числ)/i);
+  if (numMatch) {
+    const dayNum = parseInt(numMatch[1], 10);
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    let candidate = new Date(currentYear, currentMonth, dayNum);
+    if (candidate < now) {
+      candidate = new Date(currentYear, currentMonth + 1, dayNum);
+    }
+    return { date: formatDateStr(candidate), time: extractTime(lower) };
+  }
+
+  return null;
+}
+
+/**
+ * Try to auto-create an Appointment record when all booking info is collected.
+ * Returns true if appointment was created.
+ */
+async function tryCreateAppointment(
+  botId: string,
+  visitorName: string | null,
+  visitorPhone: string | null,
+  visitorEmail: string | null,
+  history: Array<{ role: string; content: string }>,
+  lang: string,
+): Promise<boolean> {
+  if (!visitorName || !visitorPhone || !botId) return false;
+
+  // Scan last 6 messages for a date/time
+  const recentMessages = history.slice(-6).map(m => m.content);
+  const allRecentText = recentMessages.join(' ');
+  const parsedDate = parseBookingDate(allRecentText, lang);
+
+  if (!parsedDate) return false;
+
+  // Also check for time in the current message if no date
+  let { date, time } = parsedDate;
+
+  // Validate the date is in the future
+  const appointmentDate = new Date(date + 'T' + time);
+  if (isNaN(appointmentDate.getTime()) || appointmentDate <= new Date()) return false;
+
+  try {
+    // Check if an appointment already exists for this date/time to avoid duplicates
+    const existing = await db.appointment.findFirst({
+      where: {
+        botId,
+        visitorPhone,
+        date: appointmentDate,
+        status: { notIn: ['cancelled'] },
+      },
+    });
+
+    if (existing) {
+      console.log(`[AutoBooking] Appointment already exists: ${existing.id} for ${visitorName} on ${date} at ${time}`);
+      return false;
+    }
+
+    const appointment = await db.appointment.create({
+      data: {
+        botId,
+        visitorName: visitorName,
+        visitorPhone,
+        visitorEmail: visitorEmail || null,
+        date: appointmentDate,
+        duration: 60,
+        status: 'confirmed',
+      },
+    });
+
+    // Also create/update the conversation record
+    const conversation = await db.conversation.findFirst({
+      where: { botId, visitorName },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (conversation) {
+      await db.message.create({
+        data: {
+          conversationId: conversation.id,
+          role: 'system',
+          content: `Запись создана автоматически: ${visitorName}, ${visitorPhone}${visitorEmail ? ', ' + visitorEmail : ''}. Дата: ${date} ${time}. Статус: Подтверждена.`,
+          messageType: 'calendar',
+        },
+      });
+    }
+
+    console.log(`[AutoBooking] ✅ Created appointment ${appointment.id} for ${visitorName} on ${date} at ${time}`);
+    return true;
+  } catch (e) {
+    console.error('[AutoBooking] Failed:', e);
+    return false;
+  }
+}
+
 function buildDefaultSystemPrompt(
   botName: string,
   companyName: string,
@@ -439,7 +690,8 @@ CRITICAL RULES:
 12. Use emojis occasionally (1-2 per message max) but only when it feels natural — not in every message.
 13. Support multi-turn conversation. Remember what was discussed earlier in the conversation and build on it. Be able to discuss different aspects of your domain naturally, but stay within your area of expertise.
 14. When someone wants to book an appointment, ask for their name, phone number and email address — BUT FIRST check if they already shared any of these earlier in the conversation. If the person already mentioned their name, phone or email before, do NOT ask for it again. Only ask for what hasn't been shared yet. Ask naturally, e.g.: "Great! What's your name? And please leave your phone number and email so I can confirm the booking."
-${buildCalendarContext(calendarConfig, 'en')}`;
+${buildCalendarContext(calendarConfig, 'en')}
+${buildDateContext('en')}`;
   }
 
   if (lang === 'tr') {
@@ -468,7 +720,8 @@ KRİTİK KURALLAR:
 12. Emoji kullan (her mesajda en fazla 1-2) ama sadece doğal hissettirdiğinde — her mesajda değil.
 13. Çoklu konuşmayı destekle. Konuşmada daha önce ne tartışıldığını hatırla ve üzerine inşa et. Uzmanlık alanının farklı yönlerini doğal olarak tartış, ama uzmanlık alanının içinde kal.
 14. Birisi randevu almak istediğinde, adını, telefon numarasını ve e-posta adresini sor — AMA ÖNCE bu bilgilerin sohbet boyunca daha önce paylaşılıp paylaşılımadığını kontrol et. Kişi daha önce adını, telefonunu veya e-postasını belirtmişse, TEKRAR sorma. SADECE henüz paylaşılmamış olanları sor. Doğal sor, örn.: "Harika! Adınız ne? Lütfen randevuyu onaylayabilmem için telefon numaranızı ve e-posta adresinizi bırakın."
-${buildCalendarContext(calendarConfig, 'tr')}`;
+${buildCalendarContext(calendarConfig, 'tr')}
+${buildDateContext('tr')}`;
   }
 
   // Russian (default)
@@ -497,7 +750,8 @@ ${buildCalendarContext(calendarConfig, 'tr')}`;
 12. Используй эмодзи иногда (1-2 на сообщение, не больше) и только когда это естественно, не в каждом сообщении.
 13. Поддерживай многоходовой разговор. Помни, что обсуждалось раньше, и развивай диалог. Умей обсуждать разные аспекты своей сферы естественно, но оставайся в рамках своей компетенции.
 14. Когда человек хочет записаться, спроси имя, номер телефона и email — НО СНАЧАЛА проверь, не упоминал ли человек их раньше в разговоре. Если имя, телефон или email уже были названы ранее, НЕ спрашивай их снова. Спрашивай ТОЛЬКО то, чего ещё нет. Спрашивай естественно, например: «Отлично! Как вас зовут? Оставьте номер телефона и email — чтобы мы подтвердили запись».
-${buildCalendarContext(calendarConfig, 'ru')}`;
+${buildCalendarContext(calendarConfig, 'ru')}
+${buildDateContext('ru')}`;
 }
 
 // Booking prompt texts per language
@@ -629,26 +883,32 @@ export async function POST(request: NextRequest) {
           bookingPrompt = BOOKING_PROMPTS[effectiveLang as keyof typeof BOOKING_PROMPTS] || BOOKING_PROMPTS.ru;
         }
       } else if (detectBookingIntent(message)) {
-        // Direct booking request in rule-based mode
+        // Direct booking request in rule-based mode — include date context
+        const dateCtx = buildDateContext(effectiveLang);
+        const todayInfo = effectiveLang === 'en'
+          ? `Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`
+          : effectiveLang === 'tr'
+            ? `Bugün ${new Date().toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`
+            : `Сегодня ${new Date().toLocaleDateString('ru-RU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
         if (services.length > 0) {
           const serviceList = services.map((s: { name: string; price: number; duration: number }) =>
             `• ${s.name} — ${s.price}₽ (${s.duration} мин.)`
           ).join('\n');
 
           if (effectiveLang === 'en') {
-            response = `Sure, I'd be happy to help you book! Here are our services:\n\n${serviceList}\n\nWhich service would you like? And what day/time works for you?`;
+            response = `Sure, I'd be happy to help you book! Here are our services:\n\n${serviceList}\n\n📅 ${todayInfo}\n\nWhich service would you like? And what day/time works for you?`;
           } else if (effectiveLang === 'tr') {
-            response = `Tabii, size yardımcı olmaktan mutluluk duyarım! Hizmetlerimiz:\n\n${serviceList}\n\nHangi hizmeti istiyorsunuz? Size uygun gün ve saat?`;
+            response = `Tabii, size yardımcı olmaktan mutluluk duyarım! Hizmetlerimiz:\n\n${serviceList}\n\n📅 ${todayInfo}\n\nHangi hizmeti istiyorsunuz? Size uygun gün ve saat?`;
           } else {
-            response = `Конечно! Записывайтесь с удовольствием. Вот наши услуги:\n\n${serviceList}\n\nНа что хотите записаться? Какой день и время вам удобны?`;
+            response = `Конечно! Записывайтесь с удовольствием. Вот наши услуги:\n\n${serviceList}\n\n📅 ${todayInfo}\n\nНа что хотите записаться? Какой день и время вам удобны?`;
           }
         } else {
           if (effectiveLang === 'en') {
-            response = 'I\'d love to help you book! What day and time works for you?';
+            response = `I'd love to help you book! 📅 ${todayInfo} What day and time works for you?`;
           } else if (effectiveLang === 'tr') {
-            response = 'Size yardımcı olmaktan memnuniyet duyarım! Size uygun gün ve saat?';
+            response = `Size yardımcı olmaktan memnuniyet duyarım! 📅 ${todayInfo} Size uygun gün ve saat?`;
           } else {
-            response = 'С удовольствием запишу вас! Какой день и время вам удобны?';
+            response = `С удовольствием запишу вас! 📅 ${todayInfo} Какой день и время вам удобны?`;
           }
         }
         bookingPrompt = null; // Already offered booking in the response
@@ -732,6 +992,8 @@ export async function POST(request: NextRequest) {
 6. When someone wants to book, ask for their name, phone number and email — but FIRST check if they already shared any of these earlier in the conversation. If they did, do NOT ask for it again. Only ask for contact info that hasn't been provided yet.
 7. IMPORTANT: If the person already shared their name, phone number or email earlier in the conversation, do NOT ask for it again. Only ask for contact info that hasn't been provided yet.`;
           effectiveSystemPrompt += langRule;
+          // Also inject date context for custom prompts
+          effectiveSystemPrompt += buildDateContext(effectiveLang);
         } else {
           effectiveSystemPrompt = buildDefaultSystemPrompt(
             botName || '',
@@ -1041,6 +1303,45 @@ export async function POST(request: NextRequest) {
         });
 
         console.log(`[AgentBot] Conversation ${conversation.id} updated for session ${sessionId.slice(0, 8)}`);
+
+        // ── CRITICAL: Auto-create appointment when all info is collected ──
+        // This was previously defined but never called! Now it runs after
+        // every message where we have name + phone + a date mention.
+        if (botId && visitorInfo.name && visitorInfo.phone) {
+          try {
+            const appointmentCreated = await tryCreateAppointment(
+              botId,
+              visitorInfo.name,
+              visitorInfo.phone,
+              visitorInfo.email,
+              history,
+              effectiveLang,
+            );
+            if (appointmentCreated) {
+              // Append confirmation to the bot response
+              const aptConfirm = effectiveLang === 'en'
+                ? '\n\n✅ Appointment booked! We\'ll send you a confirmation.'
+                : effectiveLang === 'tr'
+                  ? '\n\n✅ Randevunuz alındı! Onay mesajı göndereceğiz.'
+                  : '\n\n✅ Вы записаны! Отправим подтверждение.';
+              if (!response.includes(aptConfirm)) {
+                response += aptConfirm;
+                // Update the bot message we just saved
+                await db.message.create({
+                  data: {
+                    conversationId: conversation.id,
+                    role: 'bot',
+                    content: aptConfirm.trim(),
+                    messageType: 'calendar',
+                  },
+                });
+              }
+              console.log(`[AgentBot] Auto-booking confirmed for ${visitorInfo.name}`);
+            }
+          } catch (autoBookErr) {
+            console.error('[AgentBot] Auto-booking failed:', autoBookErr);
+          }
+        }
       } catch (convErr) {
         console.error('[AgentBot] Failed to save conversation:', convErr);
       }
