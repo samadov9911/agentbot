@@ -187,6 +187,7 @@ export function AnalyticsPage() {
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [convLoading, setConvLoading] = useState(false);
   const [convSearch, setConvSearch] = useState('');
+  const [convDebug, setConvDebug] = useState<string | null>(null);
 
   // Appointments list state
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
@@ -252,6 +253,31 @@ export function AnalyticsPage() {
       const items = Array.isArray(data.conversations) ? data.conversations : [];
       setConversations(items);
       console.log(`[Analytics] Loaded ${items.length} conversations (user=${user.id.slice(0, 8)})`);
+
+      // If empty, run diagnostics to find the root cause
+      if (items.length === 0) {
+        try {
+          const debugRes = await fetch('/api/debug/conversations', {
+            headers: { 'x-user-id': user.id },
+          });
+          if (debugRes.ok) {
+            const debugData = await debugRes.json();
+            const debugMsg = `Bots: ${debugData.botsCount} | Conv: ${debugData.totalConversations} | Apt: ${debugData.totalAppointments} | Leads: ${debugData.totalLeads}`;
+            console.log('[Analytics Debug]', debugData);
+            setConvDebug(debugMsg);
+            if (debugData.recentConversations?.length > 0) {
+              setConvDebug(prev => prev + ` | Recent: ${debugData.recentConversations.map((c: { visitorName: string; source: string; status: string }) => `${c.visitorName}(${c.source}/${c.status})`).join(', ')}`);
+            }
+          } else {
+            const errText = await debugRes.text().catch(() => 'unknown error');
+            setConvDebug(`Debug API error: ${debugRes.status} ${errText}`);
+          }
+        } catch (debugErr) {
+          console.error('[Analytics] Debug fetch error:', debugErr);
+        }
+      } else {
+        setConvDebug(null);
+      }
     } catch (err) {
       console.error('[Analytics] Conversations fetch error:', err);
       setConversations([]);
@@ -809,6 +835,9 @@ export function AnalyticsPage() {
                       )
                   }
                 </p>
+                {convDebug && !convSearch && (
+                  <p className="text-[10px] text-muted-foreground/50 font-mono max-w-md break-all">{convDebug}</p>
+                )}
               </CardContent>
             </Card>
           ) : (
