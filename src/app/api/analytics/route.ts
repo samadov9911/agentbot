@@ -13,13 +13,14 @@ export async function GET(request: NextRequest) {
     else if (range === "week") since.setDate(since.getDate() - 7);
     else if (range === "month") since.setMonth(since.getMonth() - 1);
 
-    // FIX BUG #1: Use {userId} instead of shorthand {u} — Prisma requires the model field name
+    // ── Step 1: Find user's bots ──
     const bots = await db.bot.findMany({
       where: { userId, deletedAt: null },
-      select: { id: true },
+      select: { id: true, name: true },
     });
 
     const ids = bots.map((b) => b.id);
+    console.log(`[Analytics] userId=${userId}, botsFound=${bots.length}, botIds=${JSON.stringify(ids)}`);
 
     if (ids.length === 0) {
       return NextResponse.json({
@@ -28,58 +29,134 @@ export async function GET(request: NextRequest) {
         totalAppointments: 0,
         chartData: [],
         activity: [],
+        lastUpdated: new Date().toISOString(),
       });
     }
 
-    const [conv, apt, leads] = await Promise.all([
+    // ── Step 2: Count stats (parallel) ──
+    const [conv, apt, leads, totalConversations, totalAppointments] = await Promise.all([
       db.conversation.count({ where: { botId: { in: ids }, createdAt: { gte: since } } }),
       db.appointment.count({ where: { botId: { in: ids }, date: { gte: since } } }),
       db.lead.count({ where: { botId: { in: ids }, createdAt: { gte: since } } }),
+      db.conversation.count({ where: { botId: { in: ids } } }),
+      db.appointment.count({ where: { botId: { in: ids } } }),
     ]);
 
-    // FIX BUG #1: Also return totalConversations/totalAppointments for overview page compatibility
-    const totalConversations = await db.conversation.count({ where: { botId: { in: ids } } });
-    const totalAppointments = await db.appointment.count({ where: { botId: { in: ids } } });
+    console.log(`[Analytics] Stats: conv=${conv}, apt=${apt}, leads=${leads}, totalConv=${totalConversations}, totalApt=${totalAppointments}`);
 
-    // Chart data — last 7 days
-    const chartData = [];
-    for (let i = 6; i >= 0; i--) {
-      const dayStart = new Date();
-      dayStart.setDate(dayStart.getDate() - i);
-      dayStart.setHours(0, 0, 0, 0);
+    // ── Step 3: Chart data — last 7 days using single batch query ──
+    const chartData = await buildChartData(ids);
 
-      const dayEnd = new Date(dayStart);
-      dayEnd.setHours(23, 59, 59, 999);
+    // ── Step 4: Recent activity ──
+    const activity = await buildActivity(ids);
 
-      const [dc, da, dl] = await Promise.all([
-        db.conversation.count({ where: { botId: { in: ids }, createdAt: { gte: dayStart, lt: dayEnd } } }),
-        db.appointment.count({ where: { botId: { in: ids }, date: { gte: dayStart, lt: dayEnd } } }),
-        db.lead.count({ where: { botId: { in: ids }, createdAt: { gte: dayStart, lt: dayEnd } } }),
-      ]);
+    return NextResponse.json({
+      stats: {
+        activeBots: bots.length,
+        conversationsToday: conv,
+        appointmentsToday: apt,
+        leadsToday: leads,
+      },
+      totalConversations,
+      totalAppointments,
+      chartData,
+      activity,
+      lastUpdated: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("[Analytics] Error:", e);
+    return NextResponse.json({ error: "Server error", details: String(e) }, { status: 500 });
+  }
+}
 
-      chartData.push({
-        date: dayStart.toLocaleDateString("ru-RU", { day: "2-digit", month: "short" }),
-        conversations: dc,
-        appointments: da,
-        leads: dl,
-      });
-    }
+// ──────────────────────────────────────────────────────────────
+// Build chart data for last 7 days using efficient queries
+// ──────────────────────────────────────────────────────────────
 
-    // Recent activity
+async function buildChartData(botIds: string[]) {
+  const chartData: Array<{ date: string; conversations: number; appointments: number; leads: number }> = [];
+
+  // Calculate day boundaries (use fixed dates, avoid mutations)
+  const days: Array<{ start: Date; end: Date; label: string }> = [];
+  for (let i = 6; i >= 0; i--) {
+    const dayStart = new Date();
+    dayStart.setDate(dayStart.getDate() - i);
+    dayStart.setHours(0, 0, 0, 0);
+
+    const dayEnd = new Date(dayStart);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const label = dayStart.toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
+    days.push({ start: dayStart, end: dayEnd, label });
+  }
+
+  // Fetch all conversations created in the last 7 days for these bots
+  const weekStart = days[0].start;
+  const weekEnd = days[days.length - 1].end;
+
+  const [conversations, appointments, leads] = await Promise.all([
+    db.conversation.findMany({
+      where: { botId: { in: botIds }, createdAt: { gte: weekStart, lt: new Date(weekEnd.getTime() + 1) } },
+      select: { createdAt: true },
+    }),
+    db.appointment.findMany({
+      where: { botId: { in: botIds }, date: { gte: weekStart, lt: new Date(weekEnd.getTime() + 1) } },
+      select: { date: true },
+    }),
+    db.lead.findMany({
+      where: { botId: { in: botIds }, createdAt: { gte: weekStart, lt: new Date(weekEnd.getTime() + 1) } },
+      select: { createdAt: true },
+    }),
+  ]);
+
+  // Bucket each record into its day
+  for (const day of days) {
+    const dc = conversations.filter((c) => {
+      const t = c.createdAt instanceof Date ? c.createdAt : new Date(c.createdAt);
+      return t >= day.start && t <= day.end;
+    }).length;
+
+    const da = appointments.filter((a) => {
+      const t = a.date instanceof Date ? a.date : new Date(a.date);
+      return t >= day.start && t <= day.end;
+    }).length;
+
+    const dl = leads.filter((l) => {
+      const t = l.createdAt instanceof Date ? l.createdAt : new Date(l.createdAt);
+      return t >= day.start && t <= day.end;
+    }).length;
+
+    chartData.push({
+      date: day.label,
+      conversations: dc,
+      appointments: da,
+      leads: dl,
+    });
+  }
+
+  return chartData;
+}
+
+// ──────────────────────────────────────────────────────────────
+// Build recent activity from conversations + appointments
+// ──────────────────────────────────────────────────────────────
+
+async function buildActivity(botIds: string[]) {
+  try {
     const recentConvs = await db.conversation.findMany({
-      where: { botId: { in: ids } },
+      where: { botId: { in: botIds } },
       take: 5,
       orderBy: { createdAt: "desc" },
       include: { bot: { select: { name: true } } },
     });
 
     const recentApts = await db.appointment.findMany({
-      where: { botId: { in: ids } },
+      where: { botId: { in: botIds } },
       take: 3,
       orderBy: { createdAt: "desc" },
     });
 
-    function timeAgo(date: Date | string) {
+    function timeAgo(date: Date | string): string {
       const diffMs = Date.now() - new Date(date).getTime();
       const minutes = Math.floor(diffMs / 60000);
       if (minutes < 1) return "just now";
@@ -94,40 +171,24 @@ export async function GET(request: NextRequest) {
         id: c.id,
         message: "Conversation with " + (c.visitorName || "client"),
         timestamp: timeAgo(c.createdAt),
+        createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : c.createdAt,
         type: "conversation" as const,
       })),
       ...recentApts.map((a) => ({
         id: a.id,
         message: "Appointment for " + (a.visitorName || "client"),
         timestamp: timeAgo(a.createdAt),
+        createdAt: a.createdAt instanceof Date ? a.createdAt.toISOString() : a.createdAt,
         type: "appointment" as const,
       })),
     ]
-      .sort((a, b) => {
-        // Sort by most recent first
-        const aMs = a.timestamp.includes("just") ? 0 : a.timestamp.includes("min") ? 1 : a.timestamp.includes("hour") ? 2 : 3;
-        const bMs = b.timestamp.includes("just") ? 0 : b.timestamp.includes("min") ? 1 : b.timestamp.includes("hour") ? 2 : 3;
-        return aMs - bMs;
-      })
+      // Sort by actual createdAt timestamp (most recent first), not by string
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 8);
 
-    console.log("[Analytics] Stats:", { activeBots: bots.length, conv, apt, leads, totalConversations, totalAppointments });
-
-    return NextResponse.json({
-      stats: {
-        activeBots: bots.length,
-        conversationsToday: conv,
-        appointmentsToday: apt,
-        leadsToday: leads,
-      },
-      // FIX BUG #1: Return both field name formats for compatibility
-      totalConversations: totalConversations,
-      totalAppointments: totalAppointments,
-      chartData,
-      activity,
-    });
+    return activity;
   } catch (e) {
-    console.error("[Analytics] Error:", e);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    console.error("[Analytics] Activity build error:", e);
+    return [];
   }
 }

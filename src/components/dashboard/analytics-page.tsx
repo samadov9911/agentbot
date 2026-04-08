@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   BarChart3,
   MessageSquare,
@@ -9,6 +9,8 @@ import {
   TrendingUp,
   RefreshCw,
   Loader2,
+  AlertCircle,
+  Bot,
 } from 'lucide-react';
 
 import { useAuthStore, useAppStore } from '@/stores';
@@ -45,6 +47,14 @@ interface ChartDataPoint {
   leads: number;
 }
 
+interface ActivityItem {
+  id: string;
+  message: string;
+  timestamp: string;
+  createdAt?: string;
+  type: string;
+}
+
 interface AnalyticsData {
   stats: {
     activeBots: number;
@@ -55,13 +65,12 @@ interface AnalyticsData {
   totalConversations: number;
   totalAppointments: number;
   chartData: ChartDataPoint[];
-  activity: Array<{
-    id: string;
-    message: string;
-    timestamp: string;
-    type: string;
-  }>;
+  activity: ActivityItem[];
+  lastUpdated?: string;
 }
+
+// Auto-refresh interval: 30 seconds
+const REFRESH_INTERVAL_MS = 30_000;
 
 // ──────────────────────────────────────────────────────────────
 // Skeleton
@@ -100,44 +109,151 @@ function AnalyticsSkeleton() {
 
 export function AnalyticsPage() {
   const { user } = useAuthStore();
-  const { language } = useAppStore();
+  const { language, setPage } = useAppStore();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState('today');
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const label = (ru: string, en: string, tr: string) =>
     language === 'ru' ? ru : language === 'en' ? en : tr;
 
-  const fetchAnalytics = useCallback(async () => {
+  const fetchAnalytics = useCallback(async (showLoader = true) => {
     if (!user?.id) {
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
+    if (showLoader) setIsLoading(true);
+    setError(null);
     try {
       const res = await fetch(`/api/analytics?range=${range}`, {
         headers: { 'x-user-id': user.id },
       });
-      if (!res.ok) throw new Error('Failed to fetch analytics');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || `HTTP ${res.status}`);
+      }
       const result = await res.json();
       setData(result);
-    } catch {
+      if (result.lastUpdated) {
+        setLastUpdated(result.lastUpdated);
+      } else {
+        setLastUpdated(new Date().toISOString());
+      }
+    } catch (err) {
+      console.error('[Analytics] Fetch error:', err);
+      setError(err instanceof Error ? err.message : String(err));
       setData(null);
     } finally {
       setIsLoading(false);
     }
   }, [user?.id, range]);
 
+  // Fetch on mount and when range changes
   useEffect(() => {
     fetchAnalytics();
   }, [fetchAnalytics]);
 
+  // Auto-refresh every 30 seconds (only when page is visible)
+  useEffect(() => {
+    refreshTimerRef.current = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchAnalytics(false);
+      }
+    }, REFRESH_INTERVAL_MS);
+
+    return () => {
+      if (refreshTimerRef.current) {
+        clearInterval(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+    };
+  }, [fetchAnalytics]);
+
+  // Refresh when page becomes visible (user returns to tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchAnalytics(false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchAnalytics]);
+
+  // Format last updated time
+  const formatLastUpdated = useCallback(() => {
+    if (!lastUpdated) return null;
+    const d = new Date(lastUpdated);
+    return d.toLocaleTimeString(language === 'ru' ? 'ru-RU' : language === 'tr' ? 'tr-TR' : 'en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  }, [lastUpdated, language]);
+
   if (isLoading) return <AnalyticsSkeleton />;
+
+  // ── Error state ──
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
+              <BarChart3 className="size-5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold tracking-tight">
+                {label('Аналитика', 'Analytics', 'Analitik')}
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                {label('Статистика вашего бота', 'Your bot statistics', 'Bot istatistikleriniz')}
+              </p>
+            </div>
+          </div>
+        </div>
+        <Card className="border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20">
+          <CardContent className="flex flex-col items-center gap-4 p-6 text-center">
+            <AlertCircle className="size-10 text-red-500" />
+            <div>
+              <p className="text-sm font-medium text-red-700 dark:text-red-400">
+                {label('Ошибка загрузки данных', 'Failed to load data', 'Veri yüklenemedi')}
+              </p>
+              <p className="mt-1 text-xs text-red-600/70 dark:text-red-500/70">
+                {error}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchAnalytics(true)}
+              className="gap-1.5"
+            >
+              <RefreshCw className="size-3.5" />
+              {label('Повторить', 'Retry', 'Tekrar dene')}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const stats = data?.stats;
   const chartData = data?.chartData ?? [];
   const activity = data?.activity ?? [];
+  const hasAnyData = (stats?.activeBots ?? 0) > 0 ||
+    (stats?.conversationsToday ?? 0) > 0 ||
+    (stats?.appointmentsToday ?? 0) > 0 ||
+    (stats?.leadsToday ?? 0) > 0 ||
+    (data?.totalConversations ?? 0) > 0 ||
+    (data?.totalAppointments ?? 0) > 0 ||
+    activity.length > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -173,14 +289,50 @@ export function AnalyticsPage() {
             variant="outline"
             size="icon"
             className="size-9"
-            onClick={fetchAnalytics}
+            onClick={() => fetchAnalytics(true)}
+            disabled={isLoading}
           >
-            <RefreshCw className="size-4" />
+            <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Last updated indicator */}
+      {lastUpdated && (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <div className={`size-1.5 rounded-full ${isLoading ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+          {label('Обновлено', 'Updated', 'Güncellendi')}: {formatLastUpdated()}
+        </div>
+      )}
+
+      {/* ── Empty state: no bots at all ── */}
+      {!hasAnyData && (stats?.activeBots ?? 0) === 0 && (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
+              <Bot className="size-7" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">
+                {label('У вас пока нет ботов', "You don't have any bots yet", 'Henüz botunuz yok')}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground max-w-xs">
+                {label(
+                  'Создайте первого бота, чтобы начать получать статистику',
+                  'Create your first bot to start seeing statistics',
+                  'İstatistik görmeye başlamak için ilk botunuzu oluşturun'
+                )}
+              </p>
+            </div>
+            <Button size="sm" onClick={() => setPage('bot-builder')} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
+              <Bot className="size-4" />
+              {label('Создать бота', 'Create bot', 'Bot oluştur')}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Stats Cards ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="group transition-shadow hover:shadow-md">
           <CardContent className="p-4">
@@ -255,7 +407,7 @@ export function AnalyticsPage() {
         </Card>
       </div>
 
-      {/* Chart */}
+      {/* ── Chart ── */}
       <Card>
         <CardHeader className="pb-0">
           <CardTitle className="text-base">
@@ -308,14 +460,46 @@ export function AnalyticsPage() {
             <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
               <BarChart3 className="size-10 text-muted-foreground/30" />
               <p className="text-sm text-muted-foreground">
-                {label('Нет данных', 'No data', 'Veri yok')}
+                {label('Нет данных за этот период', 'No data for this period', 'Bu dönem için veri yok')}
               </p>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Recent Activity */}
+      {/* ── Total stats summary (below chart) ── */}
+      {(data?.totalConversations ?? 0) > 0 || (data?.totalAppointments ?? 0) > 0 ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Card className="bg-blue-50/50 border-blue-100 dark:bg-blue-950/20 dark:border-blue-900">
+            <CardContent className="p-4 flex items-center gap-3">
+              <MessageSquare className="size-5 text-blue-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  {label('Всего диалогов', 'Total conversations', 'Toplam görüşme')}
+                </p>
+                <p className="text-xl font-bold tabular-nums text-blue-600 dark:text-blue-400">
+                  {data?.totalConversations ?? 0}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-amber-50/50 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900">
+            <CardContent className="p-4 flex items-center gap-3">
+              <CalendarCheck className="size-5 text-amber-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  {label('Всего записей', 'Total appointments', 'Toplam randevu')}
+                </p>
+                <p className="text-xl font-bold tabular-nums text-amber-600 dark:text-amber-400">
+                  {data?.totalAppointments ?? 0}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
+      {/* ── Recent Activity ── */}
       <Card>
         <CardHeader className="pb-0">
           <CardTitle className="text-base">
@@ -326,13 +510,20 @@ export function AnalyticsPage() {
           {activity.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
               <p className="text-sm text-muted-foreground">
-                {label('Нет активности', 'No activity', 'Etkinlik yok')}
+                {stats?.activeBots
+                  ? label(
+                      'Активность появится после взаимодействия с виджетом',
+                      'Activity will appear after widget interactions',
+                      'Widget etkileşimlerinden sonra aktivite görünecektir'
+                    )
+                  : label('Нет активности', 'No activity', 'Etkinlik yok')
+                }
               </p>
             </div>
           ) : (
             <div className="max-h-96 overflow-y-auto">
               <div className="flex flex-col gap-1">
-                {activity.slice(0, 10).map((item) => (
+                {activity.map((item) => (
                   <div
                     key={item.id}
                     className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/50"
@@ -341,13 +532,17 @@ export function AnalyticsPage() {
                       className={`flex size-8 shrink-0 items-center justify-center rounded-full ${
                         item.type === 'conversation'
                           ? 'bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400'
-                          : 'bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400'
+                          : item.type === 'appointment'
+                            ? 'bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400'
+                            : 'bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-400'
                       }`}
                     >
                       {item.type === 'conversation' ? (
                         <MessageSquare className="size-3.5" />
-                      ) : (
+                      ) : item.type === 'appointment' ? (
                         <CalendarCheck className="size-3.5" />
+                      ) : (
+                        <Users className="size-3.5" />
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
