@@ -68,6 +68,7 @@ export const useAppStore = create<AppState>()(
       name: 'app-storage',
       partialize: (state) => ({
         currentPage: state.currentPage,
+        selectedBotId: state.selectedBotId,
         language: state.language,
       }),
     }

@@ -1300,6 +1300,12 @@ export async function POST(request: NextRequest) {
           },
         });
 
+        // Touch conversation.updatedAt so it sorts correctly in Analytics
+        await db.conversation.update({
+          where: { id: conversation.id },
+          data: { updatedAt: new Date() },
+        });
+
         console.log(`[AgentBot] Conversation ${conversation.id} updated for session ${sessionId.slice(0, 8)}`);
 
         // ── CRITICAL: Auto-create appointment when all info is collected ──

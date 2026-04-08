@@ -2728,6 +2728,11 @@ export function BotBuilderPage() {
         return;
       }
 
+      const data = await res.json();
+      // Persist the new bot ID so the preview can use it for saving conversations
+      if (data.bot?.id) {
+        useAppStore.getState().setSelectedBot(data.bot.id);
+      }
       resetDraft();
       setExistingBotsCount(1);
       useAppStore.getState().setPage('bots');
