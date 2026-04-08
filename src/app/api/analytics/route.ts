@@ -1,1 +1,133 @@
-import { NextRequest, NextResponse } from "next/server";import { db } from "@/lib/db";export async function GET(request:NextRequest){try{const u=request.headers.get("x-user-id");if(!u)return NextResponse.json({error:"Unauthorized"},{status:401});const r=new URL(request.url).searchParams.get("range")||"today";let s=new Date();if(r==="today")s.setHours(0,0,0,0);else if(r==="week")s.setDate(s.getDate()-7);else if(r==="month")s.setMonth(s.getMonth()-1);const bs=await db.bot.findMany({where:{u,deletedAt:null},select:{id:true}});const ids=bs.map(b=>b.id);if(ids.length===0)return NextResponse.json({stats:{activeBots:0,conversationsToday:0,appointmentsToday:0,leadsToday:0},chartData:[],activity:[]});const[conv,apt,leads]=await Promise.all([db.conversation.count({where:{botId:{in:ids},createdAt:{gte:s}}),db.appointment.count({where:{botId:{in:ids},date:{gte:s}}),db.lead.count({where:{botId:{in:ids},createdAt:{gte:s}})]);const cd=[];for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);d.setHours(0,0,0,0);const de=new Date(d);de.setHours(23,59,59,999);const[dc,da,dl]=await Promise.all([db.conversation.count({where:{botId:{in:ids},createdAt:{gte:d,lt:de}}),db.appointment.count({where:{botId:{in:ids},date:{gte:d,lt:de}}),db.lead.count({where:{botId:{in:ids},createdAt:{gte:d,lt:de}})]);cd.push({date:d.toLocaleDateString("ru-RU",{day:"2-digit",month:"short"}),conversations:dc,appointments:da,leads:dl});}const rc=await db.conversation.findMany({where:{botId:{in:ids}},take:5,orderBy:{createdAt:"desc"},include:{bot:{select:{name:true}}}});const ra=await db.appointment.findMany({where:{botId:{in:ids}},take:3,orderBy:{createdAt:"desc"}});function ta(date){const df=Date.now()-new Date(date).getTime();const m=Math.floor(df/60000);if(m<1)return"just now";if(m<60)return m+" min ago";const h=Math.floor(m/60);if(h<24)return h+" hour"+(h>1?"s":"")+" ago";return Math.floor(h/24)+" day"+(Math.floor(h/24)>1?"s":"")+" ago";}const act=[...rc.map(c=>({id:c.id,message:"Conversation with "+(c.visitorName||"client"),timestamp:ta(c.createdAt),type:"conversation"})),...ra.map(a=>({id:a.id,message:"Appointment for "+(a.visitorName||"client"),timestamp:ta(a.createdAt),type:"appointment"}))].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,8);console.log("[FIX#3-5] Stats:",{activeBots:bs.length,conv,apt,leads});return NextResponse.json({stats:{activeBots:bs.length,conversationsToday:conv,appointmentsToday:apt,leadsToday:leads},chartData:cd,activity:act});}catch(e){console.error(e);return NextResponse.json({error:"Server error"},{status:500});}}
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+
+export async function GET(request: NextRequest) {
+  try {
+    const userId = request.headers.get("x-user-id");
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const range = new URL(request.url).searchParams.get("range") || "today";
+    const since = new Date();
+
+    if (range === "today") since.setHours(0, 0, 0, 0);
+    else if (range === "week") since.setDate(since.getDate() - 7);
+    else if (range === "month") since.setMonth(since.getMonth() - 1);
+
+    // FIX BUG #1: Use {userId} instead of shorthand {u} — Prisma requires the model field name
+    const bots = await db.bot.findMany({
+      where: { userId, deletedAt: null },
+      select: { id: true },
+    });
+
+    const ids = bots.map((b) => b.id);
+
+    if (ids.length === 0) {
+      return NextResponse.json({
+        stats: { activeBots: 0, conversationsToday: 0, appointmentsToday: 0, leadsToday: 0 },
+        totalConversations: 0,
+        totalAppointments: 0,
+        chartData: [],
+        activity: [],
+      });
+    }
+
+    const [conv, apt, leads] = await Promise.all([
+      db.conversation.count({ where: { botId: { in: ids }, createdAt: { gte: since } } }),
+      db.appointment.count({ where: { botId: { in: ids }, date: { gte: since } } }),
+      db.lead.count({ where: { botId: { in: ids }, createdAt: { gte: since } } }),
+    ]);
+
+    // FIX BUG #1: Also return totalConversations/totalAppointments for overview page compatibility
+    const totalConversations = await db.conversation.count({ where: { botId: { in: ids } } });
+    const totalAppointments = await db.appointment.count({ where: { botId: { in: ids } } });
+
+    // Chart data — last 7 days
+    const chartData = [];
+    for (let i = 6; i >= 0; i--) {
+      const dayStart = new Date();
+      dayStart.setDate(dayStart.getDate() - i);
+      dayStart.setHours(0, 0, 0, 0);
+
+      const dayEnd = new Date(dayStart);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const [dc, da, dl] = await Promise.all([
+        db.conversation.count({ where: { botId: { in: ids }, createdAt: { gte: dayStart, lt: dayEnd } } }),
+        db.appointment.count({ where: { botId: { in: ids }, date: { gte: dayStart, lt: dayEnd } } }),
+        db.lead.count({ where: { botId: { in: ids }, createdAt: { gte: dayStart, lt: dayEnd } } }),
+      ]);
+
+      chartData.push({
+        date: dayStart.toLocaleDateString("ru-RU", { day: "2-digit", month: "short" }),
+        conversations: dc,
+        appointments: da,
+        leads: dl,
+      });
+    }
+
+    // Recent activity
+    const recentConvs = await db.conversation.findMany({
+      where: { botId: { in: ids } },
+      take: 5,
+      orderBy: { createdAt: "desc" },
+      include: { bot: { select: { name: true } } },
+    });
+
+    const recentApts = await db.appointment.findMany({
+      where: { botId: { in: ids } },
+      take: 3,
+      orderBy: { createdAt: "desc" },
+    });
+
+    function timeAgo(date: Date | string) {
+      const diffMs = Date.now() - new Date(date).getTime();
+      const minutes = Math.floor(diffMs / 60000);
+      if (minutes < 1) return "just now";
+      if (minutes < 60) return minutes + " min ago";
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return hours + " hour" + (hours > 1 ? "s" : "") + " ago";
+      return Math.floor(hours / 24) + " day" + (Math.floor(hours / 24) > 1 ? "s" : "") + " ago";
+    }
+
+    const activity = [
+      ...recentConvs.map((c) => ({
+        id: c.id,
+        message: "Conversation with " + (c.visitorName || "client"),
+        timestamp: timeAgo(c.createdAt),
+        type: "conversation" as const,
+      })),
+      ...recentApts.map((a) => ({
+        id: a.id,
+        message: "Appointment for " + (a.visitorName || "client"),
+        timestamp: timeAgo(a.createdAt),
+        type: "appointment" as const,
+      })),
+    ]
+      .sort((a, b) => {
+        // Sort by most recent first
+        const aMs = a.timestamp.includes("just") ? 0 : a.timestamp.includes("min") ? 1 : a.timestamp.includes("hour") ? 2 : 3;
+        const bMs = b.timestamp.includes("just") ? 0 : b.timestamp.includes("min") ? 1 : b.timestamp.includes("hour") ? 2 : 3;
+        return aMs - bMs;
+      })
+      .slice(0, 8);
+
+    console.log("[Analytics] Stats:", { activeBots: bots.length, conv, apt, leads, totalConversations, totalAppointments });
+
+    return NextResponse.json({
+      stats: {
+        activeBots: bots.length,
+        conversationsToday: conv,
+        appointmentsToday: apt,
+        leadsToday: leads,
+      },
+      // FIX BUG #1: Return both field name formats for compatibility
+      totalConversations: totalConversations,
+      totalAppointments: totalAppointments,
+      chartData,
+      activity,
+    });
+  } catch (e) {
+    console.error("[Analytics] Error:", e);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}

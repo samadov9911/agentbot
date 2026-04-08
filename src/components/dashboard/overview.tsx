@@ -282,7 +282,7 @@ export function DashboardOverview() {
       const planStatus = userRecord.demoExpiresAt ? 'demo' : (userRecord.planStatus ?? 'inactive') as string;
 
       // Fetch today's analytics
-      let analyticsData: { totalConversations: number; totalAppointments: number; totalVisitors: number } | null = null;
+      let analyticsData: { totalConversations: number; totalAppointments: number; totalVisitors: number; stats?: { conversationsToday: number; appointmentsToday: number; leadsToday: number } } | null = null;
       try {
         const analyticsRes = await fetch('/api/analytics?range=today', {
           headers: { 'x-user-id': user.id },
@@ -294,8 +294,9 @@ export function DashboardOverview() {
         // Analytics fetch failed, will use zeros
       }
 
-      const conversationsToday = analyticsData?.totalConversations ?? 0;
-      const appointmentsToday = analyticsData?.totalAppointments ?? 0;
+      // FIX BUG #1: Read both field name formats for compatibility
+      const conversationsToday = analyticsData?.stats?.conversationsToday ?? analyticsData?.totalConversations ?? 0;
+      const appointmentsToday = analyticsData?.stats?.appointmentsToday ?? analyticsData?.totalAppointments ?? 0;
 
       setStats({
         activeBots,

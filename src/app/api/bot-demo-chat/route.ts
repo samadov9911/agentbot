@@ -846,21 +846,30 @@ export async function POST(request: NextRequest) {
         try {
           const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
-          // Try to find existing lead — prefer email-based match, fall back to IP
+          // FIX BUG #4: Use sessionId + email + phone for deduplication (NOT IP).
+          // IP-based dedup confused different clients on the same network (office, cafe).
+          // Instead, we embed sessionId in the message field to identify unique sessions.
+          const sessionMarker = `[session:${sessionId}]`;
+
           let existingLead = null;
-          if (allContacts.email) {
+          // 1. Check by sessionId embedded in message field (most precise — unique per browser)
+          existingLead = await db.lead.findFirst({
+            where: {
+              botId,
+              message: { startsWith: sessionMarker },
+              createdAt: { gte: twoDaysAgo },
+            },
+          });
+          // 2. Check by email (same email = same person, legitimate identity)
+          if (!existingLead && allContacts.email) {
             existingLead = await db.lead.findFirst({
               where: { botId, visitorEmail: allContacts.email, createdAt: { gte: twoDaysAgo } },
             });
           }
+          // 3. Check by phone (same phone = same person, legitimate identity)
           if (!existingLead && allContacts.phone) {
             existingLead = await db.lead.findFirst({
               where: { botId, visitorPhone: allContacts.phone, createdAt: { gte: twoDaysAgo } },
-            });
-          }
-          if (!existingLead) {
-            existingLead = await db.lead.findFirst({
-              where: { botId, ipAddress, createdAt: { gte: twoDaysAgo } },
             });
           }
 
@@ -900,6 +909,12 @@ export async function POST(request: NextRequest) {
             };
           } else if (!leadSavedSessions.has(sessionId)) {
             // Create new lead only if not already created in this server session
+            // FIX BUG #4: Embed sessionId in message for persistent deduplication across deploys
+            const firstMessage = history[0]?.content || null;
+            const leadMessage = firstMessage
+              ? `${sessionMarker} ${firstMessage}`
+              : sessionMarker;
+
             await db.lead.create({
               data: {
                 botId,
@@ -908,7 +923,7 @@ export async function POST(request: NextRequest) {
                 visitorEmail: allContacts.email || null,
                 ipAddress,
                 region,
-                message: history[0]?.content || null,
+                message: leadMessage,
                 source: 'widget',
                 status: (allContacts.phone || allContacts.email) ? 'contacted' : 'new',
               },
@@ -969,6 +984,67 @@ export async function POST(request: NextRequest) {
       history = history.slice(-20);
     }
     demoConversations.set(sessionId, history);
+
+    // ── FIX BUG #2: Create Conversation + Message records from widget chats ──
+    // This ensures widget conversations appear in the dashboard dialog list.
+    if (botId) {
+      try {
+        const visitorInfo = scanHistoryForContacts(history);
+        const visitorName = visitorInfo.name || null;
+
+        // Find or create a conversation for this session + bot
+        let conversation = await db.conversation.findFirst({
+          where: {
+            botId,
+            visitorId: sessionId,
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        if (!conversation) {
+          conversation = await db.conversation.create({
+            data: {
+              botId,
+              source: 'widget',
+              visitorId: sessionId,
+              visitorName,
+              status: 'active',
+            },
+          });
+        } else {
+          // Update visitor name if it was discovered later
+          if (visitorName && !conversation.visitorName) {
+            await db.conversation.update({
+              where: { id: conversation.id },
+              data: { visitorName, updatedAt: new Date() },
+            });
+          }
+        }
+
+        // Save user message and bot response as Message records
+        await db.message.create({
+          data: {
+            conversationId: conversation.id,
+            role: 'user',
+            content: message,
+            messageType: 'text',
+          },
+        });
+
+        await db.message.create({
+          data: {
+            conversationId: conversation.id,
+            role: 'bot',
+            content: response,
+            messageType: 'text',
+          },
+        });
+
+        console.log(`[AgentBot] Conversation ${conversation.id} updated for session ${sessionId.slice(0, 8)}`);
+      } catch (convErr) {
+        console.error('[AgentBot] Failed to save conversation:', convErr);
+      }
+    }
 
     // Build response — bookingPrompt is only included when non-null
     // BUGFIX: Also include captured lead data for widget to display
