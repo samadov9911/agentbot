@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       where: whereClause,
       orderBy: { createdAt: 'desc' },
       take: 100,
+      include: { Bot: { select: { name: true } } },
     });
 
     // FIX BUG #4: Strip session marker from displayed message
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
       leads: leads.map(l => ({
         id: l.id,
         botId: l.botId,
+        botName: l.Bot?.name || 'Unknown',
         visitorName: l.visitorName,
         visitorPhone: l.visitorPhone,
         visitorEmail: l.visitorEmail,

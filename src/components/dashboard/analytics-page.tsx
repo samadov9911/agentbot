@@ -11,6 +11,11 @@ import {
   Loader2,
   AlertCircle,
   Bot,
+  Phone,
+  Mail,
+  Clock,
+  Search,
+  ExternalLink,
 } from 'lucide-react';
 
 import { useAuthStore, useAppStore } from '@/stores';
@@ -18,6 +23,8 @@ import { t } from '@/lib/i18n';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -25,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   BarChart,
   Bar,
@@ -69,6 +77,47 @@ interface AnalyticsData {
   lastUpdated?: string;
 }
 
+interface ConversationItem {
+  id: string;
+  botId: string;
+  botName: string;
+  visitorName: string;
+  source: string;
+  status: string;
+  messageCount: number;
+  lastMessage: string;
+  lastMessageAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AppointmentItem {
+  id: string;
+  botId: string;
+  botName: string;
+  visitorName: string;
+  visitorPhone: string;
+  visitorEmail?: string;
+  service?: string;
+  date: string;
+  duration: number;
+  status: string;
+  createdAt: string;
+}
+
+interface LeadItem {
+  id: string;
+  botId: string;
+  botName?: string;
+  visitorName: string;
+  visitorPhone?: string;
+  visitorEmail?: string;
+  message?: string;
+  source?: string;
+  status: string;
+  createdAt: string;
+}
+
 // Auto-refresh interval: 30 seconds
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -103,13 +152,30 @@ function AnalyticsSkeleton() {
   );
 }
 
+function ListSkeleton() {
+  return (
+    <div className="flex flex-col gap-3">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 rounded-lg border p-3">
+          <Skeleton className="size-10 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-3 w-60" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ──────────────────────────────────────────────────────────────
 // Main Analytics Page
 // ──────────────────────────────────────────────────────────────
 
 export function AnalyticsPage() {
   const { user } = useAuthStore();
-  const { language, setPage } = useAppStore();
+  const { language } = useAppStore();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -117,9 +183,24 @@ export function AnalyticsPage() {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Dialog list state
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [convLoading, setConvLoading] = useState(false);
+  const [convSearch, setConvSearch] = useState('');
+
+  // Appointments list state
+  const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
+  const [aptLoading, setAptLoading] = useState(false);
+
+  // Leads list state
+  const [leads, setLeads] = useState<LeadItem[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [leadsSearch, setLeadsSearch] = useState('');
+
   const label = (ru: string, en: string, tr: string) =>
     language === 'ru' ? ru : language === 'en' ? en : tr;
 
+  // ── Fetch analytics stats ──
   const fetchAnalytics = useCallback(async (showLoader = true) => {
     if (!user?.id) {
       setIsLoading(false);
@@ -152,10 +233,85 @@ export function AnalyticsPage() {
     }
   }, [user?.id, range]);
 
+  // ── Fetch conversations list ──
+  const fetchConversations = useCallback(async () => {
+    if (!user?.id) return;
+    setConvLoading(true);
+    try {
+      const res = await fetch('/api/conversations', {
+        headers: { 'x-user-id': user.id },
+      });
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      setConversations(data.conversations ?? []);
+      console.log(`[Analytics] Loaded ${data.conversations?.length ?? 0} conversations`);
+    } catch (err) {
+      console.error('[Analytics] Conversations fetch error:', err);
+      setConversations([]);
+    } finally {
+      setConvLoading(false);
+    }
+  }, [user?.id]);
+
+  // ── Fetch appointments list ──
+  const fetchAppointments = useCallback(async () => {
+    if (!user?.id) return;
+    setAptLoading(true);
+    try {
+      const res = await fetch('/api/bookings', {
+        headers: { 'x-user-id': user.id },
+      });
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      setAppointments(data.appointments ?? []);
+      console.log(`[Analytics] Loaded ${data.appointments?.length ?? 0} appointments`);
+    } catch (err) {
+      console.error('[Analytics] Appointments fetch error:', err);
+      setAppointments([]);
+    } finally {
+      setAptLoading(false);
+    }
+  }, [user?.id]);
+
+  // ── Fetch leads list ──
+  const fetchLeads = useCallback(async () => {
+    if (!user?.id) return;
+    setLeadsLoading(true);
+    try {
+      const res = await fetch('/api/leads', {
+        headers: { 'x-user-id': user.id },
+      });
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      setLeads(data.leads ?? []);
+      console.log(`[Analytics] Loaded ${data.leads?.length ?? 0} leads`);
+    } catch (err) {
+      console.error('[Analytics] Leads fetch error:', err);
+      setLeads([]);
+    } finally {
+      setLeadsLoading(false);
+    }
+  }, [user?.id]);
+
+  // ── Refresh all data ──
+  const refreshAll = useCallback(() => {
+    fetchAnalytics(true);
+    fetchConversations();
+    fetchAppointments();
+    fetchLeads();
+  }, [fetchAnalytics, fetchConversations, fetchAppointments, fetchLeads]);
+
   // Fetch on mount and when range changes
   useEffect(() => {
     fetchAnalytics();
   }, [fetchAnalytics]);
+
+  // Fetch lists on mount
+  useEffect(() => {
+    fetchConversations();
+    fetchAppointments();
+    fetchLeads();
+  }, [fetchConversations, fetchAppointments, fetchLeads]);
 
   // Auto-refresh every 30 seconds (only when page is visible)
   useEffect(() => {
@@ -173,18 +329,21 @@ export function AnalyticsPage() {
     };
   }, [fetchAnalytics]);
 
-  // Refresh when page becomes visible (user returns to tab)
+  // Refresh when page becomes visible
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         fetchAnalytics(false);
+        fetchConversations();
+        fetchAppointments();
+        fetchLeads();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [fetchAnalytics]);
+  }, [fetchAnalytics, fetchConversations, fetchAppointments, fetchLeads]);
 
   // Format last updated time
   const formatLastUpdated = useCallback(() => {
@@ -196,6 +355,50 @@ export function AnalyticsPage() {
       second: '2-digit',
     });
   }, [lastUpdated, language]);
+
+  // Format date/time for list items
+  const formatDateTime = useCallback((isoStr: string) => {
+    const d = new Date(isoStr);
+    const locale = language === 'ru' ? 'ru-RU' : language === 'tr' ? 'tr-TR' : 'en-US';
+    const dateStr = d.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+    return `${dateStr}, ${timeStr}`;
+  }, [language]);
+
+  const formatDate = useCallback((isoStr: string) => {
+    const d = new Date(isoStr);
+    const locale = language === 'ru' ? 'ru-RU' : language === 'tr' ? 'tr-TR' : 'en-US';
+    return d.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
+  }, [language]);
+
+  const formatTime = useCallback((isoStr: string) => {
+    const d = new Date(isoStr);
+    const locale = language === 'ru' ? 'ru-RU' : language === 'tr' ? 'tr-TR' : 'en-US';
+    return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  }, [language]);
+
+  // Filter conversations by search
+  const filteredConversations = conversations.filter((c) => {
+    if (!convSearch.trim()) return true;
+    const q = convSearch.toLowerCase();
+    return (
+      (c.visitorName || '').toLowerCase().includes(q) ||
+      (c.botName || '').toLowerCase().includes(q) ||
+      (c.lastMessage || '').toLowerCase().includes(q)
+    );
+  });
+
+  // Filter leads by search
+  const filteredLeads = leads.filter((l) => {
+    if (!leadsSearch.trim()) return true;
+    const q = leadsSearch.toLowerCase();
+    return (
+      (l.visitorName || '').toLowerCase().includes(q) ||
+      (l.visitorPhone || '').toLowerCase().includes(q) ||
+      (l.visitorEmail || '').toLowerCase().includes(q) ||
+      (l.message || '').toLowerCase().includes(q)
+    );
+  });
 
   if (isLoading) return <AnalyticsSkeleton />;
 
@@ -289,7 +492,7 @@ export function AnalyticsPage() {
             variant="outline"
             size="icon"
             className="size-9"
-            onClick={() => fetchAnalytics(true)}
+            onClick={refreshAll}
             disabled={isLoading}
           >
             <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -324,10 +527,6 @@ export function AnalyticsPage() {
                 )}
               </p>
             </div>
-            <Button size="sm" onClick={() => setPage('bot-builder')} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
-              <Bot className="size-4" />
-              {label('Создать бота', 'Create bot', 'Bot oluştur')}
-            </Button>
           </CardContent>
         </Card>
       )}
@@ -407,155 +606,531 @@ export function AnalyticsPage() {
         </Card>
       </div>
 
-      {/* ── Chart ── */}
-      <Card>
-        <CardHeader className="pb-0">
-          <CardTitle className="text-base">
-            {label('График за 7 дней', '7-day chart', '7 günlük grafik')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 pt-2">
-          {chartData.length > 0 ? (
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="date" className="text-xs" tick={{ fontSize: 11 }} />
-                  <YAxis className="text-xs" tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: '8px',
-                      border: '1px solid #e5e7eb',
-                      fontSize: '12px',
-                    }}
-                  />
-                  <Legend
-                    wrapperStyle={{ fontSize: '12px' }}
-                    formatter={(value: string) =>
-                      label(value, value, value)
-                    }
-                  />
-                  <Bar
-                    dataKey="conversations"
-                    name={label('Диалоги', 'Conversations', 'Görüşmeler')}
-                    fill="#3b82f6"
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="appointments"
-                    name={label('Записи', 'Appointments', 'Randevular')}
-                    fill="#f59e0b"
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="leads"
-                    name={label('Лиды', 'Leads', 'Müşteri adayları')}
-                    fill="#8b5cf6"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-              <BarChart3 className="size-10 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">
-                {label('Нет данных за этот период', 'No data for this period', 'Bu dönem için veri yok')}
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* ── Tabs: Overview / Dialogs / Appointments / Leads ── */}
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview" className="text-xs sm:text-sm">
+            <BarChart3 className="size-3.5 mr-1.5 hidden sm:inline-block" />
+            {label('Обзор', 'Overview', 'Genel')}
+          </TabsTrigger>
+          <TabsTrigger value="dialogs" className="text-xs sm:text-sm">
+            <MessageSquare className="size-3.5 mr-1.5 hidden sm:inline-block" />
+            {label('Диалоги', 'Dialogs', 'Görüşmeler')}
+            {conversations.length > 0 && (
+              <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0 h-4">
+                {conversations.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="appointments" className="text-xs sm:text-sm">
+            <CalendarCheck className="size-3.5 mr-1.5 hidden sm:inline-block" />
+            {label('Записи', 'Bookings', 'Randevular')}
+            {appointments.length > 0 && (
+              <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0 h-4">
+                {appointments.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="leads" className="text-xs sm:text-sm">
+            <Users className="size-3.5 mr-1.5 hidden sm:inline-block" />
+            {label('Лиды', 'Leads', 'Adaylar')}
+            {leads.length > 0 && (
+              <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0 h-4">
+                {leads.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-      {/* ── Total stats summary (below chart) ── */}
-      {(data?.totalConversations ?? 0) > 0 || (data?.totalAppointments ?? 0) > 0 ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Card className="bg-blue-50/50 border-blue-100 dark:bg-blue-950/20 dark:border-blue-900">
-            <CardContent className="p-4 flex items-center gap-3">
-              <MessageSquare className="size-5 text-blue-500" />
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {label('Всего диалогов', 'Total conversations', 'Toplam görüşme')}
-                </p>
-                <p className="text-xl font-bold tabular-nums text-blue-600 dark:text-blue-400">
-                  {data?.totalConversations ?? 0}
-                </p>
-              </div>
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* TAB: Overview                                            */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        <TabsContent value="overview" className="flex flex-col gap-6 mt-4">
+          {/* Chart */}
+          <Card>
+            <CardHeader className="pb-0">
+              <CardTitle className="text-base">
+                {label('График за 7 дней', '7-day chart', '7 günlük grafik')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-2">
+              {chartData.length > 0 ? (
+                <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="date" className="text-xs" tick={{ fontSize: 11 }} />
+                      <YAxis className="text-xs" tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: '8px',
+                          border: '1px solid #e5e7eb',
+                          fontSize: '12px',
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '12px' }} />
+                      <Bar
+                        dataKey="conversations"
+                        name={label('Диалоги', 'Conversations', 'Görüşmeler')}
+                        fill="#3b82f6"
+                        radius={[4, 4, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="appointments"
+                        name={label('Записи', 'Appointments', 'Randevular')}
+                        fill="#f59e0b"
+                        radius={[4, 4, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="leads"
+                        name={label('Лиды', 'Leads', 'Adaylar')}
+                        fill="#8b5cf6"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+                  <BarChart3 className="size-10 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">
+                    {label('Нет данных за этот период', 'No data for this period', 'Bu dönem için veri yok')}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
-          <Card className="bg-amber-50/50 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900">
-            <CardContent className="p-4 flex items-center gap-3">
-              <CalendarCheck className="size-5 text-amber-500" />
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {label('Всего записей', 'Total appointments', 'Toplam randevu')}
-                </p>
-                <p className="text-xl font-bold tabular-nums text-amber-600 dark:text-amber-400">
-                  {data?.totalAppointments ?? 0}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
 
-      {/* ── Recent Activity ── */}
-      <Card>
-        <CardHeader className="pb-0">
-          <CardTitle className="text-base">
-            {label('Последняя активность', 'Recent activity', 'Son etkinlikler')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 pt-2">
-          {activity.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-              <p className="text-sm text-muted-foreground">
-                {stats?.activeBots
-                  ? label(
-                      'Активность появится после взаимодействия с виджетом',
-                      'Activity will appear after widget interactions',
-                      'Widget etkileşimlerinden sonra aktivite görünecektir'
-                    )
-                  : label('Нет активности', 'No activity', 'Etkinlik yok')
-                }
-              </p>
-            </div>
-          ) : (
-            <div className="max-h-96 overflow-y-auto">
-              <div className="flex flex-col gap-1">
-                {activity.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/50"
-                  >
-                    <div
-                      className={`flex size-8 shrink-0 items-center justify-center rounded-full ${
-                        item.type === 'conversation'
-                          ? 'bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400'
-                          : item.type === 'appointment'
-                            ? 'bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400'
-                            : 'bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-400'
-                      }`}
-                    >
-                      {item.type === 'conversation' ? (
-                        <MessageSquare className="size-3.5" />
-                      ) : item.type === 'appointment' ? (
-                        <CalendarCheck className="size-3.5" />
-                      ) : (
-                        <Users className="size-3.5" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{item.message}</p>
-                      <p className="text-xs text-muted-foreground">{item.timestamp}</p>
-                    </div>
+          {/* Total stats summary */}
+          {(data?.totalConversations ?? 0) > 0 || (data?.totalAppointments ?? 0) > 0 ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Card className="bg-blue-50/50 border-blue-100 dark:bg-blue-950/20 dark:border-blue-900">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <MessageSquare className="size-5 text-blue-500" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      {label('Всего диалогов', 'Total conversations', 'Toplam görüşme')}
+                    </p>
+                    <p className="text-xl font-bold tabular-nums text-blue-600 dark:text-blue-400">
+                      {data?.totalConversations ?? 0}
+                    </p>
                   </div>
-                ))}
-              </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-amber-50/50 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <CalendarCheck className="size-5 text-amber-500" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      {label('Всего записей', 'Total appointments', 'Toplam randevu')}
+                    </p>
+                    <p className="text-xl font-bold tabular-nums text-amber-600 dark:text-amber-400">
+                      {data?.totalAppointments ?? 0}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : null}
+
+          {/* Recent Activity */}
+          <Card>
+            <CardHeader className="pb-0">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Clock className="size-4 text-muted-foreground" />
+                {label('Последняя активность', 'Recent activity', 'Son etkinlikler')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-2">
+              {activity.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+                  <Clock className="size-10 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">
+                    {stats?.activeBots
+                      ? label(
+                          'Активность появится после взаимодействия с виджетом',
+                          'Activity will appear after widget interactions',
+                          'Widget etkileşimlerinden sonra aktivite görünecektir'
+                        )
+                      : label('Нет активности', 'No activity', 'Etkinlik yok')
+                    }
+                  </p>
+                </div>
+              ) : (
+                <div className="max-h-96 overflow-y-auto">
+                  <div className="flex flex-col gap-1">
+                    {activity.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/50"
+                      >
+                        <div
+                          className={`flex size-8 shrink-0 items-center justify-center rounded-full ${
+                            item.type === 'conversation'
+                              ? 'bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400'
+                              : item.type === 'appointment'
+                                ? 'bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400'
+                                : item.type === 'lead'
+                                  ? 'bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-400'
+                                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                          }`}
+                        >
+                          {item.type === 'conversation' ? (
+                            <MessageSquare className="size-3.5" />
+                          ) : item.type === 'appointment' ? (
+                            <CalendarCheck className="size-3.5" />
+                          ) : item.type === 'lead' ? (
+                            <Users className="size-3.5" />
+                          ) : (
+                            <Bot className="size-3.5" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{item.message}</p>
+                          <p className="text-xs text-muted-foreground">{item.timestamp}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* TAB: Dialogs                                            */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        <TabsContent value="dialogs" className="flex flex-col gap-4 mt-4">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              placeholder={label('Поиск по диалогам...', 'Search dialogs...', 'Görüşme ara...')}
+              value={convSearch}
+              onChange={(e) => setConvSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          {/* Refresh button */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              {label(
+                `${filteredConversations.length} из ${conversations.length} диалогов`,
+                `${filteredConversations.length} of ${conversations.length} dialogs`,
+                `${conversations.length} görüşmeden ${filteredConversations.length}`
+              )}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchConversations}
+              disabled={convLoading}
+              className="gap-1.5 text-xs"
+            >
+              {convLoading ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
+              {label('Обновить', 'Refresh', 'Yenile')}
+            </Button>
+          </div>
+
+          {convLoading && conversations.length === 0 ? (
+            <ListSkeleton />
+          ) : filteredConversations.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+                <MessageSquare className="size-12 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground">
+                  {convSearch
+                    ? label('Ничего не найдено', 'Nothing found', 'Hiçbir şey bulunamadı')
+                    : label(
+                        'Диалогов пока нет. Они появятся после общения клиентов с виджетом.',
+                        'No dialogs yet. They will appear after clients interact with the widget.',
+                        'Henüz görüşme yok. Müşteriler widget ile etkileşime girdiğinde görünecektir.'
+                      )
+                  }
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="max-h-[600px] overflow-y-auto flex flex-col gap-2">
+              {filteredConversations.map((conv) => (
+                <Card key={conv.id} className="transition-shadow hover:shadow-sm">
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
+                        <MessageSquare className="size-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold truncate">{conv.visitorName}</p>
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                            {conv.botName}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1.5 py-0 ${
+                              conv.status === 'active'
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                                : 'border-muted'
+                            }`}
+                          >
+                            {conv.status === 'active' ? label('Активен', 'Active', 'Aktif') : conv.status}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                          {conv.lastMessage}
+                        </p>
+                        <div className="flex items-center gap-3 mt-2 text-[11px] text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <MessageSquare className="size-3" />
+                            {conv.messageCount} {label('сообщ.', 'msgs', 'msj')}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="size-3" />
+                            {formatDateTime(conv.createdAt)}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <ExternalLink className="size-3" />
+                            {conv.source}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </TabsContent>
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* TAB: Appointments                                        */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        <TabsContent value="appointments" className="flex flex-col gap-4 mt-4">
+          {/* Refresh */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              {label(
+                `Всего записей: ${appointments.length}`,
+                `Total bookings: ${appointments.length}`,
+                `Toplam randevu: ${appointments.length}`
+              )}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchAppointments}
+              disabled={aptLoading}
+              className="gap-1.5 text-xs"
+            >
+              {aptLoading ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
+              {label('Обновить', 'Refresh', 'Yenile')}
+            </Button>
+          </div>
+
+          {aptLoading && appointments.length === 0 ? (
+            <ListSkeleton />
+          ) : appointments.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+                <CalendarCheck className="size-12 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground">
+                  {label(
+                    'Записей пока нет. Клиенты могут записаться через виджет бота.',
+                    'No appointments yet. Clients can book through the bot widget.',
+                    'Henüz randevu yok. Müşteriler bot widgetı üzerinden randevu alabilir.'
+                  )}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="max-h-[600px] overflow-y-auto flex flex-col gap-2">
+              {appointments.map((apt) => {
+                const statusConfig: Record<string, { label: string; className: string }> = {
+                  confirmed: {
+                    label: label('Подтверждена', 'Confirmed', 'Onaylandı'),
+                    className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+                  },
+                  pending: {
+                    label: label('Ожидает', 'Pending', 'Beklemede'),
+                    className: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+                  },
+                  cancelled: {
+                    label: label('Отменена', 'Cancelled', 'İptal edildi'),
+                    className: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+                  },
+                  completed: {
+                    label: label('Завершена', 'Completed', 'Tamamlandı'),
+                    className: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+                  },
+                };
+                const status = statusConfig[apt.status] ?? statusConfig.pending;
+
+                return (
+                  <Card key={apt.id} className="transition-shadow hover:shadow-sm">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400">
+                          <CalendarCheck className="size-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-semibold truncate">{apt.visitorName}</p>
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                              {apt.botName}
+                            </Badge>
+                            <Badge className={`text-[10px] px-1.5 py-0 border-0 ${status.className}`}>
+                              {status.label}
+                            </Badge>
+                          </div>
+                          <div className="flex flex-col gap-1 mt-2 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1.5">
+                              <Clock className="size-3" />
+                              {formatDate(apt.date)} &middot; {formatTime(apt.date)}
+                              {apt.duration ? ` (${apt.duration} ${label('мин.', 'min', 'dk')})` : ''}
+                            </span>
+                            {apt.service && (
+                              <span>{apt.service}</span>
+                            )}
+                            {apt.visitorPhone && (
+                              <span className="flex items-center gap-1.5">
+                                <Phone className="size-3" />
+                                {apt.visitorPhone}
+                              </span>
+                            )}
+                            {apt.visitorEmail && (
+                              <span className="flex items-center gap-1.5">
+                                <Mail className="size-3" />
+                                {apt.visitorEmail}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* TAB: Leads                                              */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        <TabsContent value="leads" className="flex flex-col gap-4 mt-4">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              placeholder={label('Поиск по лидам...', 'Search leads...', 'Aday ara...')}
+              value={leadsSearch}
+              onChange={(e) => setLeadsSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          {/* Refresh */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              {label(
+                `${filteredLeads.length} из ${leads.length} лидов`,
+                `${filteredLeads.length} of ${leads.length} leads`,
+                `${leads.length} adaydan ${filteredLeads.length}`
+              )}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchLeads}
+              disabled={leadsLoading}
+              className="gap-1.5 text-xs"
+            >
+              {leadsLoading ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
+              {label('Обновить', 'Refresh', 'Yenile')}
+            </Button>
+          </div>
+
+          {leadsLoading && leads.length === 0 ? (
+            <ListSkeleton />
+          ) : filteredLeads.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+                <Users className="size-12 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground">
+                  {leadsSearch
+                    ? label('Ничего не найдено', 'Nothing found', 'Hiçbir şey bulunamadı')
+                    : label(
+                        'Лидов пока нет. Они появляются когда клиенты оставляют контакты.',
+                        'No leads yet. They appear when clients leave their contact info.',
+                        'Henüz aday yok. Müşteriler iletişim bilgilerini bıraktığında görünecektir.'
+                      )
+                  }
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="max-h-[600px] overflow-y-auto flex flex-col gap-2">
+              {filteredLeads.map((lead) => (
+                <Card key={lead.id} className="transition-shadow hover:shadow-sm">
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-400">
+                        <Users className="size-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold truncate">{lead.visitorName || label('Клиент', 'Client', 'Müşteri')}</p>
+                          {lead.botName && (
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                              {lead.botName}
+                            </Badge>
+                          )}
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1.5 py-0 border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300`}
+                          >
+                            {lead.status === 'new' ? label('Новый', 'New', 'Yeni') : lead.status}
+                          </Badge>
+                          {lead.source && (
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                              {lead.source}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1 mt-2 text-xs text-muted-foreground">
+                          {lead.visitorPhone && (
+                            <span className="flex items-center gap-1.5">
+                              <Phone className="size-3" />
+                              {lead.visitorPhone}
+                            </span>
+                          )}
+                          {lead.visitorEmail && (
+                            <span className="flex items-center gap-1.5">
+                              <Mail className="size-3" />
+                              {lead.visitorEmail}
+                            </span>
+                          )}
+                          {lead.message && (
+                            <p className="mt-1 text-xs text-muted-foreground/80 line-clamp-2 italic">
+                              &ldquo;{lead.message}&rdquo;
+                            </p>
+                          )}
+                          <span className="flex items-center gap-1.5 mt-1">
+                            <Clock className="size-3" />
+                            {formatDateTime(lead.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

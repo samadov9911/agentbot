@@ -143,18 +143,24 @@ async function buildChartData(botIds: string[]) {
 
 async function buildActivity(botIds: string[]) {
   try {
-    const recentConvs = await db.conversation.findMany({
-      where: { botId: { in: botIds } },
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      include: { bot: { select: { name: true } } },
-    });
-
-    const recentApts = await db.appointment.findMany({
-      where: { botId: { in: botIds } },
-      take: 3,
-      orderBy: { createdAt: "desc" },
-    });
+    const [recentConvs, recentApts, recentLeads] = await Promise.all([
+      db.conversation.findMany({
+        where: { botId: { in: botIds } },
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        include: { bot: { select: { name: true } } },
+      }),
+      db.appointment.findMany({
+        where: { botId: { in: botIds } },
+        take: 3,
+        orderBy: { createdAt: "desc" },
+      }),
+      db.lead.findMany({
+        where: { botId: { in: botIds } },
+        take: 3,
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
 
     function timeAgo(date: Date | string): string {
       const diffMs = Date.now() - new Date(date).getTime();
@@ -169,23 +175,30 @@ async function buildActivity(botIds: string[]) {
     const activity = [
       ...recentConvs.map((c) => ({
         id: c.id,
-        message: "Conversation with " + (c.visitorName || "client"),
+        message: "💬 Диалог с " + (c.visitorName || "клиентом") + " (" + (c.bot?.name || "бот") + ")",
         timestamp: timeAgo(c.createdAt),
         createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : c.createdAt,
         type: "conversation" as const,
       })),
       ...recentApts.map((a) => ({
         id: a.id,
-        message: "Appointment for " + (a.visitorName || "client"),
+        message: "📅 Запись: " + (a.visitorName || "клиент") + (a.service ? " — " + a.service : ""),
         timestamp: timeAgo(a.createdAt),
         createdAt: a.createdAt instanceof Date ? a.createdAt.toISOString() : a.createdAt,
         type: "appointment" as const,
       })),
+      ...recentLeads.map((l) => ({
+        id: l.id,
+        message: "👤 Новый лид: " + (l.visitorName || "клиент") + (l.visitorPhone ? " (" + l.visitorPhone + ")" : ""),
+        timestamp: timeAgo(l.createdAt),
+        createdAt: l.createdAt instanceof Date ? l.createdAt.toISOString() : l.createdAt,
+        type: "lead" as const,
+      })),
     ]
-      // Sort by actual createdAt timestamp (most recent first), not by string
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 8);
+      .slice(0, 12);
 
+    console.log(`[Analytics] Activity built: convs=${recentConvs.length}, apts=${recentApts.length}, leads=${recentLeads.length}, total=${activity.length}`);
     return activity;
   } catch (e) {
     console.error("[Analytics] Activity build error:", e);

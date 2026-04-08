@@ -129,8 +129,45 @@ export async function GET(request: NextRequest) {
     const botId = searchParams.get('botId');
     const date = searchParams.get('date');
 
+    // ── If no botId: return appointments across ALL user's bots ──
     if (!botId) {
-      return NextResponse.json({ error: 'botId is required' }, { status: 400 });
+      const userBots = await db.bot.findMany({
+        where: { userId, deletedAt: null },
+        select: { id: true },
+      });
+      const botIds = userBots.map(b => b.id);
+
+      if (botIds.length === 0) {
+        return NextResponse.json({ appointments: [] });
+      }
+
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const allAppointments = await db.appointment.findMany({
+        where: {
+          botId: { in: botIds },
+          date: { gte: thirtyDaysAgo },
+          status: { notIn: ['cancelled'] },
+        },
+        orderBy: { date: 'desc' },
+        take: 100,
+        include: { Bot: { select: { name: true } } },
+      });
+
+      return NextResponse.json({
+        appointments: allAppointments.map((apt) => ({
+          id: apt.id,
+          botId: apt.botId,
+          botName: apt.Bot?.name || 'Unknown',
+          visitorName: apt.visitorName,
+          visitorPhone: apt.visitorPhone,
+          visitorEmail: apt.visitorEmail,
+          service: apt.service,
+          date: apt.date.toISOString(),
+          duration: apt.duration,
+          status: apt.status,
+          createdAt: apt.createdAt.toISOString(),
+        })),
+      });
     }
 
     // Verify the bot belongs to the user
@@ -276,12 +313,14 @@ async function getUpcomingAppointments(botId: string) {
     },
     orderBy: { date: 'desc' },
     take: 100,
+    include: { Bot: { select: { name: true } } },
   });
 
   return NextResponse.json({
     appointments: appointments.map((apt) => ({
       id: apt.id,
       botId: apt.botId,
+      botName: apt.Bot?.name || 'Unknown',
       visitorName: apt.visitorName,
       visitorPhone: apt.visitorPhone,
       visitorEmail: apt.visitorEmail,
