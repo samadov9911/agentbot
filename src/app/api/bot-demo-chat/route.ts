@@ -884,7 +884,6 @@ export async function POST(request: NextRequest) {
         }
       } else if (detectBookingIntent(message)) {
         // Direct booking request in rule-based mode — include date context
-        const dateCtx = buildDateContext(effectiveLang);
         const todayInfo = effectiveLang === 'en'
           ? `Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`
           : effectiveLang === 'tr'
