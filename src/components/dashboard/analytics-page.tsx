@@ -16,6 +16,9 @@ import {
   Clock,
   Search,
   ExternalLink,
+  X,
+  ChevronRight,
+  Send,
 } from 'lucide-react';
 
 import { useAuthStore, useAppStore } from '@/stores';
@@ -33,6 +36,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   BarChart,
   Bar,
@@ -118,6 +123,22 @@ interface LeadItem {
   createdAt: string;
 }
 
+interface ChatMessage {
+  id: string;
+  role: string;
+  content: string;
+  messageType: string;
+  createdAt: string;
+}
+
+interface ChatConversation {
+  id: string;
+  visitorName: string;
+  source: string;
+  status: string;
+  createdAt: string;
+}
+
 // Auto-refresh interval: 30 seconds
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -197,6 +218,45 @@ export function AnalyticsPage() {
   const [leads, setLeads] = useState<LeadItem[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [leadsSearch, setLeadsSearch] = useState('');
+
+  // Chat history state
+  const [selectedConv, setSelectedConv] = useState<ConversationItem | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatConv, setChatConv] = useState<ChatConversation | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // ── Fetch chat messages for a conversation ──
+  const openChatHistory = useCallback(async (conv: ConversationItem) => {
+    if (!user?.id) return;
+    setSelectedConv(conv);
+    setChatLoading(true);
+    setChatMessages([]);
+    setChatConv(null);
+    try {
+      const res = await fetch(`/api/conversations/${conv.id}/messages`, {
+        headers: { 'x-user-id': user.id },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setChatConv(data.conversation || null);
+        setChatMessages(data.messages || []);
+      } else {
+        console.error('[Analytics] Chat messages fetch error:', res.status);
+      }
+    } catch (err) {
+      console.error('[Analytics] Chat messages fetch error:', err);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [user?.id]);
+
+  // Scroll to bottom when messages load
+  useEffect(() => {
+    if (chatMessages.length > 0 && chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, chatLoading]);
 
   const label = (ru: string, en: string, tr: string) =>
     language === 'ru' ? ru : language === 'en' ? en : tr;
@@ -843,7 +903,11 @@ export function AnalyticsPage() {
           ) : (
             <div className="max-h-[600px] overflow-y-auto flex flex-col gap-2">
               {filteredConversations.map((conv) => (
-                <Card key={conv.id} className="transition-shadow hover:shadow-sm">
+                <Card
+                  key={conv.id}
+                  className="transition-all hover:shadow-sm cursor-pointer hover:bg-accent/50 group"
+                  onClick={() => openChatHistory(conv)}
+                >
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
                       <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
@@ -882,6 +946,7 @@ export function AnalyticsPage() {
                             <ExternalLink className="size-3" />
                             {conv.source}
                           </span>
+                          <ChevronRight className="size-3 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
                       </div>
                     </div>
@@ -1119,6 +1184,166 @@ export function AnalyticsPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* Sheet: Chat History                                       */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <Sheet open={!!selectedConv} onOpenChange={(open) => { if (!open) setSelectedConv(null); }}>
+        <SheetContent side="right" className="w-full sm:max-w-[520px] p-0 flex flex-col">
+          {/* Header */}
+          <SheetHeader className="px-5 pt-5 pb-3 border-b shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
+                <MessageSquare className="size-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <SheetTitle className="text-base truncate">
+                  {selectedConv?.visitorName || chatConv?.visitorName || label('Клиент', 'Client', 'Müşteri')}
+                </SheetTitle>
+                <SheetDescription className="text-xs flex items-center gap-2">
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                    {selectedConv?.botName}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] px-1.5 py-0 h-4 ${
+                      (selectedConv?.status || chatConv?.status) === 'active'
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                        : 'border-muted'
+                    }`
+                  }
+                  >
+                    {(selectedConv?.status || chatConv?.status) === 'active' ? label('Активен', 'Active', 'Aktif') : (selectedConv?.status || chatConv?.status)}
+                  </Badge>
+                  {chatConv?.createdAt && (
+                    <span className="text-muted-foreground">
+                      {formatDateTime(chatConv.createdAt)}
+                    </span>
+                  )}
+                </SheetDescription>
+              </div>
+            </div>
+          </SheetHeader>
+
+          {/* Messages area */}
+          <div className="flex-1 overflow-hidden">
+            {chatLoading ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3">
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">
+                  {label('Загрузка сообщений...', 'Loading messages...', 'Mesajlar yükleniyor...')}
+                </p>
+              </div>
+            ) : chatMessages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
+                <MessageSquare className="size-10 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground">
+                  {label('Сообщений нет', 'No messages', 'Mesaj yok')}
+                </p>
+              </div>
+            ) : (
+              <ScrollArea className="h-full">
+                <div className="flex flex-col gap-3 p-5">
+                  {/* Date separator */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-border" />
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                      {chatConv?.createdAt
+                        ? new Date(chatConv.createdAt).toLocaleDateString(
+                            language === 'ru' ? 'ru-RU' : language === 'tr' ? 'tr-TR' : 'en-US',
+                            { day: 'numeric', month: 'long', year: 'numeric' }
+                          )
+                        : ''}
+                    </span>
+                    <div className="flex-1 h-px bg-border" />
+                  </div>
+
+                  {chatMessages.map((msg, idx) => {
+                    const isUser = msg.role === 'user';
+                    const isSystem = msg.role === 'system';
+                    const prevMsg = idx > 0 ? chatMessages[idx - 1] : null;
+                    const showAvatar = !prevMsg || prevMsg.role !== msg.role;
+
+                    // Group timestamp: show only if > 2 min gap from previous
+                    const showTime = !prevMsg ||
+                      Math.abs(new Date(msg.createdAt).getTime() - new Date(prevMsg.createdAt).getTime()) > 120_000;
+
+                    if (isSystem) {
+                      return (
+                        <div key={msg.id} className="flex justify-center">
+                          <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                            {msg.content}
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={msg.id} className={`flex gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'} ${showTime ? 'mt-3' : ''}`}>
+                        {/* Avatar */}
+                        {showAvatar && (
+                          <div className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold mt-0.5 ${
+                            isUser
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                              : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                          }`}>
+                            {isUser
+                              ? (selectedConv?.visitorName?.[0]?.toUpperCase() || 'K')
+                              : <Bot className="size-3.5" />}
+                          </div>
+                        )}
+                        {!showAvatar && <div className="w-7 shrink-0" />}
+
+                        {/* Bubble */}
+                        <div className={`max-w-[80%] ${showAvatar ? '' : ''}`}>
+                          <div className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                            isUser
+                              ? 'bg-emerald-600 text-white dark:bg-emerald-500 rounded-tr-md'
+                              : 'bg-muted rounded-tl-md'
+                          }`}>
+                            {msg.content}
+                          </div>
+                          {showTime && (
+                            <p className={`text-[10px] text-muted-foreground mt-1 ${isUser ? 'text-right mr-1' : 'ml-1'}`}>
+                              {new Date(msg.createdAt).toLocaleTimeString(
+                                language === 'ru' ? 'ru-RU' : language === 'tr' ? 'tr-TR' : 'en-US',
+                                { hour: '2-digit', minute: '2-digit' }
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={chatEndRef} />
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="border-t px-5 py-3 shrink-0">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-muted-foreground">
+                {label(
+                  `${chatMessages.length} сообщений`,
+                  `${chatMessages.length} messages`,
+                  `${chatMessages.length} mesaj`
+                )}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedConv(null)}
+                className="gap-1.5 text-xs"
+              >
+                <X className="size-3.5" />
+                {label('Закрыть', 'Close', 'Kapat')}
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
