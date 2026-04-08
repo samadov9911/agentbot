@@ -24,7 +24,7 @@ function nextId() {
 
 export function LiveChatPreview() {
   const { draftBot } = useBotBuilderStore();
-  const { language } = useAppStore();
+  const { language, selectedBotId } = useAppStore();
   const { appearance, config, name: botName, type: botType, calendarConfig, avatar } = draftBot;
   const hasAvatar = avatar && avatar.startsWith('data:');
 
@@ -114,7 +114,10 @@ export function LiveChatPreview() {
           companyName,
           language,
           calendarConfig,
-          botId: `bot-preview-${(botName || 'bot').replace(/\s+/g, '-').toLowerCase()}-${sessionId.slice(0, 8)}`,
+          // Use real botId if available (when previewing an existing saved bot)
+          // so that conversations are saved to DB and appear in Analytics > Dialogs.
+          // For new unsaved bots, don't send botId to avoid FK errors.
+          ...(selectedBotId ? { botId: selectedBotId } : {}),
         }),
       });
 
@@ -158,7 +161,7 @@ export function LiveChatPreview() {
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, sessionId, botType, config, botName, companyName, language, calendarConfig]);
+  }, [isLoading, sessionId, botType, config, botName, companyName, language, calendarConfig, selectedBotId]);
 
   const handleReset = useCallback(async () => {
     setMessages([]);
