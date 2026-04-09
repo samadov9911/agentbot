@@ -157,3 +157,32 @@ Stage Summary:
 - Green dot + timestamp already present from previous work shows freshness
 - Error banner with retry button already present
 - Pushed to GitHub: commit e2d9157
+---
+Task ID: 3
+Agent: Main Agent
+Task: Auto-send booking confirmation email to clients via widget
+
+Work Log:
+- Investigated project: no email infrastructure existed (no packages, no .env, no email service)
+- Checked Prisma schema: Appointment model has visitorEmail field, User has company field, Bot has name field
+- Checked POST /api/bookings flow: creates appointment → conversation → message → calendar sync → response
+- Installed resend@6.10.0 package (modern Vercel-native email service)
+- Created src/lib/email.ts:
+  - getResend() singleton with graceful fallback when RESEND_API_KEY is missing
+  - BookingEmailParams interface with all booking data + language
+  - buildBookingHtml() — responsive HTML email with green gradient header, booking details table
+  - Multi-language support: Russian, English, Turkish
+  - sendBookingConfirmation() — async function that never throws, logs success/failure
+- Modified POST /api/bookings (route.ts):
+  - Added import of sendBookingConfirmation
+  - Added non-blocking email send after appointment creation (fire-and-forget)
+  - Only sends when visitorEmail is provided
+  - Logs skip when no email available
+- Verified: lint passes, no other files touched
+- Pushed to GitHub: commit 5fb5fc1
+
+Stage Summary:
+- Email confirmation is now sent automatically after each booking via widget
+- Non-blocking: does not slow down or affect the booking API response
+- Graceful: if RESEND_API_KEY is not set, silently logs and skips (no crash)
+- To activate: user needs to set RESEND_API_KEY + EMAIL_FROM in Vercel environment variables
