@@ -748,7 +748,12 @@ export function AnalyticsPage() {
       </div>
 
       {/* ── Tabs: Overview / Dialogs / Appointments / Leads ── */}
-      <Tabs defaultValue="overview" className="w-full">
+      <Tabs defaultValue="overview" onValueChange={(tab) => {
+        if (tab === 'dialogs') fetchConversations();
+        if (tab === 'appointments') fetchAppointments();
+        if (tab === 'leads') fetchLeads();
+        if (tab === 'overview') fetchAnalytics(false);
+      }} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview" className="text-xs sm:text-sm">
             <BarChart3 className="size-3.5 mr-1.5 hidden sm:inline-block" />

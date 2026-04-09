@@ -83,6 +83,17 @@ export async function GET(request: NextRequest) {
 // Build chart data for last 7 days using efficient queries
 // ──────────────────────────────────────────────────────────────
 
+// Safe date-to-ISO helper
+function toISO(value: unknown): string {
+  if (!value) return new Date().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  }
+  return new Date().toISOString();
+}
+
 async function buildChartData(botIds: string[]) {
   const chartData: Array<{ date: string; conversations: number; appointments: number; leads: number }> = [];
 
@@ -158,24 +169,81 @@ async function buildChartData(botIds: string[]) {
 
 async function buildActivity(botIds: string[]) {
   try {
-    const [recentConvs, recentApts, recentLeads] = await Promise.all([
-      db.conversation.findMany({
-        where: { botId: { in: botIds } },
-        take: 5,
-        orderBy: { createdAt: "desc" },
-        include: { bot: { select: { name: true } } },
-      }),
-      db.appointment.findMany({
-        where: { botId: { in: botIds } },
-        take: 3,
-        orderBy: { createdAt: "desc" },
-      }),
-      db.lead.findMany({
-        where: { botId: { in: botIds } },
-        take: 3,
-        orderBy: { createdAt: "desc" },
-      }),
-    ]);
+    // ── Try full queries with includes first (can fail under PgBouncer) ──
+    let recentConvs: Array<Record<string, unknown>> = [];
+    let recentApts: Array<Record<string, unknown>> = [];
+    let recentLeads: Array<Record<string, unknown>> = [];
+    let useFallback = false;
+
+    try {
+      const [convs, apts, lds] = await Promise.all([
+        db.conversation.findMany({
+          where: { botId: { in: botIds } },
+          take: 5,
+          orderBy: { createdAt: "desc" },
+          include: { bot: { select: { name: true } } },
+        }),
+        db.appointment.findMany({
+          where: { botId: { in: botIds } },
+          take: 3,
+          orderBy: { createdAt: "desc" },
+        }),
+        db.lead.findMany({
+          where: { botId: { in: botIds } },
+          take: 3,
+          orderBy: { createdAt: "desc" },
+        }),
+      ]);
+      recentConvs = convs as unknown as Array<Record<string, unknown>>;
+      recentApts = apts as unknown as Array<Record<string, unknown>>;
+      recentLeads = lds as unknown as Array<Record<string, unknown>>;
+    } catch (includeErr) {
+      console.error("[Analytics Activity] Full query failed, trying fallback:", includeErr);
+      useFallback = true;
+    }
+
+    // ── Fallback: simple queries without includes ──
+    if (useFallback) {
+      try {
+        const [convs, apts, lds] = await Promise.all([
+          db.conversation.findMany({
+            where: { botId: { in: botIds } },
+            take: 5,
+            orderBy: { createdAt: "desc" },
+          }),
+          db.appointment.findMany({
+            where: { botId: { in: botIds } },
+            take: 3,
+            orderBy: { createdAt: "desc" },
+          }),
+          db.lead.findMany({
+            where: { botId: { in: botIds } },
+            take: 3,
+            orderBy: { createdAt: "desc" },
+          }),
+        ]);
+        recentConvs = convs as unknown as Array<Record<string, unknown>>;
+        recentApts = apts as unknown as Array<Record<string, unknown>>;
+        recentLeads = lds as unknown as Array<Record<string, unknown>>;
+      } catch (fallbackErr) {
+        console.error("[Analytics Activity] Fallback also failed:", fallbackErr);
+        return [];
+      }
+    }
+
+    // Build bot name lookup for fallback
+    let botNameMap: Record<string, string> = {};
+    if (useFallback) {
+      try {
+        const bots = await db.bot.findMany({
+          where: { id: { in: botIds }, deletedAt: null },
+          select: { id: true, name: true },
+        });
+        for (const b of bots) {
+          botNameMap[b.id] = b.name;
+        }
+      } catch { /* ignore */ }
+    }
 
     function timeAgo(date: Date | string): string {
       const diffMs = Date.now() - new Date(date).getTime();
@@ -188,32 +256,35 @@ async function buildActivity(botIds: string[]) {
     }
 
     const activity = [
-      ...recentConvs.map((c) => ({
-        id: c.id,
-        message: "💬 Диалог с " + (c.visitorName || "клиентом") + " (" + (c.bot?.name || "бот") + ")",
-        timestamp: timeAgo(c.createdAt),
-        createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : c.createdAt,
-        type: "conversation" as const,
-      })),
+      ...recentConvs.map((c) => {
+        const bot = c.bot as Record<string, unknown> | undefined;
+        return {
+          id: c.id as string,
+          message: "💬 Диалог с " + ((c.visitorName as string) || "клиентом") + " (" + ((bot?.name as string) || botNameMap[c.botId as string] || "бот") + ")",
+          timestamp: timeAgo(c.createdAt),
+          createdAt: toISO(c.createdAt),
+          type: "conversation" as const,
+        };
+      }),
       ...recentApts.map((a) => ({
-        id: a.id,
-        message: "📅 Запись: " + (a.visitorName || "клиент") + (a.service ? " — " + a.service : ""),
+        id: a.id as string,
+        message: "📅 Запись: " + ((a.visitorName as string) || "клиент") + (a.service ? " — " + (a.service as string) : ""),
         timestamp: timeAgo(a.createdAt),
-        createdAt: a.createdAt instanceof Date ? a.createdAt.toISOString() : a.createdAt,
+        createdAt: toISO(a.createdAt),
         type: "appointment" as const,
       })),
       ...recentLeads.map((l) => ({
-        id: l.id,
-        message: "👤 Новый лид: " + (l.visitorName || "клиент") + (l.visitorPhone ? " (" + l.visitorPhone + ")" : ""),
+        id: l.id as string,
+        message: "👤 Новый лид: " + ((l.visitorName as string) || "клиент") + (l.visitorPhone ? " (" + (l.visitorPhone as string) + ")" : ""),
         timestamp: timeAgo(l.createdAt),
-        createdAt: l.createdAt instanceof Date ? l.createdAt.toISOString() : l.createdAt,
+        createdAt: toISO(l.createdAt),
         type: "lead" as const,
       })),
     ]
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 12);
 
-    console.log(`[Analytics] Activity built: convs=${recentConvs.length}, apts=${recentApts.length}, leads=${recentLeads.length}, total=${activity.length}`);
+    console.log(`[Analytics] Activity built: convs=${recentConvs.length}, apts=${recentApts.length}, leads=${recentLeads.length}, total=${activity.length}, fallback=${useFallback}`);
     return activity;
   } catch (e) {
     console.error("[Analytics] Activity build error:", e);
