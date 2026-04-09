@@ -1,0 +1,74 @@
+[
+  {
+    "url": "https://docs.vapi.ai/api-reference/calls/create",
+    "name": "Create Call - Vapi docs",
+    "snippet": "Documentation ... curl -X POST https://api.vapi.ai/call \\. 2, -H \"Authorization: Bearer <token> ... Missing: agent | Show results with: agent",
+    "host_name": "docs.vapi.ai",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://vapi.ai",
+    "name": "Vapi - Build Advanced Voice AI Agents",
+    "snippet": "Build, test, and deploy advanced voice AI agents in minutes with Vapi. The platform for developers creating conversational voice AI. Missing: REST 2024 2025",
+    "host_name": "vapi.ai",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.vapi.ai/quickstart/phone",
+    "name": "Phone calls - Vapi docs",
+    "snippet": "Vapi makes it easy to build voice agents that can make and receive phone calls. In under 5 minutes, you'll create a voice assistant and start talking to it ... Missing: 2024 2025",
+    "host_name": "docs.vapi.ai",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://vapi.ai/blog/gpt-4-phone-agent",
+    "name": "Building GPT-4 Phone Agents with Vapi - Vapi AI Blog",
+    "snippet": "This guide enables developers with basic API experience to build, configure, and deploy effective GPT-4-powered voice AI without complex ...",
+    "host_name": "vapi.ai",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=QIqiH02wn1E",
+    "name": "VAPI AI Tutorial - Build an AI Voice Sales Agent (2025 Guide)",
+    "snippet": "... call data in an Airtable interface and automate booking through the cal.com API, ensuring seamless appointment management. Check the AI Agent ... Missing: REST | Show results with: REST",
+    "host_name": "www.youtube.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://vapi.ai/library/create-ai-phone-agents-with-the-real-time-api-vapi",
+    "name": "Create AI Phone Agents With The Real-Time API (Vapi)",
+    "snippet": "This is a quick video on how to use the new Real-Time API on the Vapi AI Voice Agent platform. I go through how to connect it, ... Missing: REST documentation",
+    "host_name": "vapi.ai",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://vapi.ai/library/vapi-ai-guide-the-ultimate-voice-ai-cold-caller-tutorial-2025",
+    "name": "Vapi AI Guide: The Ultimate Voice AI Cold Caller (Tutorial 2025)",
+    "snippet": "Pricing ... Missing: API REST documentation",
+    "host_name": "vapi.ai",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://vapi.ai/blog/openclaw",
+    "name": "Give Your OpenClaw Agent a Voice: Adding Phone Calls with  - Vapi",
+    "snippet": "Your agent will call the Vapi API, provision a number, and give you its ID. Or via the API directly: curl -X POST https://api.vapi.ai/phone-number \\ -H ... Missing: REST 2024",
+    "host_name": "vapi.ai",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  }
+]

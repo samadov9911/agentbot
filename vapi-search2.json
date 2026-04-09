@@ -1,0 +1,47 @@
+[
+  {
+    "url": "https://docs.vapi.ai/quickstart/phone",
+    "name": "Phone calls",
+    "snippet": "Vapi makes it easy to build voice agents that can make and receive phone calls . In under 5 minutes, you'll create a voice assistant and start talking to it ...",
+    "host_name": "docs.vapi.ai",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.vapi.ai/phone-numbers/phone-number-hooks",
+    "name": "Phone Number Hooks",
+    "snippet": "Example : Say Message on Call Ringing. This example shows how to play a message when a call is ringing: $, curl -X PATCH \"https:// api . vapi . ai / phone - number /<id>\" ...",
+    "host_name": "docs.vapi.ai",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://vapi.ai/blog/openclaw",
+    "name": "Give Your OpenClaw Agent a Voice: Adding Phone Calls",
+    "snippet": "Your agent will call the Vapi API, provision a number, and give you its ID. Or via the API directly: curl -X POST https://api.vapi.ai/phone-number \\ -H ...",
+    "host_name": "vapi.ai",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.vapi.ai/api-reference/calls/create",
+    "name": "Create Call",
+    "snippet": "curl -X POST https:// api . vapi . ai / call \\. 2, -H \"Authorization: Bearer <token> ... This is the phone number that will be used for the call . To use a ...",
+    "host_name": "docs.vapi.ai",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=3LSXJECXpkc",
+    "name": "How To Create A Voice Assistant Full Tutorial (Vapi x Make)",
+    "snippet": "I'm going to show you how to trigger the uh voice AI calls using a web hook request.",
+    "host_name": "www.youtube.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  }
+]
