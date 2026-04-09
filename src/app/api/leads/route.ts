@@ -78,6 +78,7 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({
+      _serverTime: new Date().toISOString(),
       leads: leads.map(l => ({
         id: l.id,
         botId: l.botId,
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest) {
         status: l.status,
         createdAt: toISO(l.createdAt),
       })),
-    }, { headers: CACHE_HEADERS });
+    }, { headers: { ...CACHE_HEADERS, 'X-Revalidate': '0' } });
   } catch (e) {
     console.error('[Leads] GET error:', e);
     return NextResponse.json({ error: 'Server error' }, { status: 500, headers: CACHE_HEADERS });

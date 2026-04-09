@@ -219,6 +219,8 @@ export function AnalyticsPage() {
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [leadsSearch, setLeadsSearch] = useState('');
   const [leadsError, setLeadsError] = useState<string | null>(null);
+  const [leadsLastRefresh, setLeadsLastRefresh] = useState<string | null>(null);
+  const leadsFetchingRef = useRef(false); // Prevent overlapping requests
 
   // Chat history state
   const [selectedConv, setSelectedConv] = useState<ConversationItem | null>(null);
@@ -406,17 +408,24 @@ export function AnalyticsPage() {
   }, [user?.id]);
 
   // ── Fetch leads list ──
-  const fetchLeads = useCallback(async () => {
+  const fetchLeads = useCallback(async (showLoader = true) => {
     if (!user?.id) {
       console.warn('[Analytics] fetchLeads skipped: no user.id');
       return;
     }
-    setLeadsLoading(true);
+    // Prevent overlapping requests
+    if (leadsFetchingRef.current) return;
+    leadsFetchingRef.current = true;
+    if (showLoader) setLeadsLoading(true);
     setLeadsError(null);
     try {
-      const res = await fetch(`/api/leads?_t=${Date.now()}`, {
-        headers: { 'x-user-id': user.id },
-        cache: 'no-store',
+      const bust = Date.now();
+      const res = await fetch(`/api/leads?_t=${bust}&r=${Math.random().toString(36).slice(2)}`, {
+        method: 'GET',
+        headers: {
+          'x-user-id': user.id,
+          'pragma': 'no-cache',
+        },
       });
       if (!res.ok) {
         const errBody = await res.json().catch(() => null);
@@ -428,7 +437,13 @@ export function AnalyticsPage() {
       const items = Array.isArray(data.leads) ? data.leads : [];
       setLeads(items);
       setLeadsError(null);
-      console.log(`[Analytics] Loaded ${items.length} leads (user=${user.id.slice(0, 8)})`);
+      // Track server timestamp for freshness
+      if (data._serverTime) {
+        setLeadsLastRefresh(data._serverTime);
+      } else {
+        setLeadsLastRefresh(new Date().toISOString());
+      }
+      console.log(`[Analytics] Loaded ${items.length} leads (user=${user.id.slice(0, 8)}, serverTime=${data._serverTime || 'none'})`);
     } catch (err) {
       console.error('[Analytics] Leads fetch error:', err);
       // CRITICAL FIX: Do NOT clear existing data on error — preserve previous results
@@ -436,6 +451,7 @@ export function AnalyticsPage() {
       setLeadsError(msg);
     } finally {
       setLeadsLoading(false);
+      leadsFetchingRef.current = false;
     }
   }, [user?.id]);
 
@@ -444,7 +460,7 @@ export function AnalyticsPage() {
     fetchAnalytics(true);
     fetchConversations();
     fetchAppointments();
-    fetchLeads();
+    fetchLeads(true);
   }, [fetchAnalytics, fetchConversations, fetchAppointments, fetchLeads]);
 
   // Fetch on mount and when range changes
@@ -457,18 +473,18 @@ export function AnalyticsPage() {
     if (user?.id) {
       fetchConversations();
       fetchAppointments();
-      fetchLeads();
+      fetchLeads(true);
     }
   }, [user?.id, fetchConversations, fetchAppointments, fetchLeads]);
 
-  // Auto-refresh every 30 seconds (only when page is visible)
+  // Auto-refresh every 30 seconds for analytics/conversations/appointments (only when page is visible)
   useEffect(() => {
     refreshTimerRef.current = setInterval(() => {
       if (document.visibilityState === 'visible') {
         fetchAnalytics(false);
         fetchConversations();
         fetchAppointments();
-        fetchLeads();
+        // Note: leads have their own 1-second interval below
       }
     }, REFRESH_INTERVAL_MS);
 
@@ -478,7 +494,24 @@ export function AnalyticsPage() {
         refreshTimerRef.current = null;
       }
     };
-  }, [fetchAnalytics, fetchConversations, fetchAppointments, fetchLeads]);
+  }, [fetchAnalytics, fetchConversations, fetchAppointments]);
+
+  // Leads auto-refresh every 1 second (real-time updates)
+  const leadsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    leadsTimerRef.current = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchLeads(false); // silent refresh without loader
+      }
+    }, 1000); // 1 second
+
+    return () => {
+      if (leadsTimerRef.current) {
+        clearInterval(leadsTimerRef.current);
+        leadsTimerRef.current = null;
+      }
+    };
+  }, [fetchLeads]);
 
   // Refresh when page becomes visible
   useEffect(() => {
@@ -487,7 +520,7 @@ export function AnalyticsPage() {
         fetchAnalytics(false);
         fetchConversations();
         fetchAppointments();
-        fetchLeads();
+        fetchLeads(false);
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -759,7 +792,7 @@ export function AnalyticsPage() {
       <Tabs defaultValue="overview" onValueChange={(tab) => {
         if (tab === 'dialogs') fetchConversations();
         if (tab === 'appointments') fetchAppointments();
-        if (tab === 'leads') fetchLeads();
+        if (tab === 'leads') fetchLeads(true);
         if (tab === 'overview') fetchAnalytics(false);
       }} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
@@ -1165,17 +1198,29 @@ export function AnalyticsPage() {
 
           {/* Refresh */}
           <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              {label(
-                `${filteredLeads.length} из ${leads.length} лидов`,
-                `${filteredLeads.length} of ${leads.length} leads`,
-                `${leads.length} adaydan ${filteredLeads.length}`
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                {label(
+                  `${filteredLeads.length} из ${leads.length} лидов`,
+                  `${filteredLeads.length} of ${leads.length} leads`,
+                  `${leads.length} adaydan ${filteredLeads.length}`
+                )}
+              </p>
+              {leadsLastRefresh && (
+                <span className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
+                  <div className="size-1.5 rounded-full bg-emerald-400" />
+                  {new Date(leadsLastRefresh).toLocaleTimeString(language === 'ru' ? 'ru-RU' : language === 'tr' ? 'tr-TR' : 'en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  })}
+                </span>
               )}
-            </p>
+            </div>
             <Button
               variant="outline"
               size="sm"
-              onClick={fetchLeads}
+              onClick={() => fetchLeads(true)}
               disabled={leadsLoading}
               className="gap-1.5 text-xs"
             >
@@ -1183,6 +1228,16 @@ export function AnalyticsPage() {
               {label('Обновить', 'Refresh', 'Yenile')}
             </Button>
           </div>
+
+          {leadsError && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50/50 p-2 text-xs text-red-600 dark:border-red-800 dark:bg-red-950/20 dark:text-red-400">
+              <AlertCircle className="size-3.5 shrink-0" />
+              <span className="flex-1">{leadsError}</span>
+              <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => fetchLeads(true)}>
+                <RefreshCw className="size-3" />
+              </Button>
+            </div>
+          )}
 
           {leadsLoading && leads.length === 0 ? (
             <ListSkeleton />
