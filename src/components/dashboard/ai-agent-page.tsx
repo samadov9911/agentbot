@@ -247,7 +247,7 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
-  const [sendResult, setSendResult] = useState<{ sent: number; failed: number; errors?: string[] } | null>(null);
+  const [sendResult, setSendResult] = useState<{ sent: number; failed: number; errors?: string[]; domainNotVerified?: boolean; unverifiedDomain?: string } | null>(null);
   const [customTemplates, setCustomTemplates] = useState<CustomTemplate[]>([]);
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
   const [dateFrom, setDateFrom] = useState('');
@@ -498,11 +498,22 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         return;
       }
 
-      setSendResult({ sent: data.sent, failed: data.failed, errors: data.errors });
+      setSendResult({ sent: data.sent, failed: data.failed, errors: data.errors, domainNotVerified: data.domainNotVerified, unverifiedDomain: data.unverifiedDomain });
       setSending(false);
       setSent(true);
 
-      if (data.sent > 0) {
+      // Show domain verification error prominently
+      if (data.domainNotVerified) {
+        const domain = data.unverifiedDomain || '?';
+        toast.error(
+          language === 'ru'
+            ? `Домен ${domain} не верифицирован в Resend`
+            : language === 'en'
+              ? `Domain ${domain} is not verified in Resend`
+              : `${domain} alan adı Resend'de doğrulanmadı`,
+          { duration: 8000 },
+        );
+      } else if (data.sent > 0) {
         toast.success(
           language === 'ru'
             ? `Отправлено ${data.sent} писем`
@@ -839,20 +850,75 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 
           {sent ? (
             <div className="flex flex-col items-center justify-center gap-3 py-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/50">
-              {sendResult && sendResult.failed === 0 ? (
+              {sendResult && sendResult.domainNotVerified ? (
+                <div className="w-full max-w-sm space-y-3">
+                  <div className="flex justify-center">
+                    <div className="size-10 rounded-full bg-red-100 dark:bg-red-950 flex items-center justify-center">
+                      <X className="size-5 text-red-500" />
+                    </div>
+                  </div>
+                  <p className="text-sm font-semibold text-red-700 dark:text-red-300 text-center">
+                    {language === 'ru'
+                      ? `Домен не верифицирован`
+                      : language === 'en'
+                        ? 'Domain not verified'
+                        : 'Alan adı doğrulanmadı'}
+                  </p>
+                  <div className="rounded-lg bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-800 p-3 space-y-2">
+                    <p className="text-xs text-red-700 dark:text-red-300">
+                      {language === 'ru'
+                        ? `Домен «${sendResult.unverifiedDomain || '?'}» не привязан к вашему аккаунту Resend. Письма нельзя отправлять от этого адреса.`
+                        : language === 'en'
+                          ? `Domain "${sendResult.unverifiedDomain || '?'}" is not linked to your Resend account. Emails cannot be sent from this address.`
+                          : `"${sendResult.unverifiedDomain || '?'}" alan adı Resend hesabınıza bağlı değil.`}
+                    </p>
+                    <div className="border-t border-red-100 dark:border-red-800 pt-2 space-y-1.5">
+                      <p className="text-[11px] font-semibold text-red-600 dark:text-red-400">
+                        {language === 'ru' ? 'Как исправить:' : language === 'en' ? 'How to fix:' : 'Nasıl düzeltilir:'}
+                      </p>
+                      <ol className="text-[11px] text-muted-foreground space-y-1 list-decimal list-inside">
+                        <li>
+                          {language === 'ru'
+                            ? 'Откройте '
+                            : language === 'en'
+                              ? 'Open '
+                              : 'Açın '}
+                          <span className="font-mono text-[11px] text-red-600 dark:text-red-400">resend.com/domains</span>
+                        </li>
+                        <li>
+                          {language === 'ru'
+                            ? 'Нажмите «Add Domain» и введите ваш домен'
+                            : language === 'en'
+                              ? 'Click "Add Domain" and enter your domain'
+                              : '"Add Domain" tıklayın ve alan adınızı girin'}
+                        </li>
+                        <li>
+                          {language === 'ru'
+                            ? 'Добавьте DNS-записи (SPF, DKIM) у вашего регистратора'
+                            : language === 'en'
+                              ? 'Add DNS records (SPF, DKIM) at your registrar'
+                              : 'Kayıt kuruluşunuzda DNS kayıtlarını (SPF, DKIM) ekleyin'}
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              ) : sendResult && sendResult.failed === 0 ? (
                 <CheckCircle2 className="size-10 text-emerald-500" />
               ) : (
                 <CheckCircle2 className="size-10 text-amber-500" />
               )}
-              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
-                {sendResult
-                  ? language === 'ru'
-                    ? `Отправлено: ${sendResult.sent} ${sendResult.sent === 1 ? 'письмо' : sendResult.sent < 5 ? 'письма' : 'писем'}`
-                    : language === 'en'
-                      ? `${sendResult.sent} email${sendResult.sent === 1 ? '' : 's'} sent`
-                      : `${sendResult.sent} e-posta gönderildi`
-                  : (language === 'ru' ? 'Письмо отправлено!' : language === 'en' ? 'Email sent!' : 'E-posta gönderildi!')}
-              </p>
+              {!sendResult?.domainNotVerified && (
+                <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                  {sendResult
+                    ? language === 'ru'
+                      ? `Отправлено: ${sendResult.sent} ${sendResult.sent === 1 ? 'письмо' : sendResult.sent < 5 ? 'письма' : 'писем'}`
+                      : language === 'en'
+                        ? `${sendResult.sent} email${sendResult.sent === 1 ? '' : 's'} sent`
+                        : `${sendResult.sent} e-posta gönderildi`
+                    : (language === 'ru' ? 'Письмо отправлено!' : language === 'en' ? 'Email sent!' : 'E-posta gönderildi!')}
+                </p>
+              )}
               {sendResult && sendResult.failed > 0 && (
                 <div className="w-full max-w-sm space-y-2 mt-1">
                   <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
@@ -869,13 +935,13 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                       ))}
                     </div>
                   )}
-                  {sendResult.failed > 0 && (
+                  {sendResult && sendResult.failed > 0 && !sendResult.domainNotVerified && (
                     <p className="text-[10px] text-amber-600/80 dark:text-amber-400/80 text-center">
                       {language === 'ru'
-                        ? 'Убедитесь что EMAIL_FROM верифицирован в Resend, а получатели существуют'
+                        ? 'Проверьте правильность email-адресов получателей'
                         : language === 'en'
-                          ? 'Make sure EMAIL_FROM is verified in Resend and recipients exist'
-                          : 'EMAIL_FROM\'un Resend\'de doğrulanmış olduğundan emin olun'}
+                          ? 'Check that recipient email addresses are correct'
+                          : 'Alıcı e-posta adreslerinin doğru olduğunu kontrol edin'}
                     </p>
                   )}
                 </div>

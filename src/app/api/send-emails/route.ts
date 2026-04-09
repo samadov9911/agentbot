@@ -92,6 +92,19 @@ export async function POST(request: NextRequest) {
     let sentCount = 0;
     let failedCount = 0;
     const errors: string[] = [];
+    let domainNotVerified = false;
+    let unverifiedDomain: string | null = null;
+
+    // Helper: classify Resend error
+    function classifyError(errMsg: string): void {
+      const msg = errMsg.toLowerCase();
+      if (msg.includes('domain is not verified') || msg.includes('verify your domain')) {
+        domainNotVerified = true;
+        // Extract domain name from error message
+        const match = errMsg.match(/([a-z0-9][-a-z0-9]*\.[a-z]{2,})\s*(?:domain|is)/i);
+        if (match) unverifiedDomain = match[1];
+      }
+    }
 
     // Send in batches of 10 to avoid rate limits
     for (let i = 0; i < validRecipients.length; i += 10) {
@@ -117,6 +130,7 @@ export async function POST(request: NextRequest) {
           if (error) {
             failedCount++;
             const errMsg = String((error as Record<string, unknown>)?.message || error);
+            classifyError(errMsg);
             errors.push(`${recipient}: ${errMsg}`);
             console.error(`[SendEmails] Failed to send to ${recipient}: ${errMsg}`);
           } else {
@@ -125,9 +139,20 @@ export async function POST(request: NextRequest) {
           }
         } else {
           failedCount++;
-          errors.push(`${recipient}: ${result.reason}`);
+          const reasonMsg = String((result.reason as Error)?.message || result.reason);
+          classifyError(reasonMsg);
+          errors.push(`${recipient}: ${reasonMsg}`);
           console.error(`[SendEmails] Exception for ${recipient}:`, result.reason);
         }
+      }
+
+      // If domain is not verified, no point in sending more batches
+      if (domainNotVerified) {
+        // Count remaining recipients as failed
+        const remaining = validRecipients.length - (i + batch.length);
+        failedCount += remaining;
+        console.warn(`[SendEmails] ⛔ Domain not verified — skipping ${remaining} remaining recipients`);
+        break;
       }
     }
 
@@ -139,13 +164,15 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(
-      `[SendEmails] Done: sent=${sentCount} failed=${failedCount} errors=${errors.length}`,
+      `[SendEmails] Done: sent=${sentCount} failed=${failedCount} domainNotVerified=${domainNotVerified}`,
     );
 
     return NextResponse.json({
-      success: true,
+      success: sentCount > 0,
       sent: sentCount,
       failed: failedCount,
+      domainNotVerified,
+      unverifiedDomain,
       errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
     });
   } catch (error) {
