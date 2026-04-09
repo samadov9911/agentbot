@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { sendBookingConfirmation } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -510,6 +511,23 @@ export async function POST(request: NextRequest) {
         }),
       },
     });
+
+    // ── Send booking confirmation email to client (non-blocking) ──
+    if (visitorEmail) {
+      // Fire and forget — do not block the response
+      sendBookingConfirmation({
+        to: visitorEmail,
+        visitorName,
+        businessName: bot.name,
+        service: service || undefined,
+        date,
+        time,
+        duration: slotDuration,
+        appointmentId: appointment.id,
+      }).catch(() => { /* already logged inside */ });
+    } else {
+      console.log(`[Bookings] No visitor email — skipping confirmation email (appointment ${appointment.id.slice(0, 8)})`);
+    }
 
     // ── Calendar Sync Logic ──
     const calendarSync = parseCalendarSync(bot.config);
