@@ -1049,6 +1049,8 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 // Vapi Settings Dialog — configure API key & phone number
 // ──────────────────────────────────────────────────────────────
 
+type PhoneMode = 'buy' | 'own';
+
 function VapiSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { language } = useAppStore();
   const { user } = useAuthStore();
@@ -1058,6 +1060,7 @@ function VapiSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [currentMask, setCurrentMask] = useState('');
+  const [phoneMode, setPhoneMode] = useState<PhoneMode>('buy');
 
   useEffect(() => {
     if (open && user?.id) {
@@ -1142,7 +1145,7 @@ function VapiSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChang
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[540px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings className="size-5 text-emerald-600" />
@@ -1163,20 +1166,7 @@ function VapiSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChang
           </div>
         ) : (
           <div className="space-y-4 pt-2">
-            {/* Setup guide */}
-            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 space-y-2">
-              <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                {t('📋 Как настроить:', '📋 How to set up:', '📋 Nasıl kurulur:')}
-              </p>
-              <ol className="text-[11px] text-emerald-600 dark:text-emerald-400 space-y-1 pl-4 list-decimal">
-                <li>{t('Зарегистрируйтесь на', 'Sign up on', 'Kaydolun')} <a href="https://vapi.ai" target="_blank" rel="noopener noreferrer" className="underline font-medium">vapi.ai</a></li>
-                <li>{t('Получите API ключ в разделе Dashboard → API Keys', 'Get your API key from Dashboard → API Keys', 'Dashboard → API Keys bölümünden API anahtarınızı alın')}</li>
-                <li>{t('Купите номер телефона в разделе Phone Numbers', 'Buy a phone number in Phone Numbers section', 'Phone Numbers bölümünden bir telefon numarası satın alın')}</li>
-                <li>{t('Скопируйте ID номера и вставьте ниже', 'Copy the number ID and paste it below', 'Numara ID\'sini kopyalayıp aşağıya yapıştırın')}</li>
-              </ol>
-            </div>
-
-            {/* API Key */}
+            {/* Step 1: Common — API Key */}
             <div className="space-y-2">
               <Label className="text-sm font-medium flex items-center gap-1.5">
                 <KeyRound className="size-3.5 text-muted-foreground" />
@@ -1198,34 +1188,167 @@ function VapiSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChang
               </p>
             </div>
 
-            {/* Phone ID */}
+            {/* Step 2: Phone mode selector */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">
+                {t('📞 Номер для звонков', '📞 Phone number for calls', '📞 Arama telefon numarası')}
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                {/* Buy new number */}
+                <button
+                  type="button"
+                  onClick={() => setPhoneMode('buy')}
+                  className={`text-left rounded-lg border p-3 transition-all duration-200 ${
+                    phoneMode === 'buy'
+                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-500'
+                      : 'border-border hover:border-emerald-300 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-base">🛒</span>
+                    <span className="text-xs font-semibold">
+                      {t('Купить номер', 'Buy a number', 'Numara satın al')}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-tight">
+                    {t(
+                      'Новый номер напрямую в Vapi (~$1/мес)',
+                      'New number directly in Vapi (~$1/mo)',
+                      'Vapi\'de yeni numara (~$1/ay)'
+                    )}
+                  </p>
+                </button>
+
+                {/* Use existing number */}
+                <button
+                  type="button"
+                  onClick={() => setPhoneMode('own')}
+                  className={`text-left rounded-lg border p-3 transition-all duration-200 ${
+                    phoneMode === 'own'
+                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-500'
+                      : 'border-border hover:border-emerald-300 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-base">🏢</span>
+                    <span className="text-xs font-semibold">
+                      {t('Свой номер', 'My number', 'Kendi numaram')}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-tight">
+                    {t(
+                      'Подключить корпоративный номер через Twilio/Vonage',
+                      'Connect corporate number via Twilio/Vonage',
+                      'Twilio/Vonage üzerinden kurumsal numarayı bağlayın'
+                    )}
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            {/* Buy mode instructions */}
+            {phoneMode === 'buy' && (
+              <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 space-y-2">
+                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                  {t('📋 Как купить номер:', '📋 How to buy:', '📋 Nasıl satın alınır:')}
+                </p>
+                <ol className="text-[11px] text-emerald-600 dark:text-emerald-400 space-y-1 pl-4 list-decimal">
+                  <li>{t('Зарегистрируйтесь на', 'Sign up on', 'Kaydolun')} <a href="https://vapi.ai" target="_blank" rel="noopener noreferrer" className="underline font-medium">vapi.ai</a></li>
+                  <li>{t('Получите API ключ в разделе Dashboard → API Keys', 'Get your API key from Dashboard → API Keys', 'Dashboard → API Keys bölümünden API anahtarınızı alın')}</li>
+                  <li>{t('Перейдите в раздел Phone Numbers → Buy Number', 'Go to Phone Numbers → Buy Number', 'Phone Numbers → Buy Number bölümüne gidin')}</li>
+                  <li>{t('Выберите страну и купите номер', 'Choose a country and buy a number', 'Bir ülke seçin ve numara satın alın')}</li>
+                  <li>{t('Скопируйте Phone Number ID и вставьте ниже', 'Copy the Phone Number ID and paste below', 'Phone Number ID\'sini kopyalayıp aşağıya yapıştırın')}</li>
+                </ol>
+              </div>
+            )}
+
+            {/* Own number mode instructions */}
+            {phoneMode === 'own' && (
+              <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3 space-y-2">
+                <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                  {t('📋 Как подключить свой корпоративный номер:', '📋 How to connect your corporate number:', '📋 Kurumsal numaranızı nasıl bağlarsınız:')}
+                </p>
+                <ol className="text-[11px] text-blue-600 dark:text-blue-400 space-y-1 pl-4 list-decimal">
+                  <li>{t('Зарегистрируйтесь на', 'Sign up on', 'Kaydolun')} <a href="https://vapi.ai" target="_blank" rel="noopener noreferrer" className="underline font-medium">vapi.ai</a></li>
+                  <li>{t('Получите API ключ в Dashboard → API Keys', 'Get your API key from Dashboard → API Keys', 'Dashboard → API Keys bölümünden API anahtarınızı alın')}</li>
+                  <li>{t('Если номер от Twilio: подключите Twilio аккаунт в разделе Providers', 'If number is from Twilio: connect Twilio account in Providers', 'Numara Twilio\'dan: Providers bölümünde Twilio hesabını bağlayın')}</li>
+                  <li>{t('Если номер от Vonage: подключите Vonage аккаунт в разделе Providers', 'If number is from Vonage: connect Vonage account in Providers', 'Numara Vonage\'dan: Providers bölümünde Vonage hesabını bağlayın')}</li>
+                  <li>{t('После подключения номер появится в Phone Numbers — скопируйте его ID', 'After connecting, the number appears in Phone Numbers — copy its ID', 'Bağlandıktan sonra numara Phone Numbers\'da görünür — ID\'sini kopyalayın')}</li>
+                </ol>
+                <div className="mt-2 rounded-md bg-blue-100 dark:bg-blue-950/50 p-2">
+                  <p className="text-[10px] text-blue-700 dark:text-blue-300 leading-relaxed">
+                    {t(
+                      '💡 Если у вас нет Twilio/Vonage аккаунта, вы можете зарегистрироваться бесплатно и перенести свой существующий номер (port-in). Затраты: только плата Vapi за минуты разговора.',
+                      '💡 If you don\'t have a Twilio/Vonage account, you can register for free and port your existing number. Costs: only Vapi per-minute charges.',
+                      '💡 Twilio/Vonage hesabınız yoksa, ücretsiz kayıt olabilir ve mevcut numaranızı taşıyabilirsiniz. Maliyet: yalnızca Vapi dakika ücreti.'
+                    )}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Phone ID (common for both modes) */}
             <div className="space-y-2">
               <Label className="text-sm font-medium flex items-center gap-1.5">
                 <Phone className="size-3.5 text-muted-foreground" />
-                {t('ID номера телефона (Vapi)', 'Phone Number ID (Vapi)', 'Telefon Numarası ID (Vapi)')}
+                {t('ID номера телефона в Vapi', 'Phone Number ID in Vapi', 'Vapi\'deki Telefon Numarası ID')}
               </Label>
               <Input
                 value={phoneId}
                 onChange={(e) => setPhoneId(e.target.value)}
-                placeholder={t('Например: vapi-phone-abc123...', 'e.g. vapi-phone-abc123...', 'Örn: vapi-phone-abc123...')}
+                placeholder={phoneMode === 'own'
+                  ? t('ID номера после подключения (vapi-phone-...)', 'Number ID after connecting (vapi-phone-...)', 'Bağlandıktan sonraki numara ID (vapi-phone-...)')
+                  : t('ID купленного номера (vapi-phone-...)', 'ID of purchased number (vapi-phone-...)', 'Satın alınan numaranın ID (vapi-phone-...)')
+                }
               />
+              <p className="text-[10px] text-muted-foreground">
+                {t(
+                  'Этот ID указан в разделе Phone Numbers вашего аккаунта Vapi',
+                  'This ID is listed in the Phone Numbers section of your Vapi account',
+                  'Bu ID Vapi hesabınızın Phone Numbers bölümünde listelenir'
+                )}
+              </p>
             </div>
 
             {/* Phone Number (for display) */}
             <div className="space-y-2">
               <Label className="text-sm font-medium flex items-center gap-1.5">
                 <PhoneCall className="size-3.5 text-muted-foreground" />
-                {t('Номер телефона (для отображения)', 'Phone Number (for display)', 'Telefon Numarası (görüntüleme)')}
+                {t('Номер телефона (для отображения клиенту)', 'Phone Number (shown to client)', 'Telefon Numarası (müşteriye görünür)')}
               </Label>
               <Input
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="+1 (___) ___-____"
+                placeholder={t('+7 (___) ___-__-__', '+1 (___) ___-____', '+90 (___) ___-____')}
                 type="tel"
               />
               <p className="text-[11px] text-muted-foreground">
-                {t('Клиент увидит этот номер при входящем звонке', 'Client will see this number on incoming call', 'Müşteri gelen aramada bu numarayı görecektir')}
+                {t(
+                  'Клиент увидит этот номер при входящем звонке от AI-агента',
+                  'Client will see this number when AI agent calls',
+                  'AI ajan aradığında müşteri bu numarayı görecektir'
+                )}
               </p>
+            </div>
+
+            {/* Summary card */}
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t('Режим:', 'Mode:', 'Mod:')}</span>
+                <span className="font-medium">
+                  {phoneMode === 'buy'
+                    ? t('Новый номер в Vapi', 'New number in Vapi', 'Vapi\'de yeni numara')
+                    : t('Свой корпоративный номер', 'Own corporate number', 'Kendi kurumsal numaram')}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t('Затраты:', 'Costs:', 'Maliyet:')}</span>
+                <span className="font-medium">
+                  {phoneMode === 'buy'
+                    ? t('Номер ~$1/мес + минуты звонка', 'Number ~$1/mo + call minutes', 'Numara ~$1/ay + arama dakikaları')
+                    : t('Только минуты звонка через Vapi', 'Only call minutes via Vapi', 'Yalnızca Vapi üzerinden arama dakikaları')}
+                </span>
+              </div>
             </div>
 
             {/* Buttons */}
