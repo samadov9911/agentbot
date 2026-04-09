@@ -1,9 +1,79 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { chatWithAi } from '@/lib/ai';
 
-// ── POST: Execute an AI call, generate transcript + summary, save to DB ──
+// ── Vapi API helper ──
+async function vapiRequest(
+  apiKey: string,
+  endpoint: string,
+  options: RequestInit = {}
+) {
+  const url = endpoint.startsWith('http')
+    ? endpoint
+    : `https://api.vapi.ai${endpoint}`;
 
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+      ...options.headers,
+    },
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => 'Unknown error');
+    throw new Error(`Vapi API error ${res.status}: ${errorText}`);
+  }
+
+  return res.json();
+}
+
+// ── Call type prompts ──
+function getCallPrompt(callType: string, taskDescription: string, companyName: string, language: string) {
+  const lang = language === 'en' ? 'English' : language === 'tr' ? 'Turkish' : 'Russian';
+
+  const basePrompt = `You are a professional AI assistant calling on behalf of "${companyName}". `;
+  const speakIn = lang === 'Russian' ? 'You MUST speak in Russian.' : lang === 'Turkish' ? 'You MUST speak in Turkish.' : 'You MUST speak in English.';
+
+  const typePrompts: Record<string, string> = {
+    confirmation: `Your task: Confirm the client's upcoming appointment. Ask if the time is still convenient. If they need to reschedule, offer alternatives. Be polite and brief.`,
+    reminder: `Your task: Remind the client about their upcoming appointment. Mention the date, time, and service. Ask if they have any questions. Be friendly and helpful.`,
+    follow_up: `Your task: Follow up with the client after their recent service. Ask if they were satisfied. Offer to book their next appointment. Be warm and professional.`,
+    custom: `Your task: ${taskDescription}`,
+  };
+
+  return basePrompt + speakIn + '\n\n' + (typePrompts[callType] || typePrompts.custom);
+}
+
+function getFirstMessage(callType: string, companyName: string, language: string) {
+  const messages: Record<string, Record<string, string>> = {
+    confirmation: {
+      ru: `Здравствуйте! Это автоматический звонок от "${companyName}". Я звоню, чтобы подтвердить вашу запись. Вам удобно говорить?`,
+      en: `Hello! This is an automated call from "${companyName}". I'm calling to confirm your appointment. Is this a good time to talk?`,
+      tr: `Merhaba! Bu "${companyName}" adına otomatik bir arama. Randevunuzu onaylamak için arıyorum. Konuşmak için uygun musunuz?`,
+    },
+    reminder: {
+      ru: `Здравствуйте! Это автоматический звонок от "${companyName}". Напоминаю о вашей предстоящей записи.`,
+      en: `Hello! This is an automated call from "${companyName}". I'm calling to remind you about your upcoming appointment.`,
+      tr: `Merhaba! Bu "${companyName}" adına otomatik bir arama. Yaklaşan randevunuz hakkında hatırlatma yapmak istiyorum.`,
+    },
+    follow_up: {
+      ru: `Здравствуйте! Это автоматический звонок от "${companyName}". Я хочу узнать, как прошла ваша недавняя процедура. Вам всё понравилось?`,
+      en: `Hello! This is an automated call from "${companyName}". I'd like to check in about your recent visit. How was your experience?`,
+      tr: `Merhaba! Bu "${companyName}" adına otomatik bir arama. Son ziyaretiniz hakkında bilgi almak istiyorum. Deneyiminiz nasıldı?`,
+    },
+    custom: {
+      ru: `Здравствуйте! Это автоматический звонок от "${companyName}".`,
+      en: `Hello! This is an automated call from "${companyName}".`,
+      tr: `Merhaba! Bu "${companyName}" adına otomatik bir arama.`,
+    },
+  };
+
+  const lang = language === 'tr' ? 'tr' : language === 'en' ? 'en' : 'ru';
+  return messages[callType]?.[lang] || messages.custom?.[lang] || `Hello! This is "${companyName}".`;
+}
+
+// ── POST: Initiate a real Vapi call ──
 export async function POST(request: NextRequest) {
   try {
     const userId = request.headers.get('x-user-id');
@@ -12,144 +82,132 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { clientPhone, companyPhone, taskDescription, script, language } = body;
+    const { clientPhone, callType, taskDescription, language } = body;
 
-    if (!clientPhone || !companyPhone || !taskDescription) {
-      return NextResponse.json({ error: 'clientPhone, companyPhone and taskDescription are required' }, { status: 400 });
+    if (!clientPhone) {
+      return NextResponse.json({ error: 'clientPhone is required' }, { status: 400 });
     }
 
-    const lang = language === 'en' ? 'English' : language === 'tr' ? 'Turkish' : 'Russian';
+    // Fetch user's Vapi settings
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { vapiApiKey: true, vapiPhoneId: true, vapiPhone: true, company: true, name: true },
+    });
 
-    // ── 1. Generate call transcript via AI ──
-    const transcriptPrompt = `You are a call simulator. Generate a realistic phone conversation between an AI agent and a client.
+    if (!user?.vapiApiKey || !user?.vapiPhoneId) {
+      return NextResponse.json(
+        { error: 'VAPI_NOT_CONFIGURED', message: 'Vapi не настроен' },
+        { status: 400 }
+      );
+    }
 
-Language: ${lang}
-Task: ${taskDescription}
-${script ? `Reference script:\n${script}` : ''}
+    const companyName = user.company || user.name || 'Company';
 
-Rules:
-- Generate 8-14 dialogue lines (back and forth between AI agent and client)
-- The AI agent calls the client from company phone ${companyPhone} to ${clientPhone}
-- The AI agent should try to accomplish the task: "${taskDescription}"
-- The client may ask questions, show interest, or be hesitant — be realistic
-- Include greetings, main discussion, and closing
-- Each line should be 1-3 sentences max
-- Return ONLY a JSON array, no markdown, no explanation. Format:
-[{"role":"ai_agent","text":"..."},{"role":"client","text":"..."},...]`;
+    // Format phone numbers (ensure E.164 format)
+    const formatPhone = (phone: string) => {
+      let cleaned = phone.replace(/[\s\-\(\)\.]/g, '');
+      if (!cleaned.startsWith('+')) cleaned = '+' + cleaned;
+      return cleaned;
+    };
 
-    const transcriptResult = await chatWithAi(
-      transcriptPrompt,
-      lang === 'Russian' ? 'Сгенерируй диалог' : lang === 'English' ? 'Generate the dialog' : 'Diyaloğu oluştur',
-    );
+    const formattedClientPhone = formatPhone(clientPhone);
+    const systemPrompt = getCallPrompt(callType || 'custom', taskDescription, companyName, language || 'ru');
+    const firstMessage = getFirstMessage(callType || 'custom', companyName, language || 'ru');
 
-    let rawTranscript = transcriptResult.text || '';
-    // Strip markdown fences if present
-    rawTranscript = rawTranscript.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-
-    let dialogLines: Array<{ role: string; text: string; timestamp: string }>;
-    try {
-      dialogLines = JSON.parse(rawTranscript);
-    } catch {
-      // Fallback: create a basic transcript
-      const texts: Record<string, Record<string, string[]>> = {
-        Russian: {
-          ai: [
-            'Здравствуйте! Это автоматический звонок.',
-            'Отлично! Хочу обсудить с вами вопрос, связанный с нашей услугой. Вам удобно?',
-            `Дело в следующем: ${taskDescription}. Это будет полезно для вас. Хотите записаться?`,
-            'Конечно! Если будут вопросы — обращайтесь. Хорошего дня!',
-          ],
-          client: [
-            'Да, слушаю вас.',
-            'Да, конечно, расскажите подробнее.',
-            'Звучит интересно. Давайте подумаем.',
-            'Спасибо, до свидания!',
-          ],
+    // Create the Vapi call
+    const vapiPayload = {
+      assistant: {
+        firstMessage,
+        model: {
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          systemPrompt,
+          temperature: 0.7,
+          maxTokens: 200,
         },
-        English: {
-          ai: [
-            'Hello! This is an automated call.',
-            'Great! I want to discuss something related to our service. Is that convenient for you?',
-            `Here is the thing: ${taskDescription}. It would be beneficial for you. Would you like to sign up?`,
-            'Of course! If you have questions, feel free to reach out. Have a great day!',
-          ],
-          client: [
-            'Yes, go ahead.',
-            'Yes of course, tell me more.',
-            'Sounds interesting. Let me think about it.',
-            'Thank you, goodbye!',
-          ],
+        voice: {
+          provider: '11labs',
+          voiceId: 'rachel', // Natural female voice
         },
-        Turkish: {
-          ai: [
-            'Merhaba! Bu otomatik bir arama.',
-            'Harika! Hizmetimizle ilgili bir konuyu görüşmek istiyorum. Size uygun mu?',
-            `Şu durum var: ${taskDescription}. Bu sizin için faydalı olacak. Kayıt olmak ister misiniz?`,
-            'Tabii ki! Sorularınız olursa ulaşabilirsiniz. İyi günler!',
-          ],
-          client: [
-            'Evet, dinliyorum.',
-            'Evet tabii, daha fazla anlatın.',
-            'İlginç geliyor. Düşüneyim.',
-            'Teşekkürler, hoşça kalın!',
-          ],
+        transcriber: {
+          provider: 'deepgram',
+          model: 'nova-2',
+          language: language === 'tr' ? 'tr' : language === 'en' ? 'en' : 'ru',
         },
+      },
+      customer: {
+        number: formattedClientPhone,
+      },
+      phoneNumberId: user.vapiPhoneId,
+    };
+
+    // Add server URL for webhook
+    const serverUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VAPI_SERVER_URL || '';
+    if (serverUrl) {
+      (vapiPayload.assistant as Record<string, unknown>).server = {
+        url: `${serverUrl}/api/vapi/webhook`,
+        secret: process.env.VAPI_WEBHOOK_SECRET || 'agentbot-webhook',
       };
-
-      const t = texts[lang] || texts.English;
-      dialogLines = [
-        { role: 'ai_agent', text: t.ai[0], timestamp: new Date().toISOString() },
-        { role: 'client', text: t.client[0], timestamp: new Date(Date.now() + 3000).toISOString() },
-        { role: 'ai_agent', text: t.ai[1], timestamp: new Date(Date.now() + 8000).toISOString() },
-        { role: 'client', text: t.client[1], timestamp: new Date(Date.now() + 15000).toISOString() },
-        { role: 'ai_agent', text: t.ai[2], timestamp: new Date(Date.now() + 22000).toISOString() },
-        { role: 'client', text: t.client[2], timestamp: new Date(Date.now() + 30000).toISOString() },
-        { role: 'ai_agent', text: t.ai[3], timestamp: new Date(Date.now() + 38000).toISOString() },
-        { role: 'client', text: t.client[3], timestamp: new Date(Date.now() + 42000).toISOString() },
-      ];
     }
 
-    // Ensure each line has a timestamp
-    const baseTime = Date.now();
-    dialogLines = dialogLines.map((line, i) => ({
-      role: line.role || 'ai_agent',
-      text: line.text || '',
-      timestamp: new Date(baseTime + i * 5000).toISOString(),
-    }));
+    let vapiCall: Record<string, unknown>;
+    try {
+      vapiCall = await vapiRequest(
+        user.vapiApiKey,
+        '/call/phone',
+        { method: 'POST', body: JSON.stringify(vapiPayload) }
+      );
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown Vapi error';
+      console.error('Vapi call creation error:', errorMessage);
 
-    // Simulate call duration (5-10 seconds per dialog line)
-    const durationSec = Math.max(30, dialogLines.length * 6 + Math.floor(Math.random() * 20));
+      // Create a failed call log
+      const callLog = await db.callLog.create({
+        data: {
+          userId,
+          clientPhone: formattedClientPhone,
+          companyPhone: user.vapiPhone || user.vapiPhoneId || '',
+          taskDescription: taskDescription || callType || '',
+          script: systemPrompt,
+          callType: callType || 'custom',
+          status: 'failed',
+          duration: 0,
+        },
+      });
 
-    // ── 2. Generate short AI summary ──
-    const summaryPrompt = `Summarize the following phone call in 2-3 concise sentences. Include the outcome.
+      return NextResponse.json({
+        success: false,
+        error: 'VAPI_CALL_FAILED',
+        message: errorMessage,
+        callLog: {
+          id: callLog.id,
+          status: callLog.status,
+          clientPhone: callLog.clientPhone,
+          companyPhone: callLog.companyPhone,
+          taskDescription: callLog.taskDescription,
+          callType: callLog.callType,
+          duration: callLog.duration,
+          transcript: [],
+          aiSummary: `Ошибка создания звонка: ${errorMessage}`,
+          createdAt: callLog.createdAt.toISOString(),
+        },
+      });
+    }
 
-Call task: ${taskDescription}
-Dialog:
-${dialogLines.map(l => `[${l.role === 'ai_agent' ? 'AI' : 'Client'}]: ${l.text}`).join('\n')}
+    const vapiCallId = (vapiCall as Record<string, string>).id || '';
 
-Language of summary: ${lang}
-Return ONLY the summary text, no extra formatting.`;
-
-    const summaryResult = await chatWithAi(
-      'You are a concise call summary writer. Be brief and factual.',
-      summaryPrompt,
-    );
-
-    const aiSummary = summaryResult.text || '';
-
-    // ── 3. Save to database ──
+    // Save call log to database
     const callLog = await db.callLog.create({
       data: {
-        id: `call_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         userId,
-        clientPhone,
-        companyPhone,
-        taskDescription,
-        script: script || '',
-        status: 'completed',
-        duration: durationSec,
-        transcript: JSON.stringify(dialogLines),
-        aiSummary,
+        clientPhone: formattedClientPhone,
+        companyPhone: user.vapiPhone || user.vapiPhoneId || '',
+        taskDescription: taskDescription || callType || '',
+        script: systemPrompt,
+        callType: callType || 'custom',
+        status: 'queued',
+        vapiCallId: vapiCallId || null,
+        duration: 0,
       },
     });
 
@@ -160,11 +218,12 @@ Return ONLY the summary text, no extra formatting.`;
         clientPhone: callLog.clientPhone,
         companyPhone: callLog.companyPhone,
         taskDescription: callLog.taskDescription,
-        script: callLog.script,
+        callType: callLog.callType,
         status: callLog.status,
         duration: callLog.duration,
-        transcript: dialogLines,
-        aiSummary: callLog.aiSummary,
+        transcript: [],
+        aiSummary: '',
+        vapiCallId,
         createdAt: callLog.createdAt.toISOString(),
       },
     });
@@ -174,8 +233,7 @@ Return ONLY the summary text, no extra formatting.`;
   }
 }
 
-// ── GET: List call logs for user ──
-
+// ── GET: List call logs or get specific call ──
 export async function GET(request: NextRequest) {
   try {
     const userId = request.headers.get('x-user-id');
@@ -187,7 +245,6 @@ export async function GET(request: NextRequest) {
     const callId = searchParams.get('id');
 
     if (callId) {
-      // Return specific call log
       const callLog = await db.callLog.findFirst({
         where: { id: callId, userId },
       });
@@ -209,17 +266,19 @@ export async function GET(request: NextRequest) {
           clientPhone: callLog.clientPhone,
           companyPhone: callLog.companyPhone,
           taskDescription: callLog.taskDescription,
+          callType: callLog.callType,
           script: callLog.script,
           status: callLog.status,
           duration: callLog.duration,
           transcript,
           aiSummary: callLog.aiSummary,
+          vapiCallId: callLog.vapiCallId,
+          cost: callLog.cost,
           createdAt: callLog.createdAt.toISOString(),
         },
       });
     }
 
-    // Return all call logs
     const callLogs = await db.callLog.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
@@ -227,14 +286,17 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({
-      callLogs: callLogs.map(cl => ({
+      callLogs: callLogs.map((cl) => ({
         id: cl.id,
         clientPhone: cl.clientPhone,
         companyPhone: cl.companyPhone,
         taskDescription: cl.taskDescription,
+        callType: cl.callType,
         status: cl.status,
         duration: cl.duration,
         aiSummary: cl.aiSummary,
+        vapiCallId: cl.vapiCallId,
+        cost: cl.cost,
         createdAt: cl.createdAt.toISOString(),
       })),
     });

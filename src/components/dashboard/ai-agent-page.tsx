@@ -25,6 +25,11 @@ import {
   Play,
   Download,
   Bot,
+  Settings,
+  KeyRound,
+  PhoneCall,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 
 import { useAuthStore, useAppStore } from '@/stores';
@@ -1040,16 +1045,259 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 // Issue 2: Call Script Dialog — AI agent calls from company phone
 // ──────────────────────────────────────────────────────────────
 
+// ──────────────────────────────────────────────────────────────
+// Vapi Settings Dialog — configure API key & phone number
+// ──────────────────────────────────────────────────────────────
+
+function VapiSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const { language } = useAppStore();
+  const { user } = useAuthStore();
+  const [apiKey, setApiKey] = useState('');
+  const [phoneId, setPhoneId] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [currentMask, setCurrentMask] = useState('');
+
+  useEffect(() => {
+    if (open && user?.id) {
+      setLoading(true);
+      fetch('/api/vapi/settings', { headers: { 'x-user-id': user.id } })
+        .then((r) => r.json())
+        .then((data) => {
+          setPhoneId(data.vapiPhoneId || '');
+          setPhoneNumber(data.vapiPhone || '');
+          setCurrentMask(data.apiKeyMasked || '');
+          setApiKey(''); // Don't populate API key for security
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    }
+  }, [open, user?.id]);
+
+  const handleSave = async () => {
+    if (!phoneId.trim()) {
+      toast.error(language === 'ru' ? 'Введите ID номера телефона Vapi' : 'Enter Vapi phone number ID');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload: Record<string, string> = {
+        vapiPhoneId: phoneId.trim(),
+        vapiPhone: phoneNumber.trim(),
+      };
+      if (apiKey.trim()) {
+        payload.vapiApiKey = apiKey.trim();
+      }
+
+      const res = await fetch('/api/vapi/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (data.error === 'INVALID_API_KEY') {
+          toast.error(language === 'ru' ? '❌ Неверный API ключ Vapi. Проверьте и попробуйте снова.' : '❌ Invalid Vapi API key. Please check and try again.');
+          return;
+        }
+        throw new Error('Save failed');
+      }
+
+      toast.success(language === 'ru' ? '✅ Настройки Vapi сохранены!' : '✅ Vapi settings saved!');
+      setApiKey('');
+      // Refresh mask
+      const settingsRes = await fetch('/api/vapi/settings', { headers: { 'x-user-id': user.id! } });
+      const settingsData = await settingsRes.json();
+      setCurrentMask(settingsData.apiKeyMasked || '');
+    } catch {
+      toast.error(language === 'ru' ? 'Ошибка сохранения настроек' : 'Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(language === 'ru' ? 'Удалить настройки Vapi?' : 'Delete Vapi settings?')) return;
+    try {
+      await fetch('/api/vapi/settings', {
+        method: 'DELETE',
+        headers: { 'x-user-id': user?.id || '' },
+      });
+      setApiKey('');
+      setPhoneId('');
+      setPhoneNumber('');
+      setCurrentMask('');
+      toast.success(language === 'ru' ? 'Настройки Vapi удалены' : 'Vapi settings deleted');
+    } catch {
+      toast.error(language === 'ru' ? 'Ошибка удаления' : 'Delete failed');
+    }
+  };
+
+  const t = (ru: string, en: string, tr: string) =>
+    language === 'ru' ? ru : language === 'en' ? en : tr;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Settings className="size-5 text-emerald-600" />
+            {t('Настройка Vapi.ai', 'Vapi.ai Setup', 'Vapi.ai Yapılandırması')}
+          </DialogTitle>
+          <DialogDescription>
+            {t(
+              'Подключите свой аккаунт Vapi.ai для реальных AI-звонков',
+              'Connect your Vapi.ai account for real AI calls',
+              'Gerçek AI aramaları için Vapi.ai hesabınızı bağlayın'
+            )}
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="size-6 animate-spin text-emerald-600" />
+          </div>
+        ) : (
+          <div className="space-y-4 pt-2">
+            {/* Setup guide */}
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 space-y-2">
+              <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                {t('📋 Как настроить:', '📋 How to set up:', '📋 Nasıl kurulur:')}
+              </p>
+              <ol className="text-[11px] text-emerald-600 dark:text-emerald-400 space-y-1 pl-4 list-decimal">
+                <li>{t('Зарегистрируйтесь на', 'Sign up on', 'Kaydolun')} <a href="https://vapi.ai" target="_blank" rel="noopener noreferrer" className="underline font-medium">vapi.ai</a></li>
+                <li>{t('Получите API ключ в разделе Dashboard → API Keys', 'Get your API key from Dashboard → API Keys', 'Dashboard → API Keys bölümünden API anahtarınızı alın')}</li>
+                <li>{t('Купите номер телефона в разделе Phone Numbers', 'Buy a phone number in Phone Numbers section', 'Phone Numbers bölümünden bir telefon numarası satın alın')}</li>
+                <li>{t('Скопируйте ID номера и вставьте ниже', 'Copy the number ID and paste it below', 'Numara ID\'sini kopyalayıp aşağıya yapıştırın')}</li>
+              </ol>
+            </div>
+
+            {/* API Key */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium flex items-center gap-1.5">
+                <KeyRound className="size-3.5 text-muted-foreground" />
+                {t('API ключ Vapi', 'Vapi API Key', 'Vapi API Anahtarı')}
+              </Label>
+              <Input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={currentMask || 'vapi_...'}
+              />
+              {currentMask && (
+                <p className="text-[11px] text-muted-foreground">
+                  {t('Текущий ключ: ', 'Current key: ', 'Mevcut anahtar: ')}<code className="bg-muted px-1 rounded">{currentMask}</code>
+                </p>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                {apiKey ? t('Оставьте пустым, чтобы не менять', 'Leave empty to keep current', 'Mevcut korumak için boş bırakın') : ''}
+              </p>
+            </div>
+
+            {/* Phone ID */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium flex items-center gap-1.5">
+                <Phone className="size-3.5 text-muted-foreground" />
+                {t('ID номера телефона (Vapi)', 'Phone Number ID (Vapi)', 'Telefon Numarası ID (Vapi)')}
+              </Label>
+              <Input
+                value={phoneId}
+                onChange={(e) => setPhoneId(e.target.value)}
+                placeholder={t('Например: vapi-phone-abc123...', 'e.g. vapi-phone-abc123...', 'Örn: vapi-phone-abc123...')}
+              />
+            </div>
+
+            {/* Phone Number (for display) */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium flex items-center gap-1.5">
+                <PhoneCall className="size-3.5 text-muted-foreground" />
+                {t('Номер телефона (для отображения)', 'Phone Number (for display)', 'Telefon Numarası (görüntüleme)')}
+              </Label>
+              <Input
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="+1 (___) ___-____"
+                type="tel"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {t('Клиент увидит этот номер при входящем звонке', 'Client will see this number on incoming call', 'Müşteri gelen aramada bu numarayı görecektir')}
+              </p>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSave}
+                disabled={saving || (!apiKey && !phoneId)}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+              >
+                {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                {t('Сохранить', 'Save', 'Kaydet')}
+              </Button>
+              {currentMask && (
+                <Button variant="outline" onClick={handleDelete} className="text-red-600 hover:text-red-700 gap-1">
+                  <X className="size-4" />
+                  {t('Удалить', 'Delete', 'Sil')}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Call Script Dialog — real Vapi.ai integration
+// ──────────────────────────────────────────────────────────────
+
+const CALL_TYPES = [
+  {
+    id: 'confirmation',
+    icon: '✅',
+    label: { ru: 'Подтверждение записи', en: 'Appointment Confirmation', tr: 'Randevu Onayı' },
+    desc: { ru: 'Позвонить клиенту для подтверждения записи', en: 'Call client to confirm their appointment', tr: 'Müşteriyi arayarak randevusunu onaylayın' },
+  },
+  {
+    id: 'reminder',
+    icon: '🔔',
+    label: { ru: 'Напоминание о визите', en: 'Visit Reminder', tr: 'Ziyaret Hatırlatması' },
+    desc: { ru: 'Напомнить клиенту о предстоящей записи', en: 'Remind client about their upcoming appointment', tr: 'Müşteriyi yaklaşan randevusu hakkında bilgilendirin' },
+  },
+  {
+    id: 'follow_up',
+    icon: '📞',
+    label: { ru: 'Последующий контакт', en: 'Follow-up Call', tr: 'Takip Araması' },
+    desc: { ru: 'Связаться с клиентом после обслуживания', en: 'Contact client after their service', tr: 'Hizmet sonrası müşteriyle iletişime geçin' },
+  },
+  {
+    id: 'custom',
+    icon: '✏️',
+    label: { ru: 'Другое', en: 'Custom', tr: 'Özel' },
+    desc: { ru: 'Своё описание задачи для звонка', en: 'Custom call task description', tr: 'Özel arama görev açıklaması' },
+  },
+] as const;
+
+type CallStep = 'configure' | 'calling' | 'result';
+
 function CallScriptDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { language } = useAppStore();
   const { user } = useAuthStore();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<CallStep>('configure');
+  const [callType, setCallType] = useState('confirmation');
   const [taskDescription, setTaskDescription] = useState('');
   const [clientPhone, setClientPhone] = useState('');
-  const [companyPhone, setCompanyPhone] = useState('');
-  const [script, setScript] = useState('');
-  const [generating, setGenerating] = useState(false);
   const [calling, setCalling] = useState(false);
+
+  // Vapi settings state
+  const [vapiConfigured, setVapiConfigured] = useState(false);
+  const [vapiPhone, setVapiPhone] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Result state
   const [callResult, setCallResult] = useState<{
@@ -1057,60 +1305,57 @@ function CallScriptDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
     clientPhone: string;
     companyPhone: string;
     taskDescription: string;
+    callType: string;
+    status: string;
     duration: number;
     transcript: Array<{ role: string; text: string; timestamp: string }>;
     aiSummary: string;
     createdAt: string;
   } | null>(null);
 
+  const t = (ru: string, en: string, tr: string) =>
+    language === 'ru' ? ru : language === 'en' ? en : tr;
+
+  // Load Vapi settings on open
+  useEffect(() => {
+    if (open && user?.id) {
+      fetch('/api/vapi/settings', { headers: { 'x-user-id': user.id } })
+        .then((r) => r.json())
+        .then((data) => {
+          setVapiConfigured(data.configured);
+          setVapiPhone(data.vapiPhone || '');
+        })
+        .catch(() => {});
+    }
+  }, [open, user?.id]);
+
   const handleClose = (v: boolean) => {
     onOpenChange(v);
     if (!v) {
       setTimeout(() => {
-        setStep(1);
+        setStep('configure');
+        setCallType('confirmation');
         setTaskDescription('');
         setClientPhone('');
-        setCompanyPhone('');
-        setScript('');
         setCalling(false);
         setCallResult(null);
       }, 200);
     }
   };
 
-  const handleGenerateScript = async () => {
-    if (!taskDescription.trim()) {
-      toast.error(
-        language === 'ru' ? 'Опишите задачу для звонка' : language === 'en' ? 'Describe the call task' : 'Arama görevini açıklayın'
-      );
+  const handleStartCall = async () => {
+    if (!clientPhone.trim()) {
+      toast.error(t('Введите номер телефона клиента', 'Enter client phone number', 'Müşteri telefon numarasını girin'));
       return;
     }
-    setGenerating(true);
-    await new Promise((r) => setTimeout(r, 1500));
 
-    const generatedScripts: Record<string, string> = {
-      ru: `Здравствуйте! Это автоматический звонок от вашей компании.\n\nЗадача звонка: ${taskDescription}\n\nСкрипт:\n1. Представиться и назвать причину звонка.\n2. Кратко изложить суть: "${taskDescription}".\n3. Уточнить удобное время для обсуждения.\n4. Ответить на вопросы клиента.\n5. Подвести итоги и договориться о следующем шаге.\n\nБудьте вежливы и профессиональны. Удачи!`,
-      en: `Hello! This is an automated call from your company.\n\nCall task: ${taskDescription}\n\nScript:\n1. Introduce yourself and state the reason for calling.\n2. Briefly explain: "${taskDescription}".\n3. Ask about a convenient time to discuss.\n4. Answer the client's questions.\n5. Summarize and agree on next steps.\n\nBe polite and professional. Good luck!`,
-      tr: `Merhaba! Bu şirketinizden otomatik bir arama.\n\nArama görevi: ${taskDescription}\n\nSenaryo:\n1. Kendinizi tanıtın ve arama nedenini belirtin.\n2. Kısaca açıklayın: "${taskDescription}".\n3. Tartışmak için uygun bir zaman sorun.\n4. Müşterinin sorularını yanıtlayın.\n5. Özetleyin ve bir sonraki adım üzerinde anlaşın.\n\nKibar ve profesyonel olun. İyi şanslar!`,
-    };
-
-    const langKey = language === 'en' ? 'en' : language === 'tr' ? 'tr' : 'ru';
-    setScript(generatedScripts[langKey]);
-    setGenerating(false);
-    setStep(2);
-    toast.success(
-      language === 'ru' ? 'Скрипт сгенерирован!' : language === 'en' ? 'Script generated!' : 'Senaryo oluşturuldu!'
-    );
-  };
-
-  const handleCallNow = async () => {
-    if (!clientPhone.trim() || !companyPhone.trim()) {
-      toast.error(
-        language === 'ru' ? 'Введите оба номера телефона' : language === 'en' ? 'Enter both phone numbers' : 'Her iki telefon numarasını girin'
-      );
+    if (!vapiConfigured) {
+      toast.error(t('Сначала настройте Vapi', 'Configure Vapi first', 'Önce Vapi\'yi yapılandırın'));
       return;
     }
+
     setCalling(true);
+    setStep('calling');
 
     try {
       const res = await fetch('/api/calls', {
@@ -1121,25 +1366,39 @@ function CallScriptDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         },
         body: JSON.stringify({
           clientPhone,
-          companyPhone,
+          callType,
           taskDescription,
-          script,
           language,
         }),
       });
 
-      if (!res.ok) throw new Error('Call failed');
-
       const data = await res.json();
+
+      if (!res.ok) {
+        if (data.error === 'VAPI_NOT_CONFIGURED') {
+          setStep('configure');
+          toast.error(t('Vapi не настроен. Настройте в разделе настроек.', 'Vapi not configured. Please set up in settings.', 'Vapi yapılandırılmamış. Lütfen ayarlardan yapılandırın.'));
+        } else {
+          setCallResult(data.callLog || null);
+          setStep('result');
+          toast.error(t('Ошибка звонка', 'Call error', 'Arama hatası'));
+        }
+        return;
+      }
+
       setCallResult(data.callLog);
-      setStep(3);
-      toast.success(
-        language === 'ru' ? 'Звонок выполнен!' : language === 'en' ? 'Call completed!' : 'Arama tamamlandı!'
-      );
+      setStep('result');
+
+      if (data.success) {
+        toast.success(t(
+          '🚀 Звонок инициирован! AI связывается с клиентом...',
+          '🚀 Call initiated! AI is connecting to the client...',
+          '🚀 Arama başlatıldı! AI müşteriyle bağlantı kuruyor...'
+        ));
+      }
     } catch {
-      toast.error(
-        language === 'ru' ? 'Не удалось выполнить звонок' : language === 'en' ? 'Call failed' : 'Arama başarısız'
-      );
+      toast.error(t('Не удалось инициировать звонок', 'Failed to initiate call', 'Arama başlatılamadı'));
+      setStep('configure');
     } finally {
       setCalling(false);
     }
@@ -1147,11 +1406,9 @@ function CallScriptDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
 
   const handleDownloadPdf = async () => {
     if (!callResult) return;
-
     try {
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
-
       const isRu = language === 'ru';
       const title = isRu ? 'Отчёт о звонке AI-агента' : language === 'en' ? 'AI Agent Call Report' : 'AI Ajan Arama Raporu';
       const dateLabel = isRu ? 'Дата' : language === 'en' ? 'Date' : 'Tarih';
@@ -1161,402 +1418,441 @@ function CallScriptDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
       const durationLabel = isRu ? 'Длительность' : language === 'en' ? 'Duration' : 'Süre';
       const summaryLabel = isRu ? 'Краткое резюме' : language === 'en' ? 'Summary' : 'Özet';
       const transcriptLabel = isRu ? 'Текст беседы' : language === 'en' ? 'Call transcript' : 'Arama metni';
-      const aiLabel = isRu ? 'AI-агент' : 'AI Agent';
+      const aiLbl = isRu ? 'AI-агент' : 'AI Agent';
       const clientLbl = isRu ? 'Клиент' : language === 'en' ? 'Client' : 'Müşteri';
       const minLabel = isRu ? 'мин.' : 'min.';
       const callDate = new Date(callResult.createdAt).toLocaleString(isRu ? 'ru-RU' : language === 'en' ? 'en-US' : 'tr-TR');
-
       const fmtTime = (ts: string) => new Date(ts).toLocaleTimeString(isRu ? 'ru-RU' : language === 'en' ? 'en-US' : 'tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       const fmtDur = (sec: number) => `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`;
+      const callTypeNames: Record<string, string> = { confirmation: isRu ? 'Подтверждение записи' : 'Appointment Confirmation', reminder: isRu ? 'Напоминание' : 'Reminder', follow_up: isRu ? 'Последующий контакт' : 'Follow-up', custom: isRu ? 'Другое' : 'Custom' };
 
-      // Build HTML for the report
       const container = document.createElement('div');
       container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;padding:48px;background:#fff;font-family:system-ui,-apple-system,sans-serif;color:#111;line-height:1.6;';
       container.innerHTML = `
         <div style="font-size:28px;font-weight:800;color:#059669;margin-bottom:4px;">${title}</div>
         <div style="height:2px;background:linear-gradient(90deg,#059669,#0d9488);margin-bottom:24px;border-radius:1px;"></div>
         <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">
-          <tr><td style="padding:6px 12px;font-weight:600;color:#555;width:140px;">${dateLabel}</td><td style="padding:6px 0;">${callDate}</td></tr>
+          <tr><td style="padding:6px 12px;font-weight:600;color:#555;width:160px;">${dateLabel}</td><td style="padding:6px 0;">${callDate}</td></tr>
+          <tr><td style="padding:6px 12px;font-weight:600;color:#555;">${isRu ? 'Тип звонка' : 'Call Type'}</td><td style="padding:6px 0;">${callTypeNames[callResult.callType] || callResult.callType}</td></tr>
           <tr><td style="padding:6px 12px;font-weight:600;color:#555;">${clientLabel}</td><td style="padding:6px 0;">${callResult.clientPhone}</td></tr>
           <tr><td style="padding:6px 12px;font-weight:600;color:#555;">${companyLabel}</td><td style="padding:6px 0;">${callResult.companyPhone}</td></tr>
           <tr><td style="padding:6px 12px;font-weight:600;color:#555;">${durationLabel}</td><td style="padding:6px 0;">${fmtDur(callResult.duration)} (${callResult.duration} ${minLabel})</td></tr>
         </table>
-        <div style="margin-bottom:16px;">
-          <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:4px;">${taskLabel}:</div>
-          <div style="font-size:12px;color:#4b5563;background:#f9fafb;border-radius:6px;padding:10px 14px;">${callResult.taskDescription}</div>
-        </div>
-        ${callResult.aiSummary ? `
-        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:20px;">
-          <div style="font-size:13px;font-weight:700;color:#059669;margin-bottom:6px;">✨ ${summaryLabel}</div>
-          <div style="font-size:12px;color:#374151;">${callResult.aiSummary}</div>
-        </div>` : ''}
+        ${callResult.taskDescription ? `<div style="margin-bottom:16px;"><div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:4px;">${taskLabel}:</div><div style="font-size:12px;color:#4b5563;background:#f9fafb;border-radius:6px;padding:10px 14px;">${callResult.taskDescription}</div></div>` : ''}
+        ${callResult.aiSummary ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:20px;"><div style="font-size:13px;font-weight:700;color:#059669;margin-bottom:6px;">✨ ${summaryLabel}</div><div style="font-size:12px;color:#374151;">${callResult.aiSummary}</div></div>` : ''}
+        ${callResult.transcript.length > 0 ? `
         <div style="font-size:18px;font-weight:700;color:#111;margin-bottom:12px;">${transcriptLabel}</div>
-        ${callResult.transcript.map((line, i) => {
+        ${callResult.transcript.map((line) => {
           const isAi = line.role === 'ai_agent';
           const bgColor = isAi ? '#ecfdf5' : '#f3f4f6';
           const nameColor = isAi ? '#059669' : '#6b7280';
-          const name = isAi ? aiLabel : clientLbl;
-          return `<div style="display:flex;gap:10px;margin-bottom:10px;align-items:flex-start;">
-            <div style="min-width:90px;font-size:11px;font-weight:700;color:${nameColor};padding:4px 8px;background:${bgColor};border-radius:4px;text-align:center;">${name}<br><span style="font-weight:400;font-size:10px;color:#9ca3af;">${fmtTime(line.timestamp)}</span></div>
-            <div style="flex:1;font-size:12px;color:#1f2937;padding-top:2px;">${line.text}</div>
-          </div>`;
-        }).join('')}
-        <div style="margin-top:28px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;display:flex;justify-content:space-between;">
-          <span>AgentBot — ${title}</span>
-          <span>ID: ${callResult.id}</span>
-        </div>
+          const name = isAi ? aiLbl : clientLbl;
+          return `<div style="display:flex;gap:10px;margin-bottom:10px;align-items:flex-start;"><div style="min-width:90px;font-size:11px;font-weight:700;color:${nameColor};padding:4px 8px;background:${bgColor};border-radius:4px;text-align:center;">${name}<br><span style="font-weight:400;font-size:10px;color:#9ca3af;">${fmtTime(line.timestamp)}</span></div><div style="flex:1;font-size:12px;color:#1f2937;padding-top:2px;">${line.text}</div></div>`;
+        }).join('')}` : `
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:16px;text-align:center;">
+          <p style="font-size:13px;color:#92400e;">${isRu ? 'Транскрипция будет доступна после завершения звонка через Vapi webhook.' : 'Transcript will be available after the call ends via Vapi webhook.'}</p>
+        </div>`}
+        <div style="margin-top:28px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;display:flex;justify-content:space-between;"><span>AgentBot — ${title}</span><span>ID: ${callResult.id}</span></div>
       `;
       document.body.appendChild(container);
-
       const canvas = await html2canvas(container, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
       document.body.removeChild(container);
-
       const imgData = canvas.toDataURL('image/png');
       const imgWidth = 210;
       const pageHeight = 297;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
       const doc = new jsPDF('p', 'mm', 'a4');
       let heightLeft = imgHeight;
       let position = 0;
-
       doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
-
       while (heightLeft > 0) {
         position -= pageHeight;
         doc.addPage();
         doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
       }
-
       doc.save(`call-report-${callResult.id}.pdf`);
-      toast.success(
-        language === 'ru' ? 'PDF скачан!' : language === 'en' ? 'PDF downloaded!' : 'PDF indirildi!'
-      );
+      toast.success(t('PDF скачан!', 'PDF downloaded!', 'PDF indirildi!'));
     } catch {
-      toast.error(
-        language === 'ru' ? 'Ошибка при создании PDF' : language === 'en' ? 'Failed to create PDF' : 'PDF oluşturulamadı'
-      );
+      toast.error(t('Ошибка при создании PDF', 'Failed to create PDF', 'PDF oluşturulamadı'));
     }
   };
 
-  const formatTime = (ts: string) => {
-    const d = new Date(ts);
-    return d.toLocaleTimeString(language === 'ru' ? 'ru-RU' : language === 'en' ? 'en-US' : 'tr-TR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+  const formatTime = (ts: string) => new Date(ts).toLocaleTimeString(language === 'ru' ? 'ru-RU' : language === 'en' ? 'en-US' : 'tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const formatDuration = (sec: number) => `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`;
+
+  const statusLabel = (status: string) => {
+    const labels: Record<string, Record<string, string>> = {
+      queued: { ru: '⏳ В очереди', en: '⏳ Queued', tr: '⏳ Sıraya alındı' },
+      ringing: { ru: '📞 Звонит...', en: '📞 Ringing...', tr: '📞 Çalıyor...' },
+      in_progress: { ru: '🎙️ Разговор...', en: '🎙️ In progress...', tr: '🎙️ Devam ediyor...' },
+      completed: { ru: '✅ Завершён', en: '✅ Completed', tr: '✅ Tamamlandı' },
+      failed: { ru: '❌ Ошибка', en: '❌ Failed', tr: '❌ Başarısız' },
+      no_answer: { ru: '🔕 Нет ответа', en: '🔕 No answer', tr: '🔕 Cevap yok' },
+    };
+    return labels[status]?.[language === 'tr' ? 'tr' : language === 'en' ? 'en' : 'ru'] || status;
   };
 
-  const formatDuration = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+  const statusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      queued: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+      ringing: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
+      in_progress: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
+      completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+      failed: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+      no_answer: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300',
+    };
+    return colors[status] || 'bg-muted text-muted-foreground';
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[580px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Phone className="size-5 text-emerald-600" />
-            {language === 'ru' ? 'AI-звонок клиенту' : language === 'en' ? 'AI Call to Client' : 'AI Müşteri Araması'}
-          </DialogTitle>
-          <DialogDescription>
-            {step === 1
-              ? (language === 'ru'
-                ? 'Настройте задачу и номера телефонов для AI-звонка'
-                : language === 'en'
-                  ? 'Configure the task and phone numbers for the AI call'
-                  : 'AI araması için görevi ve telefon numaralarını yapılandırın')
-              : step === 2
-                ? (language === 'ru'
-                  ? 'Проверьте скрипт и начните звонок'
-                  : language === 'en'
-                    ? 'Review the script and start the call'
-                    : 'Senaryoyu kontrol edin ve aramayı başlatın')
-                : (language === 'ru'
-                  ? 'Результат звонка'
-                  : language === 'en'
-                    ? 'Call result'
-                    : 'Arama sonucu')}
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      {/* Vapi Settings Dialog */}
+      <VapiSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
-        {/* Step indicator */}
-        <div className="flex items-center gap-2">
-          {[1, 2, 3].map((s) => (
-            <React.Fragment key={s}>
-              <div className={`flex items-center justify-center size-7 rounded-full text-xs font-bold transition-colors ${
-                step >= s ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground'
-              }`}>{s}</div>
-              {s < 3 && <div className={`flex-1 h-0.5 rounded-full transition-colors ${step >= s + 1 ? 'bg-emerald-600' : 'bg-muted'}`} />}
-            </React.Fragment>
-          ))}
-        </div>
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className="sm:max-w-[580px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Phone className="size-5 text-emerald-600" />
+              {t('AI-звонок клиенту', 'AI Call to Client', 'AI Müşteri Araması')}
+            </DialogTitle>
+            <DialogDescription>
+              {step === 'configure'
+                ? t('Выберите тип звонка и введите номер клиента', 'Choose call type and enter client number', 'Arama türünü seçin ve müşteri numarasını girin')
+                : step === 'calling'
+                  ? t('AI связывается с клиентом...', 'AI is connecting to the client...', 'AI müşteriyle bağlantı kuruyor...')
+                  : t('Результат звонка', 'Call result', 'Arama sonucu')}
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-4 pt-2">
-          {/* ── Step 3: Call Result ── */}
-          {step === 3 && callResult && (
-            <>
-              {/* Success banner */}
-              <div className="flex items-center gap-3 p-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800">
-                <CheckCircle2 className="size-8 text-emerald-500 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-                    {language === 'ru' ? 'Звонок выполнен успешно!' : language === 'en' ? 'Call completed successfully!' : 'Arama başarıyla tamamlandı!'}
-                  </p>
-                  <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70 mt-0.5">
-                    {formatDuration(callResult.duration)} · {callResult.clientPhone}
-                  </p>
-                </div>
-                <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                  {formatDuration(callResult.duration)}
-                </Badge>
-              </div>
-
-              {/* AI Summary */}
-              {callResult.aiSummary && (
-                <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
+          <div className="space-y-4 pt-2">
+            {/* ── Step: Configure ── */}
+            {step === 'configure' && (
+              <>
+                {/* Vapi status bar */}
+                <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="size-3.5 text-amber-500" />
-                    <span className="text-xs font-semibold text-muted-foreground">
-                      {language === 'ru' ? 'Краткое резюме' : language === 'en' ? 'Summary' : 'Özet'}
-                    </span>
-                  </div>
-                  <p className="text-sm leading-relaxed">{callResult.aiSummary}</p>
-                </div>
-              )}
-
-              {/* Transcript */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileText className="size-3.5 text-muted-foreground" />
-                    <span className="text-xs font-semibold text-muted-foreground">
-                      {language === 'ru' ? 'Текст беседы' : language === 'en' ? 'Call transcript' : 'Arama metni'}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-muted-foreground">
-                    {callResult.transcript.length} {language === 'ru' ? 'сообщений' : language === 'en' ? 'messages' : 'mesaj'}
-                  </span>
-                </div>
-
-                <ScrollArea className="max-h-[260px] rounded-lg border bg-background p-3 space-y-3" style={{ scrollbarWidth: 'thin' }}>
-                  {callResult.transcript.map((line, i) => {
-                    const isAi = line.role === 'ai_agent';
-                    return (
-                      <div key={i} className={`flex gap-2 ${isAi ? '' : 'flex-row-reverse'}`}>
-                        <div className={`size-7 rounded-full flex items-center justify-center shrink-0 ${
-                          isAi ? 'bg-emerald-100 dark:bg-emerald-950' : 'bg-muted'
-                        }`}>
-                          <span className="text-[10px] font-bold">{isAi ? 'AI' : (language === 'ru' ? 'К' : 'U')}</span>
-                        </div>
-                        <div className={`flex-1 rounded-xl px-3 py-2 text-xs leading-relaxed ${
-                          isAi
-                            ? 'bg-emerald-500 text-white rounded-tl-sm'
-                            : 'bg-muted rounded-tr-sm'
-                        }`}>
-                          {line.text}
-                          <div className={`text-[9px] mt-1 ${isAi ? 'text-white/60' : 'text-muted-foreground'}`}>
-                            {formatTime(line.timestamp)}
-                          </div>
-                        </div>
+                    {vapiConfigured ? (
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircle2 className="size-4 text-emerald-500" />
+                        <span className="text-xs font-medium text-emerald-600">
+                          Vapi {t('подключён', 'connected', 'bağlı')}
+                          {vapiPhone && <span className="text-muted-foreground font-normal"> ({vapiPhone})</span>}
+                        </span>
                       </div>
-                    );
-                  })}
-                </ScrollArea>
-              </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <AlertTriangle className="size-4 text-amber-500" />
+                        <span className="text-xs font-medium text-amber-600">
+                          {t('Vapi не настроен', 'Vapi not configured', 'Vapi yapılandırılmamış')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => setSettingsOpen(true)}
+                  >
+                    <Settings className="size-3.5" />
+                    {t('Настройки', 'Settings', 'Ayarlar')}
+                  </Button>
+                </div>
 
-              {/* Call meta */}
-              <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">{language === 'ru' ? 'Клиент:' : language === 'en' ? 'Client:' : 'Müşteri:'}</span>
-                  <span className="font-medium">{callResult.clientPhone}</span>
+                {/* Call type selection */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">
+                    {t('Тип звонка', 'Call Type', 'Arama Türü')}
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {CALL_TYPES.map((ct) => (
+                      <button
+                        key={ct.id}
+                        onClick={() => {
+                          setCallType(ct.id);
+                          // Pre-fill task description based on type
+                          if (ct.id !== 'custom') {
+                            const descs: Record<string, Record<string, string>> = {
+                              confirmation: { ru: 'Подтвердить запись клиента', en: 'Confirm client appointment', tr: 'Müşteri randevusunu onayla' },
+                              reminder: { ru: 'Напомнить о предстоящей записи', en: 'Remind about upcoming appointment', tr: 'Yaklaşan randevuyu hatırlat' },
+                              follow_up: { ru: 'Узнать впечатление после обслуживания', en: 'Check satisfaction after service', tr: 'Hizmet sonrası memnuniyeti öğren' },
+                            };
+                            setTaskDescription(descs[ct.id]?.[language === 'tr' ? 'tr' : language === 'en' ? 'en' : 'ru'] || '');
+                          }
+                        }}
+                        className={`text-left rounded-lg border p-3 transition-all duration-200 ${
+                          callType === ct.id
+                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-500'
+                            : 'border-border hover:border-emerald-300 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{ct.icon}</span>
+                          <span className="text-xs font-semibold leading-tight">{ct.label[language === 'tr' ? 'tr' : language === 'en' ? 'en' : 'ru']}</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{ct.desc[language === 'tr' ? 'tr' : language === 'en' ? 'en' : 'ru']}</p>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">{language === 'ru' ? 'Откуда:' : language === 'en' ? 'From:' : 'Aranan:'}</span>
-                  <span className="font-medium">{callResult.companyPhone}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">{language === 'ru' ? 'Задача:' : language === 'en' ? 'Task:' : 'Görev:'}</span>
-                  <span className="font-medium text-right max-w-[240px] truncate">{callResult.taskDescription}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">{language === 'ru' ? 'Дата:' : language === 'en' ? 'Date:' : 'Tarih:'}</span>
-                  <span className="font-medium">{new Date(callResult.createdAt).toLocaleString()}</span>
-                </div>
-              </div>
 
-              {/* Action buttons */}
-              <div className="flex gap-2">
+                {/* Custom task description */}
+                {callType === 'custom' && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">
+                      {t('Описание задачи', 'Task description', 'Görev açıklaması')}
+                    </Label>
+                    <Textarea
+                      value={taskDescription}
+                      onChange={(e) => setTaskDescription(e.target.value)}
+                      placeholder={t(
+                        'Опишите, что AI должен сказать клиенту...',
+                        'Describe what AI should say to the client...',
+                        'AI\'nın müşteriye ne söylemesi gerektiğini açıklayın...'
+                      )}
+                      className="min-h-[80px] resize-none"
+                    />
+                  </div>
+                )}
+
+                {/* Client phone */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">
+                    {t('Телефон клиента', 'Client phone number', 'Müşteri telefon numarası')}
+                  </Label>
+                  <Input
+                    value={clientPhone}
+                    onChange={(e) => setClientPhone(e.target.value)}
+                    placeholder="+7 (___) ___-__-__"
+                    type="tel"
+                  />
+                </div>
+
+                {/* Call info */}
+                {vapiPhone && (
+                  <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">{t('Звонок от:', 'Calling from:', 'Aranan:')}</span>
+                      <span className="font-medium">{vapiPhone}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">{t('Клиент:', 'Client:', 'Müşteri:')}</span>
+                      <span className="font-medium">{clientPhone || t('Не указан', 'Not set', 'Belirtilmemiş')}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Call button */}
                 <Button
-                  onClick={handleDownloadPdf}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                  onClick={handleStartCall}
+                  disabled={calling || !clientPhone.trim() || !vapiConfigured}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20"
                 >
-                  <Download className="size-4" />
-                  {language === 'ru' ? 'Скачать PDF-отчёт' : language === 'en' ? 'Download PDF report' : 'PDF raporu indir'}
+                  {calling ? (
+                    <>
+                      <Loader2 className="size-4 mr-2 animate-spin" />
+                      {t('Инициализация звонка...', 'Initiating call...', 'Arama başlatılıyor...')}
+                    </>
+                  ) : !vapiConfigured ? (
+                    <>
+                      <Settings className="size-4 mr-2" />
+                      {t('Сначала настройте Vapi', 'Configure Vapi first', 'Önce Vapi\'yi yapılandırın')}
+                    </>
+                  ) : (
+                    <>
+                      <Phone className="size-4 mr-2" />
+                      {t('Позвонить', 'Make Call', 'Ara')}
+                    </>
+                  )}
                 </Button>
+
+                {!vapiConfigured && (
+                  <div className="text-center">
+                    <Button variant="link" className="text-xs gap-1 text-emerald-600" onClick={() => setSettingsOpen(true)}>
+                      <Settings className="size-3.5" />
+                      {t('Открыть настройки Vapi', 'Open Vapi settings', 'Vapi ayarlarını aç')}
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── Step: Calling (in progress) ── */}
+            {step === 'calling' && (
+              <div className="flex flex-col items-center gap-6 py-8">
+                <div className="relative">
+                  <div className="size-20 rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center">
+                    <Phone className="size-8 text-emerald-600 animate-pulse" />
+                  </div>
+                  <div className="absolute inset-0 rounded-full border-4 border-emerald-400 animate-ping opacity-30" />
+                </div>
+                <div className="text-center space-y-2">
+                  <p className="text-sm font-semibold">{t('🤖 AI связывается с клиентом...', '🤖 AI is connecting to the client...', '🤖 AI müşteriyle bağlantı kuruyor...')}</p>
+                  <p className="text-xs text-muted-foreground">{clientPhone}</p>
+                </div>
+                <div className="w-full space-y-3">
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <div className="size-2 rounded-full bg-amber-500 animate-pulse" />
+                    {t('Звонок обрабатывается через Vapi.ai', 'Call is being processed via Vapi.ai', 'Arama Vapi.ai üzerinden işleniyor')}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground text-center">
+                    {t(
+                      'Результаты звонка (транскрипция, резюме) появятся после завершения через webhook Vapi.',
+                      'Call results (transcript, summary) will appear after completion via Vapi webhook.',
+                      'Arama sonuçları (transkript, özet) Vapi webhook üzerinden tamamlandıktan sonra görünecektir.'
+                    )}
+                  </p>
+                </div>
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setStep(1);
-                    setTaskDescription('');
-                    setClientPhone('');
-                    setCompanyPhone('');
-                    setScript('');
+                    setStep('configure');
                     setCallResult(null);
                   }}
                   className="gap-1"
                 >
-                  <Phone className="size-4" />
-                  {language === 'ru' ? 'Новый звонок' : language === 'en' ? 'New call' : 'Yeni arama'}
+                  {t('← Назад', '← Back', '← Geri')}
                 </Button>
               </div>
-            </>
-          )}
+            )}
 
-          {/* ── Step 1: Configure ── */}
-          {step === 1 && (
-            <>
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">
-                  {language === 'ru' ? 'Описание задачи' : language === 'en' ? 'Task description' : 'Görev açıklaması'}
-                </Label>
-                <Textarea
-                  value={taskDescription}
-                  onChange={(e) => setTaskDescription(e.target.value)}
-                  placeholder={
-                    language === 'ru'
-                      ? 'Опишите, что нужно обсудить с клиентом (например, "Продать продукт X", "Напомнить о записи")...'
-                      : language === 'en'
-                        ? 'Describe what to discuss with the client (e.g., "Sell product X", "Remind about appointment")...'
-                        : 'Müşteriyle ne konuşulacağını açıklayın (ör. "X ürününü sat", "Randevuyu hatırlat")...'
-                  }
-                  className="min-h-[100px] resize-none"
-                />
-              </div>
+            {/* ── Step: Result ── */}
+            {step === 'result' && callResult && (
+              <>
+                {/* Status banner */}
+                <div className={`flex items-center gap-3 p-4 rounded-lg border ${
+                  callResult.status === 'completed'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800'
+                    : callResult.status === 'failed'
+                      ? 'bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800'
+                      : 'bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800'
+                }`}>
+                  {callResult.status === 'completed' ? (
+                    <CheckCircle2 className="size-8 text-emerald-500 shrink-0" />
+                  ) : callResult.status === 'failed' ? (
+                    <AlertTriangle className="size-8 text-red-500 shrink-0" />
+                  ) : (
+                    <Phone className="size-8 text-amber-500 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold">
+                      {statusLabel(callResult.status)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {callResult.clientPhone}
+                      {callResult.duration > 0 && ` · ${formatDuration(callResult.duration)}`}
+                    </p>
+                  </div>
+                  <Badge className={statusColor(callResult.status)}>
+                    {statusLabel(callResult.status)}
+                  </Badge>
+                </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">
-                  {language === 'ru' ? 'Телефон клиента' : language === 'en' ? 'Client phone number' : 'Müşteri telefon numarası'}
-                </Label>
-                <Input
-                  value={clientPhone}
-                  onChange={(e) => setClientPhone(e.target.value)}
-                  placeholder="+7 (___) ___-__-__"
-                  type="tel"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">
-                  {language === 'ru' ? 'Телефон компании' : language === 'en' ? 'Company phone number' : 'Şirket telefon numarası'}
-                </Label>
-                <Input
-                  value={companyPhone}
-                  onChange={(e) => setCompanyPhone(e.target.value)}
-                  placeholder="+7 (___) ___-__-__"
-                  type="tel"
-                />
-                <p className="text-xs text-muted-foreground">
-                  {language === 'ru'
-                    ? '🤖 AI-агент позвонит с этого номера'
-                    : language === 'en'
-                      ? '🤖 AI agent will call from this number'
-                      : '🤖 AI ajanı bu numaradan arayacak'}
-                </p>
-              </div>
-
-              <Button
-                onClick={handleGenerateScript}
-                disabled={generating || !taskDescription.trim()}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20"
-              >
-                {generating ? (
-                  <>
-                    <div className="size-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    {language === 'ru' ? 'Генерация скрипта...' : language === 'en' ? 'Generating script...' : 'Senaryo oluşturuluyor...'}
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="size-4 mr-2" />
-                    {language === 'ru' ? 'Сгенерировать скрипт' : language === 'en' ? 'Generate script' : 'Senaryo oluştur'}
-                  </>
+                {/* AI Summary */}
+                {callResult.aiSummary && (
+                  <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="size-3.5 text-amber-500" />
+                      <span className="text-xs font-semibold text-muted-foreground">{t('Краткое резюме', 'Summary', 'Özet')}</span>
+                    </div>
+                    <p className="text-sm leading-relaxed">{callResult.aiSummary}</p>
+                  </div>
                 )}
-              </Button>
-            </>
-          )}
 
-          {/* ── Step 2: Review + Call ── */}
-          {step === 2 && (
-            <>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">
-                    {language === 'ru' ? 'Сгенерированный скрипт' : language === 'en' ? 'Generated script' : 'Oluşturulan senaryo'}
-                  </Label>
-                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setStep(1)}>
-                    {language === 'ru' ? '← Назад' : language === 'en' ? '← Back' : '← Geri'}
+                {/* Transcript */}
+                {callResult.transcript.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FileText className="size-3.5 text-muted-foreground" />
+                        <span className="text-xs font-semibold text-muted-foreground">{t('Текст беседы', 'Call transcript', 'Arama metni')}</span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">
+                        {callResult.transcript.length} {t('сообщений', 'messages', 'mesaj')}
+                      </span>
+                    </div>
+                    <ScrollArea className="max-h-[260px] rounded-lg border bg-background p-3 space-y-3" style={{ scrollbarWidth: 'thin' }}>
+                      {callResult.transcript.map((line, i) => {
+                        const isAi = line.role === 'ai_agent';
+                        return (
+                          <div key={i} className={`flex gap-2 ${isAi ? '' : 'flex-row-reverse'}`}>
+                            <div className={`size-7 rounded-full flex items-center justify-center shrink-0 ${isAi ? 'bg-emerald-100 dark:bg-emerald-950' : 'bg-muted'}`}>
+                              <span className="text-[10px] font-bold">{isAi ? 'AI' : (language === 'ru' ? 'К' : 'U')}</span>
+                            </div>
+                            <div className={`flex-1 rounded-xl px-3 py-2 text-xs leading-relaxed ${isAi ? 'bg-emerald-500 text-white rounded-tl-sm' : 'bg-muted rounded-tr-sm'}`}>
+                              {line.text}
+                              <div className={`text-[9px] mt-1 ${isAi ? 'text-white/60' : 'text-muted-foreground'}`}>{formatTime(line.timestamp)}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </ScrollArea>
+                  </div>
+                )}
+
+                {/* Pending transcript notice */}
+                {!callResult.aiSummary && callResult.transcript.length === 0 && (callResult.status === 'queued' || callResult.status === 'ringing' || callResult.status === 'in_progress') && (
+                  <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                    <div className="size-6 animate-spin rounded-full border-2 border-amber-500 border-t-transparent shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                        {t('Звонок в процессе', 'Call in progress', 'Arama devam ediyor')}
+                      </p>
+                      <p className="text-[11px] text-amber-600/70 dark:text-amber-400/70 mt-0.5">
+                        {t('Транскрипция и резюме появятся автоматически после завершения. Откройте историю звонков позже.', 'Transcript and summary will appear automatically after completion. Check call history later.', 'Transkript ve özet tamamlandıktan sonra otomatik olarak görünecektir. Daha sonra arama geçmişini kontrol edin.')}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Call meta */}
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t('Клиент:', 'Client:', 'Müşteri:')}</span>
+                    <span className="font-medium">{callResult.clientPhone}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t('Откуда:', 'From:', 'Aranan:')}</span>
+                    <span className="font-medium">{callResult.companyPhone || vapiPhone}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t('Тип:', 'Type:', 'Tür:')}</span>
+                    <span className="font-medium">{CALL_TYPES.find(ct => ct.id === callResult.callType)?.label[language === 'tr' ? 'tr' : language === 'en' ? 'en' : 'ru'] || callResult.callType}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t('Дата:', 'Date:', 'Tarih:')}</span>
+                    <span className="font-medium">{new Date(callResult.createdAt).toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex gap-2">
+                  <Button onClick={handleDownloadPdf} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+                    <Download className="size-4" />
+                    {t('Скачать PDF', 'Download PDF', 'PDF indir')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setStep('configure');
+                      setCallResult(null);
+                      setClientPhone('');
+                    }}
+                    className="gap-1"
+                  >
+                    <Phone className="size-4" />
+                    {t('Новый звонок', 'New call', 'Yeni arama')}
                   </Button>
                 </div>
-                <Textarea
-                  value={script}
-                  onChange={(e) => setScript(e.target.value)}
-                  className="min-h-[180px] resize-none"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 px-3 py-2">
-                <Phone className="size-4 text-amber-600" />
-                <span className="text-xs text-amber-700 dark:text-amber-300">
-                  {language === 'ru'
-                    ? 'AI голос синтезируется из текста скрипта'
-                    : language === 'en'
-                      ? 'AI voice is synthesized from the script text'
-                      : 'AI sesi senaryo metninden sentezlenir'}
-                </span>
-              </div>
-
-              <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">{language === 'ru' ? 'Клиент:' : language === 'en' ? 'Client:' : 'Müşteri:'}</span>
-                  <span className="font-medium">{clientPhone || '—'}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">{language === 'ru' ? 'Откуда звоним:' : language === 'en' ? 'Calling from:' : 'Aranan:'}</span>
-                  <span className="font-medium">{companyPhone || '—'}</span>
-                </div>
-              </div>
-
-              <Button
-                onClick={handleCallNow}
-                disabled={calling || !script.trim() || !clientPhone.trim() || !companyPhone.trim()}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20"
-              >
-                {calling ? (
-                  <>
-                    <div className="size-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    {language === 'ru' ? 'AI звонит...' : language === 'en' ? 'AI is calling...' : 'AI arıyor...'}
-                  </>
-                ) : (
-                  <>
-                    <Phone className="size-4 mr-2" />
-                    {language === 'ru'
-                      ? `Позвонить с ${companyPhone}`
-                      : language === 'en'
-                        ? `Call from ${companyPhone}`
-                        : `${companyPhone} ile ara`}
-                  </>
-                )}
-              </Button>
-            </>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -2231,9 +2527,12 @@ interface CallLogItem {
   clientPhone: string;
   companyPhone: string;
   taskDescription: string;
+  callType: string;
   status: string;
   duration: number;
   aiSummary: string;
+  vapiCallId?: string;
+  cost?: number;
   createdAt: string;
 }
 
@@ -2248,12 +2547,35 @@ function CallHistoryDialog({ open, onOpenChange }: { open: boolean; onOpenChange
     clientPhone: string;
     companyPhone: string;
     taskDescription: string;
+    callType: string;
+    status: string;
     duration: number;
     transcript: Array<{ role: string; text: string; timestamp: string }>;
     aiSummary: string;
+    cost?: number;
     createdAt: string;
   } | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const callTypeNames: Record<string, Record<string, string>> = {
+    confirmation: { ru: 'Подтверждение', en: 'Confirmation', tr: 'Onay' },
+    reminder: { ru: 'Напоминание', en: 'Reminder', tr: 'Hatırlatma' },
+    follow_up: { ru: 'Последующий', en: 'Follow-up', tr: 'Takip' },
+    custom: { ru: 'Другое', en: 'Custom', tr: 'Özel' },
+  };
+
+  const statusInfo: Record<string, { label: Record<string, string>; color: string }> = {
+    queued: { label: { ru: 'В очереди', en: 'Queued', tr: 'Sıraya alındı' }, color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' },
+    ringing: { label: { ru: 'Звонит', en: 'Ringing', tr: 'Çalıyor' }, color: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' },
+    in_progress: { label: { ru: 'Разговор', en: 'In progress', tr: 'Devam ediyor' }, color: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300' },
+    completed: { label: { ru: 'Завершён', en: 'Completed', tr: 'Tamamlandı' }, color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' },
+    failed: { label: { ru: 'Ошибка', en: 'Failed', tr: 'Başarısız' }, color: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300' },
+    no_answer: { label: { ru: 'Нет ответа', en: 'No answer', tr: 'Cevap yok' }, color: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300' },
+  };
+
+  const getCallTypeName = (ct: string) => callTypeNames[ct]?.[language === 'tr' ? 'tr' : language === 'en' ? 'en' : 'ru'] || ct;
+  const getStatusInfo = (st: string) => statusInfo[st] || { label: { ru: st, en: st, tr: st }, color: 'bg-muted text-muted-foreground' };
+  const langKey = language === 'tr' ? 'tr' : language === 'en' ? 'en' : 'ru';
 
   useEffect(() => {
     if (open && user?.id) {
@@ -2457,9 +2779,25 @@ function CallHistoryDialog({ open, onOpenChange }: { open: boolean; onOpenChange
                 <span className="font-medium">{selectedCall.companyPhone}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">{language === 'ru' ? 'Длительность:' : language === 'en' ? 'Duration:' : 'Süre:'}</span>
-                <span className="font-medium">{fmtDur(selectedCall.duration)}</span>
+                <span className="text-muted-foreground">{language === 'ru' ? 'Тип:' : language === 'en' ? 'Type:' : 'Tür:'}</span>
+                <span className="font-medium">{getCallTypeName(selectedCall.callType)}</span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{language === 'ru' ? 'Статус:' : language === 'en' ? 'Status:' : 'Durum:'}</span>
+                <Badge className={`text-[9px] px-1.5 py-0 h-4 ${getStatusInfo(selectedCall.status).color}`}>
+                  {getStatusInfo(selectedCall.status).label[langKey]}
+                </Badge>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{language === 'ru' ? 'Длительность:' : language === 'en' ? 'Duration:' : 'Süre:'}</span>
+                <span className="font-medium">{selectedCall.duration > 0 ? fmtDur(selectedCall.duration) : '—'}</span>
+              </div>
+              {selectedCall.cost != null && selectedCall.cost > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{language === 'ru' ? 'Стоимость:' : language === 'en' ? 'Cost:' : 'Maliyet:'}</span>
+                  <span className="font-medium text-emerald-600">${selectedCall.cost.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">{language === 'ru' ? 'Дата:' : language === 'en' ? 'Date:' : 'Tarih:'}</span>
                 <span className="font-medium">{new Date(selectedCall.createdAt).toLocaleString()}</span>
@@ -2520,15 +2858,25 @@ function CallHistoryDialog({ open, onOpenChange }: { open: boolean; onOpenChange
                           <Phone className="size-3.5 text-emerald-600" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{call.clientPhone}</p>
-                          <p className="text-xs text-muted-foreground truncate">{call.taskDescription}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium truncate">{call.clientPhone}</p>
+                            <Badge className={`text-[9px] px-1.5 py-0 h-4 ${getStatusInfo(call.status).color}`}>
+                              {getStatusInfo(call.status).label[langKey]}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {getCallTypeName(call.callType)}{call.taskDescription ? ` · ${call.taskDescription}` : ''}
+                          </p>
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-xs font-medium">{fmtDur(call.duration)}</p>
+                        <p className="text-xs font-medium">{call.duration > 0 ? fmtDur(call.duration) : '—'}</p>
                         <p className="text-[10px] text-muted-foreground">
                           {new Date(call.createdAt).toLocaleDateString()}
                         </p>
+                        {call.cost != null && call.cost > 0 && (
+                          <p className="text-[10px] text-emerald-600 font-medium">${call.cost.toFixed(2)}</p>
+                        )}
                       </div>
                     </div>
                     {call.aiSummary && (
@@ -2738,8 +3086,8 @@ export function AiAgentPage() {
           en: 'AI initiates calls to confirm appointments, remind about visits, and follow up after service',
           tr: 'AI randevu onayı, ziyaret hatırlatması ve hizmet sonrası takip için aramalar başlatır',
         },
-        buttonText: { ru: 'Посмотреть скрипт', en: 'View Script', tr: 'Senaryoyu Gör' },
-        badge: { ru: 'AI голос', en: 'AI voice', tr: 'AI ses' },
+        buttonText: { ru: 'Позвонить', en: 'Make Call', tr: 'Ara' },
+        badge: { ru: 'Vapi.ai', en: 'Vapi.ai', tr: 'Vapi.ai' },
         badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
         action: () => setCallDialogOpen(true),
       },
