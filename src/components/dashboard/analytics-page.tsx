@@ -232,8 +232,9 @@ export function AnalyticsPage() {
     setChatMessages([]);
     setChatConv(null);
     try {
-      const res = await fetch(`/api/conversations/${conv.id}/messages`, {
+      const res = await fetch(`/api/conversations/${conv.id}/messages?_t=${Date.now()}`, {
         headers: { 'x-user-id': user.id },
+        cache: 'no-store',
       });
       console.log(`[Analytics] Fetching chat messages for conv=${conv.id.slice(0, 8)}, status=${res.status}`);
       if (res.ok) {
@@ -271,8 +272,9 @@ export function AnalyticsPage() {
     if (showLoader) setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/analytics?range=${range}`, {
+      const res = await fetch(`/api/analytics?range=${range}&_t=${Date.now()}`, {
         headers: { 'x-user-id': user.id },
+        cache: 'no-store',
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
@@ -302,8 +304,9 @@ export function AnalyticsPage() {
     }
     setConvLoading(true);
     try {
-      const res = await fetch('/api/conversations', {
+      const res = await fetch(`/api/conversations?_t=${Date.now()}`, {
         headers: { 'x-user-id': user.id },
+        cache: 'no-store',
       });
       if (!res.ok) {
         console.error(`[Analytics] Conversations API returned ${res.status}`);
@@ -354,8 +357,9 @@ export function AnalyticsPage() {
     }
     setAptLoading(true);
     try {
-      const res = await fetch('/api/bookings', {
+      const res = await fetch(`/api/bookings?_t=${Date.now()}`, {
         headers: { 'x-user-id': user.id },
+        cache: 'no-store',
       });
       if (!res.ok) {
         console.error(`[Analytics] Appointments API returned ${res.status}`);
@@ -381,8 +385,9 @@ export function AnalyticsPage() {
     }
     setLeadsLoading(true);
     try {
-      const res = await fetch('/api/leads', {
+      const res = await fetch(`/api/leads?_t=${Date.now()}`, {
         headers: { 'x-user-id': user.id },
+        cache: 'no-store',
       });
       if (!res.ok) {
         console.error(`[Analytics] Leads API returned ${res.status}`);
@@ -413,14 +418,14 @@ export function AnalyticsPage() {
     fetchAnalytics();
   }, [fetchAnalytics]);
 
-  // Fetch lists on mount — use direct user?.id dependency for reliability
+  // Fetch lists on mount
   useEffect(() => {
     if (user?.id) {
       fetchConversations();
       fetchAppointments();
       fetchLeads();
     }
-  }, [user?.id]);
+  }, [user?.id, fetchConversations, fetchAppointments, fetchLeads]);
 
   // Auto-refresh every 30 seconds (only when page is visible)
   useEffect(() => {

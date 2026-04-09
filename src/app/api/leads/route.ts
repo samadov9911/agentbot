@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 // Session marker regex — strip hidden sessionId prefix from displayed messages
 const SESSION_MARKER_REGEX = /^\[session:[a-zA-Z0-9_-]+\]\s*/;
 
