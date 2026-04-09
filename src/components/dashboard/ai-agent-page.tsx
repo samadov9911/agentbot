@@ -246,6 +246,7 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [sendResult, setSendResult] = useState<{ sent: number; failed: number; errors?: string[] } | null>(null);
   const [customTemplates, setCustomTemplates] = useState<CustomTemplate[]>([]);
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
   const [dateFrom, setDateFrom] = useState('');
@@ -315,6 +316,8 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       setDateTo('');
       setAllClients([]);
       setClientsLoaded(false);
+      setSendResult(null);
+      setSent(false);
     }
   };
 
@@ -419,19 +422,90 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   };
 
   const handleSend = async () => {
+    if (!user?.id || !subject.trim() || !body.trim()) return;
+
+    // Build recipient list based on type
+    let recipients: string[] = [];
+
+    if (recipientType === 'individual') {
+      // Manual email addresses
+      recipients = emailAddresses
+        .split(',')
+        .map((e) => e.trim())
+        .filter((e) => e.length > 0);
+    } else if (recipientType === 'new') {
+      // Selected new clients
+      recipients = newClients
+        .filter((c) => selectedClients.has(c.id) && c.email)
+        .map((c) => c.email);
+    } else if (recipientType === 'specific') {
+      // Selected filtered clients
+      recipients = filteredClients
+        .filter((c) => selectedClients.has(c.id) && c.email)
+        .map((c) => c.email);
+    } else {
+      // All clients with emails
+      recipients = allClients.filter((c) => c.email).map((c) => c.email);
+    }
+
+    if (recipients.length === 0) {
+      toast.error(
+        language === 'ru' ? 'Нет получателей с email' : language === 'en' ? 'No recipients with email' : 'E-postası olan alıcı yok',
+      );
+      return;
+    }
+
     setSending(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    setSending(false);
-    setSent(true);
-    setTimeout(() => {
-      setSent(false);
-      onOpenChange(false);
-      setSubject('');
-      setBody('');
-      setEmailType('welcome');
-      setRecipientType('all');
-      setEmailAddresses('');
-    }, 2000);
+    setSendResult(null);
+
+    try {
+      const res = await fetch('/api/send-emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user.id,
+        },
+        body: JSON.stringify({
+          recipients,
+          subject: subject.trim(),
+          body: body.trim(),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to send');
+        setSending(false);
+        return;
+      }
+
+      setSendResult({ sent: data.sent, failed: data.failed, errors: data.errors });
+      setSending(false);
+      setSent(true);
+
+      if (data.sent > 0) {
+        toast.success(
+          language === 'ru'
+            ? `Отправлено ${data.sent} писем`
+            : language === 'en'
+              ? `${data.sent} emails sent`
+              : `${data.sent} e-posta gönderildi`,
+        );
+      }
+      if (data.failed > 0) {
+        toast.error(
+          language === 'ru'
+            ? `${data.failed} писем не доставлено`
+            : language === 'en'
+              ? `${data.failed} emails failed`
+              : `${data.failed} e-posta başarısız`,
+        );
+      }
+    } catch {
+      toast.error(language === 'ru' ? 'Ошибка отправки' : language === 'en' ? 'Send error' : 'Gönderme hatası');
+      setSending(false);
+    }
   };
 
   return (
@@ -672,10 +746,57 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 
           {sent ? (
             <div className="flex flex-col items-center justify-center gap-3 py-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/50">
-              <CheckCircle2 className="size-10 text-emerald-500" />
+              {sendResult && sendResult.failed === 0 ? (
+                <CheckCircle2 className="size-10 text-emerald-500" />
+              ) : (
+                <CheckCircle2 className="size-10 text-amber-500" />
+              )}
               <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
-                {language === 'ru' ? 'Письмо успешно отправлено!' : language === 'en' ? 'Email sent successfully!' : 'E-posta başarıyla gönderildi!'}
+                {sendResult
+                  ? language === 'ru'
+                    ? `Отправлено: ${sendResult.sent} ${sendResult.sent === 1 ? 'письмо' : sendResult.sent < 5 ? 'письма' : 'писем'}`
+                    : language === 'en'
+                      ? `${sendResult.sent} email${sendResult.sent === 1 ? '' : 's'} sent`
+                      : `${sendResult.sent} e-posta gönderildi`
+                  : (language === 'ru' ? 'Письмо отправлено!' : language === 'en' ? 'Email sent!' : 'E-posta gönderildi!')}
               </p>
+              {sendResult && sendResult.failed > 0 && (
+                <div className="w-full max-w-sm space-y-2 mt-1">
+                  <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                    {language === 'ru'
+                      ? `${sendResult.failed} не доставлено`
+                      : language === 'en'
+                        ? `${sendResult.failed} failed`
+                        : `${sendResult.failed} başarısız`}
+                  </p>
+                  {sendResult.errors && sendResult.errors.length > 0 && (
+                    <div className="max-h-24 overflow-y-auto rounded-md bg-white dark:bg-zinc-900 p-2">
+                      {sendResult.errors.map((err, i) => (
+                        <p key={i} className="text-[10px] text-muted-foreground truncate">{err}</p>
+                      ))}
+                    </div>
+                  )}
+                  {sendResult.failed > 0 && (
+                    <p className="text-[10px] text-amber-600/80 dark:text-amber-400/80 text-center">
+                      {language === 'ru'
+                        ? 'Убедитесь что EMAIL_FROM верифицирован в Resend, а получатели существуют'
+                        : language === 'en'
+                          ? 'Make sure EMAIL_FROM is verified in Resend and recipients exist'
+                          : 'EMAIL_FROM\'un Resend\'de doğrulanmış olduğundan emin olun'}
+                    </p>
+                  )}
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSent(false);
+                  setSendResult(null);
+                }}
+              >
+                {language === 'ru' ? 'Написать ещё' : language === 'en' ? 'Write another' : 'Başka yaz'}
+              </Button>
             </div>
           ) : (
             <>
