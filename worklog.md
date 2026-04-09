@@ -135,3 +135,25 @@ Stage Summary:
 - Visual timestamp shows exact time of last successful fetch
 - Error banner with retry appears if fetch fails
 - Pushed to GitHub: commit 305a839
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix Appointments (Записи) refresh button not updating + add 1-second auto-refresh
+
+Work Log:
+- Analyzed fetchAppointments function and identified same issues as Leads
+- Backend was already correct: _serverTime field, CACHE_HEADERS, dynamic=force-dynamic
+- Frontend fix: Rewrote fetchAppointments with showLoader parameter (true=loader, false=silent)
+- Frontend: Removed cache: no-store (unreliable in browser), added method:GET + pragma:no-cache + double cache-busting
+- Frontend: Added aptFetchingRef to prevent overlapping requests from 1s interval
+- Frontend: Added dedicated 1-second setInterval for appointments auto-refresh
+- Frontend: Removed appointments from 30s global interval (now has own 1s interval)
+- Updated all fetchAppointments() call sites: button/tabs/mount use true, auto-refresh/visibility use false
+- Lint passes, committed and pushed to GitHub main
+
+Stage Summary:
+- Appointments tab now auto-refreshes every 1 second when page is visible
+- Manual refresh button calls fetchAppointments(true) with visible loader
+- Green dot + timestamp already present from previous work shows freshness
+- Error banner with retry button already present
+- Pushed to GitHub: commit e2d9157
