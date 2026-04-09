@@ -15,6 +15,11 @@ const CACHE_HEADERS = {
  *
  * Returns real-time AI agent statistics for the authenticated user.
  * All counts are computed from the database — no mock data.
+ *
+ * IMPORTANT: All Message queries use flat `conversationId` filter (NOT
+ * the relation filter `conversation: { botId }`) because PgBouncer in
+ * transaction mode does not support the implicit JOIN that Prisma generates
+ * for nested relation filters.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -23,7 +28,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get all bot IDs for this user
+    // Step 1: Get all bot IDs for this user
     const userBots = await db.bot.findMany({
       where: { userId, deletedAt: null },
       select: { id: true },
@@ -48,15 +53,26 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Step 2: Get all conversation IDs for these bots (flat query — safe for PgBouncer)
+    const conversations = await db.conversation.findMany({
+      where: { botId: { in: botIds } },
+      select: { id: true },
+    });
+
+    const conversationIds = conversations.map(c => c.id);
+
+    console.log(
+      `[AgentStats] userId=${userId.slice(0, 8)} bots=${botIds.length} conversations=${conversationIds.length}`,
+    );
+
     // ── Time boundaries ──
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    // Start of last week (7 days ago)
     const lastWeekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     lastWeekStart.setHours(0, 0, 0, 0);
 
-    // ── Parallel queries for maximum performance ──
+    // ── Parallel queries (all flat — no relation filters on Message) ──
     const [
       tasksToday,
       totalMessages,
@@ -69,10 +85,10 @@ export async function GET(request: NextRequest) {
       newLeads,
       conversationsProcessed,
     ] = await Promise.all([
-      // 1. Tasks today = user messages from today (each triggers AI processing)
+      // 1. Tasks today = user messages from today
       db.message.count({
         where: {
-          conversation: { botId: { in: botIds } },
+          conversationId: { in: conversationIds },
           role: 'user',
           createdAt: { gte: todayStart },
         },
@@ -81,11 +97,11 @@ export async function GET(request: NextRequest) {
       // 2. Total messages (all roles)
       db.message.count({
         where: {
-          conversation: { botId: { in: botIds } },
+          conversationId: { in: conversationIds },
         },
       }),
 
-      // 3. Confirmed bookings (all time)
+      // 3. Confirmed bookings (Appointment has botId directly — safe)
       db.appointment.count({
         where: {
           botId: { in: botIds },
@@ -93,28 +109,28 @@ export async function GET(request: NextRequest) {
         },
       }),
 
-      // 4. Latest message timestamp
+      // 4. Latest message timestamp (flat filter — safe for PgBouncer)
       db.message.findFirst({
-        where: { conversation: { botId: { in: botIds } } },
+        where: { conversationId: { in: conversationIds } },
         orderBy: { createdAt: 'desc' },
         select: { createdAt: true },
       }),
 
-      // 5. Latest appointment timestamp
+      // 5. Latest appointment timestamp (has botId directly — safe)
       db.appointment.findFirst({
         where: { botId: { in: botIds } },
         orderBy: { createdAt: 'desc' },
         select: { createdAt: true },
       }),
 
-      // 6. Latest lead timestamp
+      // 6. Latest lead timestamp (Lead has botId directly — safe)
       db.lead.findFirst({
         where: { botId: { in: botIds } },
         orderBy: { createdAt: 'desc' },
         select: { createdAt: true },
       }),
 
-      // 7. Emails sent = leads that were contacted (AI reached out via email)
+      // 7. Emails sent = leads that were contacted
       db.lead.count({
         where: {
           botId: { in: botIds },
@@ -122,7 +138,7 @@ export async function GET(request: NextRequest) {
         },
       }),
 
-      // 8. Calls made (from CallLog)
+      // 8. Calls made (CallLog has userId directly — safe)
       db.callLog.count({
         where: { userId },
       }),
@@ -135,7 +151,7 @@ export async function GET(request: NextRequest) {
         },
       }),
 
-      // 10. Conversations processed (all time)
+      // 10. Conversations processed (has botId directly — safe)
       db.conversation.count({
         where: { botId: { in: botIds } },
       }),
@@ -154,7 +170,11 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(
-      `[AgentStats] userId=${userId.slice(0, 8)} tasksToday=${tasksToday} totalMessages=${totalMessages} confirmedBookings=${confirmedBookings} emailsSent=${emailsSent} callsMade=${callsMade} newLeads=${newLeads} conversationsProcessed=${conversationsProcessed}`,
+      `[AgentStats] userId=${userId.slice(0, 8)} ` +
+        `tasksToday=${tasksToday} totalMessages=${totalMessages} ` +
+        `confirmedBookings=${confirmedBookings} emailsSent=${emailsSent} ` +
+        `callsMade=${callsMade} newLeads=${newLeads} conversationsProcessed=${conversationsProcessed} ` +
+        `lastActivity=${lastActivity}`,
     );
 
     return NextResponse.json(
