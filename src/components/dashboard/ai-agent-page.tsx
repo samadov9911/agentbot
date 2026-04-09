@@ -2223,6 +2223,35 @@ export function AiAgentPage() {
   const [activities, setActivities] = useState<ActivityItem[]>(MOCK_ACTIVITIES);
   const [agentEnabled, setAgentEnabled] = useState(true);
 
+  // ── Real agent stats from DB ──
+  const [agentStats, setAgentStats] = useState<{
+    tasksToday: number;
+    totalMessages: number;
+    confirmedBookings: number;
+    lastActivity: string | null;
+  } | null>(null);
+
+  /** Format an ISO timestamp into a human-readable relative string like "2 мин назад" */
+  function formatTimeAgo(iso: string | null, lang: string): string {
+    if (!iso) return lang === 'ru' ? 'Нет данных' : lang === 'en' ? 'No data' : 'Veri yok';
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 60) return lang === 'ru' ? 'только что' : lang === 'en' ? 'just now' : 'şimdi';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) {
+      const unit = lang === 'ru' ? 'мин назад' : lang === 'en' ? `${diffMin === 1 ? 'min' : 'mins'} ago` : 'dk önce';
+      return `${diffMin} ${unit}`;
+    }
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) {
+      const unit = lang === 'ru' ? 'ч назад' : lang === 'en' ? `${diffHr === 1 ? 'hour' : 'hours'} ago` : 'saat önce';
+      return `${diffHr} ${unit}`;
+    }
+    const diffDay = Math.floor(diffHr / 24);
+    const unit = lang === 'ru' ? 'дн назад' : lang === 'en' ? `${diffDay === 1 ? 'day' : 'days'} ago` : 'gün önce';
+    return `${diffDay} ${unit}`;
+  }
+
   const [notifications, setNotifications] = useState({
     booking: true,
     reminder24h: true,
@@ -2243,12 +2272,18 @@ export function AiAgentPage() {
         const headers = { 'x-user-id': user.id };
 
         // Fetch analytics for the week
-        const [analyticsRes, botsRes] = await Promise.all([
+        const [analyticsRes, botsRes, statsRes] = await Promise.all([
           fetch('/api/analytics?range=week', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
           fetch('/api/bots', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch('/api/agent-stats', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
         ]);
 
         if (cancelled) return;
+
+        // Set real agent stats
+        if (statsRes) {
+          setAgentStats(statsRes);
+        }
 
         const realItems: ActivityItem[] = [];
         let idCounter = 1;
@@ -2456,26 +2491,27 @@ export function AiAgentPage() {
                   <span className="text-emerald-200">
                     {language === 'ru' ? 'Задач сегодня' : language === 'en' ? 'Tasks today' : 'Bugünkü görevler'}
                   </span>
-                  <span className="font-semibold">24</span>
+                  <span className="font-semibold">{agentStats?.tasksToday ?? 0}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-emerald-200">
                     {language === 'ru' ? 'Сообщений' : language === 'en' ? 'Messages' : 'Mesajlar'}
                   </span>
-                  <span className="font-semibold">147</span>
+                  <span className="font-semibold">{agentStats?.totalMessages ?? 0}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-emerald-200">
                     {language === 'ru' ? 'Записей подтверждено' : language === 'en' ? 'Appointments confirmed' : 'Onaylanan randevular'}
                   </span>
-                  <span className="font-semibold">18</span>
+                  <span className="font-semibold">{agentStats?.confirmedBookings ?? 0}</span>
                 </div>
               </div>
               <Separator className="bg-white/20" />
               <div className="flex items-center gap-2 text-xs text-emerald-200">
                 <Clock className="size-3" />
                 <span>
-                  {language === 'ru' ? 'Последняя активность: 2 мин назад' : language === 'en' ? 'Last activity: 2 min ago' : 'Son aktivite: 2 dk önce'}
+                  {language === 'ru' ? 'Последняя активность: ' : language === 'en' ? 'Last activity: ' : 'Son aktivite: '}
+                  {formatTimeAgo(agentStats?.lastActivity ?? null, language)}
                 </span>
               </div>
             </CardContent>
@@ -2713,22 +2749,19 @@ export function AiAgentPage() {
                   ))}
                 </div>
               ) : (
-                /* Existing user with bots */
+                /* Existing user with bots — real data from API */
                 [
-                  { icon: <Mail className="size-4" />, label: { ru: 'Писем отправлено', en: 'Emails sent', tr: 'Gönderilen e-posta' }, value: '47', change: '+12%' },
-                  { icon: <Phone className="size-4" />, label: { ru: 'Звонков выполнено', en: 'Calls made', tr: 'Yapılan aramalar' }, value: '15', change: '+8%' },
-                  { icon: <Users className="size-4" />, label: { ru: 'Новых лидов', en: 'New leads', tr: 'Yeni potansiyel müşteri' }, value: '23', change: '+34%' },
-                  { icon: <MessageCircle className="size-4" />, label: { ru: 'Диалогов обработано', en: 'Conversations', tr: 'İşlenen diyaloglar' }, value: '156', change: '+5%' },
+                  { icon: <Mail className="size-4" />, label: { ru: 'Писем отправлено', en: 'Emails sent', tr: 'Gönderilen e-posta' }, value: agentStats?.emailsSent ?? 0 },
+                  { icon: <Phone className="size-4" />, label: { ru: 'Звонков выполнено', en: 'Calls made', tr: 'Yapılan aramalar' }, value: agentStats?.callsMade ?? 0 },
+                  { icon: <Users className="size-4" />, label: { ru: 'Новых лидов', en: 'New leads', tr: 'Yeni potansiyel müşteri' }, value: agentStats?.newLeads ?? 0 },
+                  { icon: <MessageCircle className="size-4" />, label: { ru: 'Диалогов обработано', en: 'Conversations', tr: 'İşlenen diyaloglar' }, value: agentStats?.conversationsProcessed ?? 0 },
                 ].map((stat) => (
-                  <div key={stat.value} className="flex items-center gap-3">
+                  <div key={stat.label.ru} className="flex items-center gap-3">
                     <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-600 shrink-0">
                       {stat.icon}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">{tx(stat.label, language)}</span>
-                        <span className="text-xs font-medium text-emerald-600">↑ {stat.change}</span>
-                      </div>
+                      <span className="text-xs text-muted-foreground">{tx(stat.label, language)}</span>
                       <p className="text-lg font-bold tabular-nums">{stat.value}</p>
                     </div>
                   </div>
