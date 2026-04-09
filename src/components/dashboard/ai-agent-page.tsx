@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Sparkles,
   Mail,
+  AtSign,
   Phone,
   BellRing,
   Users,
@@ -252,6 +253,11 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
+  // ── Sender email (from user settings) ──
+  const [emailFrom, setEmailFrom] = useState('');
+  const [emailFromLoaded, setEmailFromLoaded] = useState(false);
+  const [savingEmailFrom, setSavingEmailFrom] = useState(false);
+
   // ── Real client data from DB ──
   const [allClients, setAllClients] = useState<ClientItem[]>([]);
   const [clientsLoaded, setClientsLoaded] = useState(false);
@@ -270,6 +276,16 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         const list = Array.isArray(data) ? [] : data.clients ?? [];
         setAllClients(list);
         setClientsLoaded(true);
+      })
+      .catch(() => {});
+
+    // Load user's sender email from settings
+    fetch('/api/user-settings', { headers })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        setEmailFrom(data.emailFrom || '');
+        setEmailFromLoaded(true);
       })
       .catch(() => {});
 
@@ -316,6 +332,7 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       setDateTo('');
       setAllClients([]);
       setClientsLoaded(false);
+      setEmailFromLoaded(false);
       setSendResult(null);
       setSent(false);
     }
@@ -469,6 +486,7 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           recipients,
           subject: subject.trim(),
           body: body.trim(),
+          fromEmail: emailFrom.trim() || undefined,
         }),
       });
 
@@ -720,6 +738,81 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               </Select>
             </div>
           )}
+
+          {/* Sender email ("От кого") */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium flex items-center gap-1.5">
+                <AtSign className="size-3.5 text-emerald-600" />
+                {language === 'ru' ? 'От кого' : language === 'en' ? 'From' : 'Kimden'}
+              </label>
+              {emailFrom.trim() && (
+                <span className="text-[10px] text-emerald-600 font-medium">
+                  ✓ {language === 'ru' ? 'Ваш email' : language === 'en' ? 'Your email' : 'E-postanız'}
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={emailFrom}
+                onChange={(e) => setEmailFrom(e.target.value)}
+                placeholder={language === 'ru'
+                  ? 'info@mycompany.com'
+                  : language === 'en'
+                    ? 'info@mycompany.com'
+                    : 'info@sirketim.com'}
+                className="flex-1"
+                type="email"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  if (!user?.id) return;
+                  setSavingEmailFrom(true);
+                  try {
+                    const res = await fetch('/api/user-settings', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+                      body: JSON.stringify({ emailFrom: emailFrom.trim() || null }),
+                    });
+                    if (res.ok) {
+                      toast.success(language === 'ru'
+                        ? 'Email отправителя сохранён'
+                        : language === 'en'
+                          ? 'Sender email saved'
+                          : 'Gönderici e-postası kaydedildi');
+                    }
+                  } catch { /* ignore */ }
+                  setSavingEmailFrom(false);
+                }}
+                disabled={savingEmailFrom}
+                className="shrink-0"
+              >
+                {savingEmailFrom
+                  ? (language === 'ru' ? '...' : language === 'en' ? '...' : '...')
+                  : <Save className="size-3.5" />}
+              </Button>
+            </div>
+            {!emailFrom.trim() && emailFromLoaded && (
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                {language === 'ru'
+                  ? 'По умолчанию письма отправляются от onboarding@resend.dev. Укажите свой email для отправки от имени компании.'
+                  : language === 'en'
+                    ? 'By default emails are sent from onboarding@resend.dev. Enter your email to send on behalf of your company.'
+                    : 'Varsayılan olarak e-postalar onboarding@resend.dev adresinden gönderilir. Şirketiniz adına göndermek için e-posta girin.'}
+              </p>
+            )}
+            {emailFrom.trim() && emailFromLoaded && (
+              <p className="text-[11px] text-emerald-600/80 leading-snug">
+                {language === 'ru'
+                  ? 'Для корректной работы убедитесь, что этот домен верифицирован в Resend Dashboard.'
+                  : language === 'en'
+                    ? 'Make sure this domain is verified in Resend Dashboard for reliable delivery.'
+                    : 'Güvenilir teslimat için bu alan adının Resend Dashboard\'da doğrulandığından emin olun.'}
+              </p>
+            )}
+          </div>
 
           {/* Email template gallery with custom (Issue 1) */}
           <div className="space-y-2">
@@ -2411,6 +2504,9 @@ export function AiAgentPage() {
     lastActivity: string | null;
   } | null>(null);
 
+  // ── User's configured sender email ──
+  const [userEmailFrom, setUserEmailFrom] = useState<string | null>(null);
+
   /** Format an ISO timestamp into a human-readable relative string like "2 мин назад" */
   function formatTimeAgo(iso: string | null, lang: string): string {
     if (!iso) return lang === 'ru' ? 'Нет данных' : lang === 'en' ? 'No data' : 'Veri yok';
@@ -2452,10 +2548,11 @@ export function AiAgentPage() {
         const headers = { 'x-user-id': user.id };
 
         // Fetch analytics for the week
-        const [analyticsRes, botsRes, statsRes] = await Promise.all([
+        const [analyticsRes, botsRes, statsRes, settingsRes] = await Promise.all([
           fetch('/api/analytics?range=week', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
           fetch('/api/bots', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
           fetch('/api/agent-stats', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch('/api/user-settings', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
         ]);
 
         if (cancelled) return;
@@ -2463,6 +2560,11 @@ export function AiAgentPage() {
         // Set real agent stats
         if (statsRes) {
           setAgentStats(statsRes);
+        }
+
+        // Set user's configured sender email
+        if (settingsRes?.emailFrom) {
+          setUserEmailFrom(settingsRes.emailFrom);
         }
 
         const realItems: ActivityItem[] = [];
@@ -2736,14 +2838,22 @@ export function AiAgentPage() {
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <CapabilityCard
-            icon={<Mail className="size-5" />}
-            title={capabilities[0].title}
-            description={capabilities[0].description}
-            buttonText={capabilities[0].buttonText}
-            badge={capabilities[0].badge}
-            onClick={capabilities[0].action}
-          />
+          <div className="space-y-2">
+            <CapabilityCard
+              icon={<Mail className="size-5" />}
+              title={capabilities[0].title}
+              description={capabilities[0].description}
+              buttonText={capabilities[0].buttonText}
+              badge={capabilities[0].badge}
+              onClick={capabilities[0].action}
+            />
+            {userEmailFrom && (
+              <div className="flex items-center gap-1.5 px-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                <AtSign className="size-3" />
+                <span className="truncate">{userEmailFrom}</span>
+              </div>
+            )}
+          </div>
 
           <div className="space-y-2">
             <CapabilityCard

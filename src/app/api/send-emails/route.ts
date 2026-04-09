@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { recipients, subject, body, html: isHtml } = await request.json();
+    const { recipients, subject, body, html: isHtml, fromEmail } = await request.json();
 
     // Validate
     if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
@@ -60,7 +60,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const fromAddress = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+    // Determine sender: user's custom email > env EMAIL_FROM > default
+    const customFrom = typeof fromEmail === 'string' && fromEmail.trim() ? fromEmail.trim() : null;
+    const envFrom = process.env.EMAIL_FROM || null;
+    const fromAddress = customFrom || envFrom || 'onboarding@resend.dev';
+
+    // If user provided a custom from email, persist it to their profile
+    if (customFrom) {
+      try {
+        await db.user.update({ where: { id: userId }, data: { emailFrom: customFrom } });
+      } catch { /* ignore */ }
+    }
 
     // Get business name for "from" display name
     let businessName = 'AgentBot';
