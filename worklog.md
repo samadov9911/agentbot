@@ -186,3 +186,22 @@ Stage Summary:
 - Non-blocking: does not slow down or affect the booking API response
 - Graceful: if RESEND_API_KEY is not set, silently logs and skips (no crash)
 - To activate: user needs to set RESEND_API_KEY + EMAIL_FROM in Vercel environment variables
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix Vercel build error — Prisma 6.x ENOTDIR config auto-discovery
+
+Work Log:
+- User reported Vercel build failure: `prisma generate` failing during `postinstall`
+- Error: `Failed to load config file "/vercel/path0" as a TypeScript/JavaScript module. Error: ENOTDIR: not a directory, lstat '/vercel/path0/.config/prisma'`
+- Reproduced locally: same error with `npx prisma generate`
+- Root cause: Prisma 6.x auto-discovers config files and tries to load the project root directory as a TypeScript/JavaScript module
+- Tried `prisma.config.ts` first — syntax parse error
+- Created `prisma.config.js` with `schema` pointing to `prisma/schema.prisma` — works correctly
+- Verified: `prisma generate` succeeds, schema loads, lint passes, dev server runs
+- Pushed to GitHub: commit b4fb768
+
+Stage Summary:
+- Added `prisma.config.js` at project root to satisfy Prisma 6.x config auto-discovery
+- File exports a config object with `schema` path
+- Vercel build should now succeed on next deployment
