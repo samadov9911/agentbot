@@ -211,17 +211,20 @@ export function AnalyticsPage() {
   // Appointments list state
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
   const [aptLoading, setAptLoading] = useState(false);
+  const [aptError, setAptError] = useState<string | null>(null);
 
   // Leads list state
   const [leads, setLeads] = useState<LeadItem[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [leadsSearch, setLeadsSearch] = useState('');
+  const [leadsError, setLeadsError] = useState<string | null>(null);
 
   // Chat history state
   const [selectedConv, setSelectedConv] = useState<ConversationItem | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatConv, setChatConv] = useState<ChatConversation | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // ── Fetch chat messages for a conversation ──
@@ -231,6 +234,7 @@ export function AnalyticsPage() {
     setChatLoading(true);
     setChatMessages([]);
     setChatConv(null);
+    setChatError(null);
     try {
       const res = await fetch(`/api/conversations/${conv.id}/messages?_t=${Date.now()}`, {
         headers: { 'x-user-id': user.id },
@@ -242,11 +246,19 @@ export function AnalyticsPage() {
         console.log(`[Analytics] Chat response: conv=${!!data.conversation}, msgs=${data.messages?.length}`);
         setChatConv(data.conversation || null);
         setChatMessages(data.messages || []);
+        // If conversation was found but has 0 messages, show a hint
+        if ((!data.messages || data.messages.length === 0) && data.conversation) {
+          setChatError('EMPTY');
+        }
       } else {
-        console.error('[Analytics] Chat messages fetch error:', res.status, await res.text().catch(() => ''));
+        const errText = await res.text().catch(() => '');
+        console.error('[Analytics] Chat messages fetch error:', res.status, errText);
+        setChatError(`HTTP ${res.status}: ${errText.slice(0, 100)}`);
       }
     } catch (err) {
-      console.error('[Analytics] Chat messages fetch error:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[Analytics] Chat messages fetch error:', msg);
+      setChatError(msg);
     } finally {
       setChatLoading(false);
     }
@@ -309,8 +321,10 @@ export function AnalyticsPage() {
         cache: 'no-store',
       });
       if (!res.ok) {
-        console.error(`[Analytics] Conversations API returned ${res.status}`);
-        throw new Error(`HTTP ${res.status}`);
+        const errBody = await res.json().catch(() => null);
+        const errMsg = errBody?.error || `HTTP ${res.status}`;
+        console.error(`[Analytics] Conversations API returned ${res.status}:`, errMsg);
+        throw new Error(errMsg);
       }
       const data = await res.json();
       const items = Array.isArray(data.conversations) ? data.conversations : [];
@@ -343,7 +357,7 @@ export function AnalyticsPage() {
       }
     } catch (err) {
       console.error('[Analytics] Conversations fetch error:', err);
-      setConversations([]);
+      // CRITICAL FIX: Do NOT clear existing data on error — preserve previous results
     } finally {
       setConvLoading(false);
     }
@@ -356,22 +370,28 @@ export function AnalyticsPage() {
       return;
     }
     setAptLoading(true);
+    setAptError(null);
     try {
       const res = await fetch(`/api/bookings?_t=${Date.now()}`, {
         headers: { 'x-user-id': user.id },
         cache: 'no-store',
       });
       if (!res.ok) {
-        console.error(`[Analytics] Appointments API returned ${res.status}`);
-        throw new Error(`HTTP ${res.status}`);
+        const errBody = await res.json().catch(() => null);
+        const errMsg = errBody?.error || `HTTP ${res.status}`;
+        console.error(`[Analytics] Appointments API returned ${res.status}:`, errMsg);
+        throw new Error(errMsg);
       }
       const data = await res.json();
       const items = Array.isArray(data.appointments) ? data.appointments : [];
       setAppointments(items);
+      setAptError(null);
       console.log(`[Analytics] Loaded ${items.length} appointments (user=${user.id.slice(0, 8)})`);
     } catch (err) {
       console.error('[Analytics] Appointments fetch error:', err);
-      setAppointments([]);
+      // CRITICAL FIX: Do NOT clear existing data on error — preserve previous results
+      const msg = err instanceof Error ? err.message : String(err);
+      setAptError(msg);
     } finally {
       setAptLoading(false);
     }
@@ -384,22 +404,28 @@ export function AnalyticsPage() {
       return;
     }
     setLeadsLoading(true);
+    setLeadsError(null);
     try {
       const res = await fetch(`/api/leads?_t=${Date.now()}`, {
         headers: { 'x-user-id': user.id },
         cache: 'no-store',
       });
       if (!res.ok) {
-        console.error(`[Analytics] Leads API returned ${res.status}`);
-        throw new Error(`HTTP ${res.status}`);
+        const errBody = await res.json().catch(() => null);
+        const errMsg = errBody?.error || `HTTP ${res.status}`;
+        console.error(`[Analytics] Leads API returned ${res.status}:`, errMsg);
+        throw new Error(errMsg);
       }
       const data = await res.json();
       const items = Array.isArray(data.leads) ? data.leads : [];
       setLeads(items);
+      setLeadsError(null);
       console.log(`[Analytics] Loaded ${items.length} leads (user=${user.id.slice(0, 8)})`);
     } catch (err) {
       console.error('[Analytics] Leads fetch error:', err);
-      setLeads([]);
+      // CRITICAL FIX: Do NOT clear existing data on error — preserve previous results
+      const msg = err instanceof Error ? err.message : String(err);
+      setLeadsError(msg);
     } finally {
       setLeadsLoading(false);
     }
@@ -969,6 +995,20 @@ export function AnalyticsPage() {
         {/* TAB: Appointments                                        */}
         {/* ═══════════════════════════════════════════════════════ */}
         <TabsContent value="appointments" className="flex flex-col gap-4 mt-4">
+          {/* Error banner */}
+          {aptError && (
+            <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20">
+              <CardContent className="flex items-center gap-3 p-3">
+                <AlertCircle className="size-4 shrink-0 text-amber-500" />
+                <p className="text-xs text-amber-700 dark:text-amber-400 flex-1">
+                  {label('Ошибка загрузки записей', 'Failed to load appointments', 'Randevular yüklenemedi')}: {aptError}
+                </p>
+                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={fetchAppointments}>
+                  <RefreshCw className="size-3" />
+                </Button>
+              </CardContent>
+            </Card>
+          )}
           {/* Refresh */}
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
@@ -1242,11 +1282,33 @@ export function AnalyticsPage() {
                   {label('Загрузка сообщений...', 'Loading messages...', 'Mesajlar yükleniyor...')}
                 </p>
               </div>
+            ) : chatError && chatError !== 'EMPTY' ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
+                <AlertCircle className="size-10 text-red-400" />
+                <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                  {label('Ошибка загрузки', 'Load error', 'Yükleme hatası')}
+                </p>
+                <p className="text-[11px] text-muted-foreground max-w-[280px] break-all">
+                  {chatError}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs mt-1"
+                  onClick={() => selectedConv && openChatHistory(selectedConv)}
+                >
+                  <RefreshCw className="size-3" />
+                  {label('Повторить', 'Retry', 'Tekrar dene')}
+                </Button>
+              </div>
             ) : chatMessages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
                 <MessageSquare className="size-10 text-muted-foreground/30" />
                 <p className="text-sm text-muted-foreground">
-                  {label('Сообщений нет', 'No messages', 'Mesaj yok')}
+                  {chatError === 'EMPTY'
+                    ? label('Сообщений пока нет. Начните диалог через виджет бота.', 'No messages yet. Start a conversation via the bot widget.', 'Henüz mesaj yok. Bot widgetı üzerinden görüşme başlatın.')
+                    : label('Сообщений нет', 'No messages', 'Mesaj yok')
+                  }
                 </p>
               </div>
             ) : (

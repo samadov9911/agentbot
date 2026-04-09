@@ -8,42 +8,69 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const userId = request.headers.get("x-user-id");
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    let id: string | undefined;
+    try {
+      const resolvedParams = await params;
+      id = resolvedParams.id;
+    } catch (paramsErr) {
+      console.error("[ConversationMessages] Failed to resolve params:", paramsErr);
+      return NextResponse.json({ error: "Invalid conversation ID", conversation: null, messages: [] }, { status: 400 });
     }
 
     if (!id) {
-      return NextResponse.json({ error: "Conversation ID is required" }, { status: 400 });
+      return NextResponse.json({ error: "Conversation ID is required", conversation: null, messages: [] }, { status: 400 });
     }
 
+    const userId = request.headers.get("x-user-id");
+    if (!userId) {
+      console.warn("[ConversationMessages] Missing x-user-id header");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    console.log(`[ConversationMessages] Fetching messages for conv=${id.slice(0, 8)}, user=${userId.slice(0, 8)}`);
+
     // Verify the conversation belongs to a bot owned by this user
-    const conversation = await db.conversation.findFirst({
-      where: { id },
-      include: { bot: { select: { userId: true } } },
-    });
+    let conversation;
+    try {
+      conversation = await db.conversation.findFirst({
+        where: { id },
+        include: { bot: { select: { userId: true, name: true } } },
+      });
+    } catch (dbErr) {
+      console.error("[ConversationMessages] DB error finding conversation:", dbErr);
+      return NextResponse.json({ error: "Database error", conversation: null, messages: [] }, { status: 500 });
+    }
 
     if (!conversation) {
-      return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+      console.warn(`[ConversationMessages] Conversation ${id.slice(0, 8)} not found`);
+      return NextResponse.json({ error: "Conversation not found", conversation: null, messages: [] }, { status: 404 });
     }
 
     if (conversation.bot.userId !== userId) {
+      console.warn(`[ConversationMessages] Forbidden: conv belongs to user ${conversation.bot.userId.slice(0, 8)}, requested by ${userId.slice(0, 8)}`);
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Fetch all messages for this conversation
-    const messages = await db.message.findMany({
-      where: { conversationId: id },
-      orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        role: true,
-        content: true,
-        messageType: true,
-        createdAt: true,
-      },
-    });
+    let messages;
+    try {
+      messages = await db.message.findMany({
+        where: { conversationId: id },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          role: true,
+          content: true,
+          messageType: true,
+          createdAt: true,
+        },
+      });
+    } catch (msgErr) {
+      console.error("[ConversationMessages] DB error fetching messages:", msgErr);
+      return NextResponse.json({ error: "Database error fetching messages", conversation: null, messages: [] }, { status: 500 });
+    }
+
+    console.log(`[ConversationMessages] Found conversation: ${conversation.visitorName || 'Client'}, messages: ${messages.length}`);
 
     return NextResponse.json({
       conversation: {
@@ -62,7 +89,7 @@ export async function GET(
       })),
     });
   } catch (e) {
-    console.error("[ConversationMessages] Error:", e);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    console.error("[ConversationMessages] Top-level error:", e);
+    return NextResponse.json({ error: "Server error", conversation: null, messages: [] }, { status: 500 });
   }
 }
