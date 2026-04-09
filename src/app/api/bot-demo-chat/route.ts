@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { chatWithAi } from '@/lib/ai';
 import { db } from '@/lib/db';
+import { sendBookingConfirmation } from '@/lib/email';
 
 // In-memory conversation histories for demo (keyed by sessionId)
 const demoConversations = new Map<string, Array<{ role: string; content: string }>>();
@@ -649,6 +650,32 @@ async function tryCreateAppointment(
     }
 
     console.log(`[AutoBooking] ✅ Created appointment ${appointment.id} for ${visitorName} on ${date} at ${time}`);
+
+    // ── Send booking confirmation email to client (non-blocking) ──
+    if (visitorEmail) {
+      // Get bot name for the email
+      let businessName = 'Our Company';
+      try {
+        const bot = await db.bot.findFirst({ where: { id: botId }, select: { name: true } });
+        if (bot) businessName = bot.name;
+      } catch { /* ignore */ }
+
+      const dateStr = date;
+      sendBookingConfirmation({
+        to: visitorEmail,
+        visitorName,
+        businessName,
+        service: undefined,
+        date: dateStr,
+        time,
+        duration: 60,
+        appointmentId: appointment.id,
+        language: lang,
+      }).catch(() => { /* already logged inside */ });
+    } else {
+      console.log(`[AutoBooking] No visitor email — skipping confirmation email`);
+    }
+
     return true;
   } catch (e) {
     console.error('[AutoBooking] Failed:', e);
