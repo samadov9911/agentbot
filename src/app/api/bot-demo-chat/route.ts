@@ -671,7 +671,15 @@ async function tryCreateAppointment(
         duration: 60,
         appointmentId: appointment.id,
         language: lang,
-      }).catch(() => { /* already logged inside */ });
+      }).then((sent) => {
+        if (sent) {
+          console.log(`[AutoBooking] ✅ Confirmation email sent to ${visitorEmail}`);
+        } else {
+          console.error(`[AutoBooking] ⚠️  Confirmation email FAILED to ${visitorEmail} — see [Email] logs above`);
+        }
+      }).catch((err) => {
+        console.error(`[AutoBooking] ⚠️  Confirmation email exception:`, err);
+      });
     } else {
       console.log(`[AutoBooking] No visitor email — skipping confirmation email`);
     }

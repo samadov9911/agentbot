@@ -230,22 +230,36 @@ export async function sendBookingConfirmation(params: BookingEmailParams): Promi
     : `Запись подтверждена — ${params.businessName}`;
 
   try {
+    console.log(`[Email] Sending confirmation: from=${fromAddress}, to=${params.to}, subject="${subject}"`);
+
     const { data, error } = await resend.emails.send({
-      from: `${params.businessName} <${fromAddress}>`,
+      from: fromAddress,
       to: [params.to],
       subject,
       html: buildBookingHtml(params),
     });
 
     if (error) {
-      console.error('[Email] Failed to send booking confirmation:', error);
+      // Detailed Resend error — includes error code, message, name, statusCode
+      const errorCode = (error as Record<string, unknown>)?.statusCode || 'unknown';
+      const errorMsg = (error as Record<string, unknown>)?.message || String(error);
+      console.error(`[Email] ❌ Resend API error ${errorCode}: ${errorMsg}`);
+      console.error(`[Email] Full error object:`, JSON.stringify(error));
+
+      // Detect the "unverified recipient" issue with onboarding@resend.dev
+      if (String(errorMsg).includes('verify') || errorCode === 422) {
+        console.error(`[Email] ⚠️  This is likely because '${params.to}' is NOT verified in your Resend dashboard.`);
+        console.error(`[Email] ⚠️  With onboarding@resend.dev you can ONLY send to verified emails.`);
+        console.error(`[Email] ⚠️  Fix: Go to Resend Dashboard → Emails → Add '${params.to}' as verified, OR verify a custom domain.`);
+      }
+
       return false;
     }
 
-    console.log(`[Email] Booking confirmation sent to ${params.to}, emailId=${data?.id}`);
+    console.log(`[Email] ✅ Booking confirmation sent to ${params.to}, emailId=${data?.id}`);
     return true;
   } catch (err) {
-    console.error('[Email] Error sending booking confirmation:', err);
+    console.error('[Email] ❌ Exception sending booking confirmation:', err);
     return false;
   }
 }

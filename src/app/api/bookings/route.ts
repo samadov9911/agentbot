@@ -512,10 +512,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // ── Send booking confirmation email to client (non-blocking) ──
+    // ── Send booking confirmation email to client ──
+    let emailSent = false;
+    let emailError: string | undefined;
     if (visitorEmail) {
-      // Fire and forget — do not block the response
-      sendBookingConfirmation({
+      console.log(`[Bookings] Sending confirmation email to ${visitorEmail} for appointment ${appointment.id.slice(0, 8)}`);
+      emailSent = await sendBookingConfirmation({
         to: visitorEmail,
         visitorName,
         businessName: bot.name,
@@ -524,7 +526,11 @@ export async function POST(request: NextRequest) {
         time,
         duration: slotDuration,
         appointmentId: appointment.id,
-      }).catch(() => { /* already logged inside */ });
+      });
+      if (!emailSent) {
+        emailError = 'Email delivery failed — check Vercel function logs for details';
+        console.error(`[Bookings] ⚠️  Confirmation email was NOT sent to ${visitorEmail}. See [Email] logs above for Resend error details.`);
+      }
     } else {
       console.log(`[Bookings] No visitor email — skipping confirmation email (appointment ${appointment.id.slice(0, 8)})`);
     }
@@ -557,6 +563,8 @@ export async function POST(request: NextRequest) {
         status: appointment.status,
       },
       syncStatus,
+      emailSent,
+      ...(emailError ? { emailError } : {}),
     });
   } catch (error) {
     console.error('POST /api/bookings error:', error);
