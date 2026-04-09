@@ -228,19 +228,17 @@ interface CustomTemplate {
   savedAt: string;
 }
 
-const MOCK_CLIENTS = [
-  { id: '1', name: 'Анна Петрова', email: 'anna@example.com', date: '2025-06-10', isNew: true },
-  { id: '2', name: 'Михаил Сидоров', email: 'mikhail@example.com', date: '2025-06-12', isNew: true },
-  { id: '3', name: 'Елена Козлова', email: 'elena@example.com', date: '2025-06-01', isNew: false },
-  { id: '4', name: 'Дмитрий Волков', email: 'dmitry@example.com', date: '2025-06-08', isNew: false },
-  { id: '5', name: 'Ольга Новикова', email: 'olga@example.com', date: '2025-06-11', isNew: true },
-  { id: '6', name: 'Сергей Морозов', email: 'sergey@example.com', date: '2025-06-05', isNew: false },
-  { id: '7', name: 'Наталья Лебедева', email: 'natalia@example.com', date: '2025-06-13', isNew: true },
-  { id: '8', name: 'Алексей Кузнецов', email: 'alexey@example.com', date: '2025-06-02', isNew: false },
-];
+interface ClientItem {
+  id: string;
+  name: string;
+  email: string;
+  date: string;
+  isNew: boolean;
+}
 
 function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { language } = useAppStore();
+  const { user } = useAuthStore();
   const [recipientType, setRecipientType] = useState('all');
   const [emailAddresses, setEmailAddresses] = useState('');
   const [emailType, setEmailType] = useState('welcome');
@@ -253,16 +251,61 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
+  // ── Real client data from DB ──
+  const [allClients, setAllClients] = useState<ClientItem[]>([]);
+  const [clientsLoaded, setClientsLoaded] = useState(false);
+
+  // Fetch real clients when dialog opens
   useEffect(() => {
-    if (open) {
-      queueMicrotask(() => {
-        try {
-          const saved = localStorage.getItem('agentbot-custom-email-templates');
-          if (saved) setCustomTemplates(JSON.parse(saved));
-        } catch { /* ignore */ }
-      });
+    if (!open || !user?.id) return;
+    let cancelled = false;
+
+    const headers = { 'x-user-id': user.id };
+
+    fetch('/api/email-clients', { headers })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: { clients: ClientItem[] } | []) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? [] : data.clients ?? [];
+        setAllClients(list);
+        setClientsLoaded(true);
+      })
+      .catch(() => {});
+
+    // Also load custom templates from localStorage
+    queueMicrotask(() => {
+      try {
+        const saved = localStorage.getItem('agentbot-custom-email-templates');
+        if (saved) setCustomTemplates(JSON.parse(saved));
+      } catch { /* ignore */ }
+    });
+
+    return () => { cancelled = true; };
+  }, [open, user?.id]);
+
+  // Refetch when date range changes (for the "by date" filter)
+  useEffect(() => {
+    if (!open || !user?.id || recipientType !== 'specific') return;
+    if (!dateFrom && !dateTo) {
+      // No date filter — use cached allClients
+      return;
     }
-  }, [open]);
+    let cancelled = false;
+    const params = new URLSearchParams();
+    if (dateFrom) params.set('from', dateFrom);
+    if (dateTo) params.set('to', dateTo);
+
+    fetch(`/api/email-clients?${params}`, { headers: { 'x-user-id': user.id } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: { clients: ClientItem[] } | []) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? [] : data.clients ?? [];
+        setAllClients(list);
+      })
+      .catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [open, user?.id, recipientType, dateFrom, dateTo]);
 
   const handleDialogClose = (v: boolean) => {
     onOpenChange(v);
@@ -270,6 +313,8 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       setSelectedClients(new Set());
       setDateFrom('');
       setDateTo('');
+      setAllClients([]);
+      setClientsLoaded(false);
     }
   };
 
@@ -299,13 +344,11 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     });
   };
 
-  const newClients = useMemo(() => MOCK_CLIENTS.filter((c) => c.isNew), []);
+  const newClients = useMemo(() => allClients.filter((c) => c.isNew), [allClients]);
   const filteredClients = useMemo(() => {
-    let list = MOCK_CLIENTS;
-    if (dateFrom) list = list.filter((c) => c.date >= dateFrom);
-    if (dateTo) list = list.filter((c) => c.date <= dateTo);
-    return list;
-  }, [dateFrom, dateTo]);
+    // When date filter is active, allClients is already server-filtered
+    return allClients;
+  }, [allClients]);
 
   const emailTemplates: Record<string, { subject: { ru: string; en: string; tr: string }; body: { ru: string; en: string; tr: string } }> = {
     welcome: {
@@ -473,23 +516,33 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                 </Button>
               </div>
               <div className="max-h-48 overflow-y-auto rounded-lg border divide-y">
-                {newClients.map((client) => (
-                  <label
-                    key={client.id}
-                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors cursor-pointer"
-                  >
-                    <Checkbox
-                      checked={selectedClients.has(client.id)}
-                      onCheckedChange={() => toggleClient(client.id)}
-                      className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{client.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{client.email}</p>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">{formatDate(client.date)}</span>
-                  </label>
-                ))}
+                {!clientsLoaded && allClients.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+                    {language === 'ru' ? 'Загрузка...' : language === 'en' ? 'Loading...' : 'Yükleniyor...'}
+                  </div>
+                ) : newClients.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+                    {language === 'ru' ? 'Нет новых клиентов с email' : language === 'en' ? 'No new clients with email' : 'E-postası olan yeni müşteri yok'}
+                  </div>
+                ) : (
+                  newClients.map((client) => (
+                    <label
+                      key={client.id}
+                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={selectedClients.has(client.id)}
+                        onCheckedChange={() => toggleClient(client.id)}
+                        className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{client.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{client.email}</p>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">{formatDate(client.date)}</span>
+                    </label>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -536,7 +589,13 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                   </Button>
                 )}
               </div>
-              {filteredClients.length > 0 ? (
+              {!clientsLoaded && allClients.length === 0 ? (
+                <div className="rounded-lg border bg-muted/30 px-4 py-6 text-center">
+                  <p className="text-xs text-muted-foreground">
+                    {language === 'ru' ? 'Загрузка...' : language === 'en' ? 'Loading...' : 'Yükleniyor...'}
+                  </p>
+                </div>
+              ) : filteredClients.length > 0 ? (
                 <div className="max-h-48 overflow-y-auto rounded-lg border divide-y">
                   {filteredClients.map((client) => (
                     <label
