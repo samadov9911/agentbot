@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 // Prevent ALL caching (CDN, browser, proxy)
 const CACHE_HEADERS = {
@@ -170,6 +171,9 @@ export async function GET(request: NextRequest) {
         take: 100,
       });
 
+      const now = new Date().toISOString();
+      console.log(`[Bookings] Returning ${allAppointments.length} appointments for user ${userId.slice(0, 8)}, serverTime=${now}`);
+
       return NextResponse.json({
         appointments: allAppointments.map((apt) => ({
           id: apt.id,
@@ -184,6 +188,7 @@ export async function GET(request: NextRequest) {
           status: apt.status,
           createdAt: apt.createdAt instanceof Date ? apt.createdAt.toISOString() : new Date(apt.createdAt as string).toISOString(),
         })),
+        _serverTime: now,
       }, { headers: CACHE_HEADERS });
     }
 
@@ -339,6 +344,9 @@ async function getUpcomingAppointments(botId: string) {
     take: 100,
   });
 
+  const now = new Date().toISOString();
+  console.log(`[Bookings] getUpcomingAppointments for bot ${botId.slice(0, 8)}, count=${appointments.length}, serverTime=${now}`);
+
   return NextResponse.json({
     appointments: appointments.map((apt) => ({
       id: apt.id,
@@ -353,6 +361,7 @@ async function getUpcomingAppointments(botId: string) {
       status: apt.status,
       createdAt: apt.createdAt instanceof Date ? apt.createdAt.toISOString() : new Date(apt.createdAt as string).toISOString(),
     })),
+    _serverTime: now,
   });
 }
 

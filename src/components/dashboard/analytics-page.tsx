@@ -212,6 +212,7 @@ export function AnalyticsPage() {
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
   const [aptLoading, setAptLoading] = useState(false);
   const [aptError, setAptError] = useState<string | null>(null);
+  const [aptLastRefresh, setAptLastRefresh] = useState<string | null>(null);
 
   // Leads list state
   const [leads, setLeads] = useState<LeadItem[]>([]);
@@ -371,8 +372,9 @@ export function AnalyticsPage() {
     }
     setAptLoading(true);
     setAptError(null);
+    const fetchTime = Date.now();
     try {
-      const res = await fetch(`/api/bookings?_t=${Date.now()}`, {
+      const res = await fetch(`/api/bookings?_t=${fetchTime}`, {
         headers: { 'x-user-id': user.id },
         cache: 'no-store',
       });
@@ -386,7 +388,13 @@ export function AnalyticsPage() {
       const items = Array.isArray(data.appointments) ? data.appointments : [];
       setAppointments(items);
       setAptError(null);
-      console.log(`[Analytics] Loaded ${items.length} appointments (user=${user.id.slice(0, 8)})`);
+      // Track server timestamp for freshness verification
+      if (data._serverTime) {
+        setAptLastRefresh(data._serverTime);
+      } else {
+        setAptLastRefresh(new Date().toISOString());
+      }
+      console.log(`[Analytics] Loaded ${items.length} appointments (user=${user.id.slice(0, 8)}, serverTime=${data._serverTime || 'none'})`);
     } catch (err) {
       console.error('[Analytics] Appointments fetch error:', err);
       // CRITICAL FIX: Do NOT clear existing data on error — preserve previous results
@@ -1014,15 +1022,26 @@ export function AnalyticsPage() {
               </CardContent>
             </Card>
           )}
-          {/* Refresh */}
+          {/* Refresh + status */}
           <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              {label(
-                `Всего записей: ${appointments.length}`,
-                `Total bookings: ${appointments.length}`,
-                `Toplam randevu: ${appointments.length}`
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                {label(
+                  `Всего записей: ${appointments.length}`,
+                  `Total bookings: ${appointments.length}`,
+                  `Toplam randevu: ${appointments.length}`
+                )}
+              </p>
+              {aptLastRefresh && (
+                <span className="text-[10px] text-muted-foreground/60 flex items-center gap-1">
+                  <span className={`inline-block size-1.5 rounded-full ${aptLoading ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+                  {label('Обновлено', 'Updated', 'Güncellendi')}: {new Date(aptLastRefresh).toLocaleTimeString(
+                    language === 'ru' ? 'ru-RU' : language === 'tr' ? 'tr-TR' : 'en-US',
+                    { hour: '2-digit', minute: '2-digit', second: '2-digit' }
+                  )}
+                </span>
               )}
-            </p>
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -1034,6 +1053,13 @@ export function AnalyticsPage() {
               {label('Обновить', 'Refresh', 'Yenile')}
             </Button>
           </div>
+
+          {/* Loading progress bar when refreshing with existing data */}
+          {aptLoading && appointments.length > 0 && (
+            <div className="h-0.5 w-full overflow-hidden rounded-full bg-muted">
+              <div className="h-full animate-loading rounded-full bg-amber-400" style={{ width: '33%' }} />
+            </div>
+          )}
 
           {aptLoading && appointments.length === 0 ? (
             <ListSkeleton />
