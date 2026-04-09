@@ -112,3 +112,26 @@ Stage Summary:
 - Root cause: selectedBotId could remain null even after persist fix
 - Fix: 3-layer fallback ensures botId is ALWAYS resolved
 - Deployed to https://agentbot-one.vercel.app
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix Leads refresh button not updating data + add 1-second auto-refresh
+
+Work Log:
+- Analyzed analytics-page.tsx fetchLeads function and identified potential issues
+- Root cause: cache: 'no-store' in client-side fetch is unreliable, no visual feedback, no _serverTime verification
+- Backend fix: Added _serverTime field and X-Revalidate: 0 header to /api/leads GET response
+- Frontend fix: Rewrote fetchLeads with showLoader parameter, double cache-busting (?_t=&r=), method:GET, pragma:no-cache
+- Added leadsFetchingRef to prevent overlapping requests from 1s interval
+- Added leadsLastRefresh state with visible green dot + timestamp in Leads tab UI
+- Added dedicated 1-second setInterval for leads auto-refresh (separate from 30s global interval)
+- Added leads error banner with retry button
+- Removed fetchLeads from 30s global interval (leads now have their own 1s interval)
+- Lint passes, committed and pushed to GitHub main
+
+Stage Summary:
+- Leads tab now auto-refreshes every 1 second when page is visible
+- Manual refresh button calls fetchLeads(true) with loader
+- Visual timestamp shows exact time of last successful fetch
+- Error banner with retry appears if fetch fails
+- Pushed to GitHub: commit 305a839
