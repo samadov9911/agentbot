@@ -18,7 +18,6 @@ import {
   ExternalLink,
   X,
   ChevronRight,
-  Send,
 } from 'lucide-react';
 
 import { useAuthStore, useAppStore } from '@/stores';
@@ -37,7 +36,6 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   BarChart,
   Bar,
@@ -237,12 +235,14 @@ export function AnalyticsPage() {
       const res = await fetch(`/api/conversations/${conv.id}/messages`, {
         headers: { 'x-user-id': user.id },
       });
+      console.log(`[Analytics] Fetching chat messages for conv=${conv.id.slice(0, 8)}, status=${res.status}`);
       if (res.ok) {
         const data = await res.json();
+        console.log(`[Analytics] Chat response: conv=${!!data.conversation}, msgs=${data.messages?.length}`);
         setChatConv(data.conversation || null);
         setChatMessages(data.messages || []);
       } else {
-        console.error('[Analytics] Chat messages fetch error:', res.status);
+        console.error('[Analytics] Chat messages fetch error:', res.status, await res.text().catch(() => ''));
       }
     } catch (err) {
       console.error('[Analytics] Chat messages fetch error:', err);
@@ -427,6 +427,9 @@ export function AnalyticsPage() {
     refreshTimerRef.current = setInterval(() => {
       if (document.visibilityState === 'visible') {
         fetchAnalytics(false);
+        fetchConversations();
+        fetchAppointments();
+        fetchLeads();
       }
     }, REFRESH_INTERVAL_MS);
 
@@ -436,7 +439,7 @@ export function AnalyticsPage() {
         refreshTimerRef.current = null;
       }
     };
-  }, [fetchAnalytics]);
+  }, [fetchAnalytics, fetchConversations, fetchAppointments, fetchLeads]);
 
   // Refresh when page becomes visible
   useEffect(() => {
@@ -1226,7 +1229,7 @@ export function AnalyticsPage() {
           </SheetHeader>
 
           {/* Messages area */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-hidden relative">
             {chatLoading ? (
               <div className="flex flex-col items-center justify-center h-full gap-3">
                 <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -1242,7 +1245,7 @@ export function AnalyticsPage() {
                 </p>
               </div>
             ) : (
-              <ScrollArea className="h-full">
+              <div className="absolute inset-0 overflow-y-auto">
                 <div className="flex flex-col gap-3 p-5">
                   {/* Date separator */}
                   <div className="flex items-center gap-3">
@@ -1317,7 +1320,7 @@ export function AnalyticsPage() {
                   })}
                   <div ref={chatEndRef} />
                 </div>
-              </ScrollArea>
+              </div>
             )}
           </div>
 
