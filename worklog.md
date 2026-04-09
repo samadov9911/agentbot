@@ -205,3 +205,37 @@ Stage Summary:
 - Added `prisma.config.js` at project root to satisfy Prisma 6.x config auto-discovery
 - File exports a config object with `schema` path
 - Vercel build should now succeed on next deployment
+---
+Task ID: 2
+Agent: Main Agent
+Task: Add custom sender email ('От кого') for email mailings
+
+Work Log:
+- Analyzed existing email infrastructure: Resend SDK, /api/send-emails, EmailComposerDialog
+- Identified that fromAddress was hardcoded as `process.env.EMAIL_FROM || 'onboarding@resend.dev'`
+- Added `emailFrom` field to User model in Prisma schema (nullable string)
+- Generated Prisma client with updated schema
+- Created `/api/user-settings` endpoint:
+  - GET: returns user's email, name, company, emailFrom, botName
+  - PATCH: updates emailFrom with email format validation
+- Modified `EmailComposerDialog`:
+  - Added `emailFrom`, `emailFromLoaded`, `savingEmailFrom` state
+  - Fetches user settings from `/api/user-settings` when dialog opens
+  - Added "От кого" (From) input field with AtSign icon
+  - Save button persists email to DB via PATCH /api/user-settings
+  - Shows helpful hints: default fallback info + domain verification reminder
+  - Passes `fromEmail` in POST /api/send-emails request body
+- Modified `/api/send-emails`:
+  - Reads `fromEmail` from request body
+  - Priority: user's custom email > env EMAIL_FROM > onboarding@resend.dev
+  - Auto-persists custom from email to user profile
+- Added sender email indicator below "Письма и рассылки" card in main view
+- Fetched user settings in main component's useEffect (parallel with stats)
+- Lint passes, pushed to GitHub: commit f724d94
+
+Stage Summary:
+- Users can now set their own sender email in the email composer dialog
+- Email address is persisted in DB and auto-loads on dialog open
+- Backend uses custom sender email with proper fallback chain
+- Visual indicator shows configured email on the capability card
+- To fully activate: user needs to verify their domain in Resend Dashboard
