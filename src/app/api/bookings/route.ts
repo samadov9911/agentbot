@@ -3,6 +3,14 @@ import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+// Prevent ALL caching (CDN, browser, proxy)
+const CACHE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+  'Surrogate-Control': 'no-store',
+};
+
 // ──────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────
@@ -140,7 +148,7 @@ export async function GET(request: NextRequest) {
       const botIds = userBots.map(b => b.id);
 
       if (botIds.length === 0) {
-        return NextResponse.json({ appointments: [] });
+        return NextResponse.json({ appointments: [] }, { headers: CACHE_HEADERS });
       }
 
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -169,7 +177,7 @@ export async function GET(request: NextRequest) {
           status: apt.status,
           createdAt: apt.createdAt.toISOString(),
         })),
-      });
+      }, { headers: CACHE_HEADERS });
     }
 
     // Verify the bot belongs to the user

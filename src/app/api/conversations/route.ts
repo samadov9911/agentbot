@@ -4,12 +4,20 @@ import { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
+// Prevent ALL caching (CDN, browser, proxy)
+const CACHE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  "Pragma": "no-cache",
+  "Expires": "0",
+  "Surrogate-Control": "no-store",
+};
+
 export async function GET(request: NextRequest) {
   try {
     const userId = request.headers.get("x-user-id");
     if (!userId) {
       console.log("[Conversations] Missing x-user-id header");
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: CACHE_HEADERS });
     }
 
     const botId = new URL(request.url).searchParams.get("botId");
@@ -33,7 +41,7 @@ export async function GET(request: NextRequest) {
 
       if (bots.length === 0) {
         console.log(`[Conversations] No bots found for user ${userId.slice(0, 8)}`);
-        return NextResponse.json({ conversations: [] });
+        return NextResponse.json({ conversations: [] }, { headers: CACHE_HEADERS });
       }
 
       const botIds = bots.map((b) => b.id);
@@ -105,9 +113,9 @@ export async function GET(request: NextRequest) {
           updatedAt: c.updatedAt instanceof Date ? (c.updatedAt as Date).toISOString() : new Date(c.updatedAt as string).toISOString(),
         };
       }),
-    });
+    }, { headers: CACHE_HEADERS });
   } catch (e) {
     console.error("[Conversations] Top-level error:", e);
-    return NextResponse.json({ error: "Server error", conversations: [] }, { status: 500 });
+    return NextResponse.json({ error: "Server error", conversations: [] }, { status: 500, headers: CACHE_HEADERS });
   }
 }

@@ -3,10 +3,18 @@ import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+// Prevent ALL caching (CDN, browser, proxy)
+const CACHE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  "Pragma": "no-cache",
+  "Expires": "0",
+  "Surrogate-Control": "no-store",
+};
+
 export async function GET(request: NextRequest) {
   try {
     const userId = request.headers.get("x-user-id");
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: CACHE_HEADERS });
 
     const range = new URL(request.url).searchParams.get("range") || "today";
     const since = new Date();
@@ -32,7 +40,7 @@ export async function GET(request: NextRequest) {
         chartData: [],
         activity: [],
         lastUpdated: new Date().toISOString(),
-      });
+      }, { headers: CACHE_HEADERS });
     }
 
     // ── Step 2: Count stats (parallel) ──
@@ -64,10 +72,10 @@ export async function GET(request: NextRequest) {
       chartData,
       activity,
       lastUpdated: new Date().toISOString(),
-    });
+    }, { headers: CACHE_HEADERS });
   } catch (e) {
     console.error("[Analytics] Error:", e);
-    return NextResponse.json({ error: "Server error", details: String(e) }, { status: 500 });
+    return NextResponse.json({ error: "Server error", details: String(e) }, { status: 500, headers: CACHE_HEADERS });
   }
 }
 

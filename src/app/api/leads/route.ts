@@ -3,6 +3,14 @@ import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+// Prevent ALL caching (CDN, browser, proxy)
+const CACHE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+  'Surrogate-Control': 'no-store',
+};
+
 // Session marker regex — strip hidden sessionId prefix from displayed messages
 const SESSION_MARKER_REGEX = /^\[session:[a-zA-Z0-9_-]+\]\s*/;
 
@@ -15,14 +23,14 @@ function stripSessionMarker(text: string | null): string | null {
 export async function GET(request: NextRequest) {
   try {
     const userId = request.headers.get('x-user-id');
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: CACHE_HEADERS });
 
     const botId = new URL(request.url).searchParams.get('botId');
     let whereClause: Record<string, unknown> = {};
 
     if (botId) {
       const bot = await db.bot.findFirst({ where: { id: botId, userId, deletedAt: null } });
-      if (!bot) return NextResponse.json({ error: 'Bot not found' }, { status: 404 });
+      if (!bot) return NextResponse.json({ error: 'Bot not found' }, { status: 404, headers: CACHE_HEADERS });
       whereClause = { botId };
     } else {
       const bots = await db.bot.findMany({ where: { userId, deletedAt: null }, select: { id: true } });
@@ -51,10 +59,10 @@ export async function GET(request: NextRequest) {
         status: l.status,
         createdAt: l.createdAt.toISOString(),
       })),
-    });
+    }, { headers: CACHE_HEADERS });
   } catch (e) {
     console.error('[Leads] GET error:', e);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Server error' }, { status: 500, headers: CACHE_HEADERS });
   }
 }
 
