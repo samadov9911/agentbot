@@ -213,6 +213,7 @@ export function AnalyticsPage() {
   const [aptLoading, setAptLoading] = useState(false);
   const [aptError, setAptError] = useState<string | null>(null);
   const [aptLastRefresh, setAptLastRefresh] = useState<string | null>(null);
+  const aptFetchingRef = useRef(false); // Prevent overlapping requests
 
   // Leads list state
   const [leads, setLeads] = useState<LeadItem[]>([]);
@@ -367,18 +368,24 @@ export function AnalyticsPage() {
   }, [user?.id]);
 
   // ── Fetch appointments list ──
-  const fetchAppointments = useCallback(async () => {
+  const fetchAppointments = useCallback(async (showLoader = true) => {
     if (!user?.id) {
       console.warn('[Analytics] fetchAppointments skipped: no user.id');
       return;
     }
-    setAptLoading(true);
+    // Prevent overlapping requests
+    if (aptFetchingRef.current) return;
+    aptFetchingRef.current = true;
+    if (showLoader) setAptLoading(true);
     setAptError(null);
-    const fetchTime = Date.now();
     try {
-      const res = await fetch(`/api/bookings?_t=${fetchTime}`, {
-        headers: { 'x-user-id': user.id },
-        cache: 'no-store',
+      const bust = Date.now();
+      const res = await fetch(`/api/bookings?_t=${bust}&r=${Math.random().toString(36).slice(2)}`, {
+        method: 'GET',
+        headers: {
+          'x-user-id': user.id,
+          'pragma': 'no-cache',
+        },
       });
       if (!res.ok) {
         const errBody = await res.json().catch(() => null);
@@ -404,6 +411,7 @@ export function AnalyticsPage() {
       setAptError(msg);
     } finally {
       setAptLoading(false);
+      aptFetchingRef.current = false;
     }
   }, [user?.id]);
 
@@ -459,7 +467,7 @@ export function AnalyticsPage() {
   const refreshAll = useCallback(() => {
     fetchAnalytics(true);
     fetchConversations();
-    fetchAppointments();
+    fetchAppointments(true);
     fetchLeads(true);
   }, [fetchAnalytics, fetchConversations, fetchAppointments, fetchLeads]);
 
@@ -472,19 +480,19 @@ export function AnalyticsPage() {
   useEffect(() => {
     if (user?.id) {
       fetchConversations();
-      fetchAppointments();
+      fetchAppointments(true);
       fetchLeads(true);
     }
   }, [user?.id, fetchConversations, fetchAppointments, fetchLeads]);
 
-  // Auto-refresh every 30 seconds for analytics/conversations/appointments (only when page is visible)
+  // Auto-refresh every 30 seconds for analytics/conversations (only when page is visible)
+  // Note: appointments and leads have their own 1-second intervals below
   useEffect(() => {
     refreshTimerRef.current = setInterval(() => {
       if (document.visibilityState === 'visible') {
         fetchAnalytics(false);
         fetchConversations();
-        fetchAppointments();
-        // Note: leads have their own 1-second interval below
+        // Note: appointments and leads have their own 1-second intervals
       }
     }, REFRESH_INTERVAL_MS);
 
@@ -494,7 +502,7 @@ export function AnalyticsPage() {
         refreshTimerRef.current = null;
       }
     };
-  }, [fetchAnalytics, fetchConversations, fetchAppointments]);
+  }, [fetchAnalytics, fetchConversations]);
 
   // Leads auto-refresh every 1 second (real-time updates)
   const leadsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -513,13 +521,30 @@ export function AnalyticsPage() {
     };
   }, [fetchLeads]);
 
+  // Appointments auto-refresh every 1 second (real-time updates)
+  const aptTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    aptTimerRef.current = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchAppointments(false); // silent refresh without loader
+      }
+    }, 1000); // 1 second
+
+    return () => {
+      if (aptTimerRef.current) {
+        clearInterval(aptTimerRef.current);
+        aptTimerRef.current = null;
+      }
+    };
+  }, [fetchAppointments]);
+
   // Refresh when page becomes visible
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         fetchAnalytics(false);
         fetchConversations();
-        fetchAppointments();
+        fetchAppointments(false);
         fetchLeads(false);
       }
     };
@@ -791,7 +816,7 @@ export function AnalyticsPage() {
       {/* ── Tabs: Overview / Dialogs / Appointments / Leads ── */}
       <Tabs defaultValue="overview" onValueChange={(tab) => {
         if (tab === 'dialogs') fetchConversations();
-        if (tab === 'appointments') fetchAppointments();
+        if (tab === 'appointments') fetchAppointments(true);
         if (tab === 'leads') fetchLeads(true);
         if (tab === 'overview') fetchAnalytics(false);
       }} className="w-full">
@@ -1049,7 +1074,7 @@ export function AnalyticsPage() {
                 <p className="text-xs text-amber-700 dark:text-amber-400 flex-1">
                   {label('Ошибка загрузки записей', 'Failed to load appointments', 'Randevular yüklenemedi')}: {aptError}
                 </p>
-                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={fetchAppointments}>
+                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => fetchAppointments(true)}>
                   <RefreshCw className="size-3" />
                 </Button>
               </CardContent>
@@ -1078,7 +1103,7 @@ export function AnalyticsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={fetchAppointments}
+              onClick={() => fetchAppointments(true)}
               disabled={aptLoading}
               className="gap-1.5 text-xs"
             >
