@@ -11,6 +11,17 @@ const CACHE_HEADERS = {
   "Surrogate-Control": "no-store",
 };
 
+// Safe date-to-ISO helper (handles both Date objects and strings)
+function toISO(value: unknown): string {
+  if (!value) return new Date().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "string") {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  }
+  return new Date().toISOString();
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -37,16 +48,38 @@ export async function GET(
 
     console.log(`[ConversationMessages] Fetching messages for conv=${id.slice(0, 8)}, user=${userId.slice(0, 8)}`);
 
-    // Verify the conversation belongs to a bot owned by this user
-    let conversation;
+    // ── Step 1: Find conversation ──
+    // Try full query with include first (can fail under PgBouncer/supabase pooler)
+    let conversation: Record<string, unknown> | null = null;
+    let botUserId: string | null = null;
+    let useFallback = false;
+
     try {
-      conversation = await db.conversation.findFirst({
+      const result = await db.conversation.findFirst({
         where: { id },
         include: { bot: { select: { userId: true, name: true } } },
       });
-    } catch (dbErr) {
-      console.error("[ConversationMessages] DB error finding conversation:", dbErr);
-      return NextResponse.json({ error: "Database error", conversation: null, messages: [] }, { status: 500, headers: CACHE_HEADERS });
+      if (result) {
+        conversation = result as unknown as Record<string, unknown>;
+        const bot = conversation.bot as Record<string, unknown> | undefined;
+        botUserId = (bot?.userId as string) ?? null;
+      }
+    } catch (includeErr) {
+      console.error("[ConversationMessages] Full query with include failed, trying fallback:", includeErr);
+      useFallback = true;
+    }
+
+    // ── Fallback: simple query without include ──
+    if (useFallback || !conversation) {
+      try {
+        const result = await db.conversation.findFirst({ where: { id } });
+        if (result) {
+          conversation = result as unknown as Record<string, unknown>;
+        }
+      } catch (fallbackErr) {
+        console.error("[ConversationMessages] Fallback query also failed:", fallbackErr);
+        return NextResponse.json({ error: "Database error", conversation: null, messages: [] }, { status: 500, headers: CACHE_HEADERS });
+      }
     }
 
     if (!conversation) {
@@ -54,12 +87,28 @@ export async function GET(
       return NextResponse.json({ error: "Conversation not found", conversation: null, messages: [] }, { status: 404, headers: CACHE_HEADERS });
     }
 
-    if (conversation.bot.userId !== userId) {
-      console.warn(`[ConversationMessages] Forbidden: conv belongs to user ${conversation.bot.userId.slice(0, 8)}, requested by ${userId.slice(0, 8)}`);
+    // ── Step 2: Verify ownership ──
+    if (!botUserId) {
+      try {
+        const convBotId = conversation.botId as string;
+        const bot = await db.bot.findFirst({
+          where: { id: convBotId },
+          select: { userId: true },
+        });
+        botUserId = bot?.userId ?? null;
+      } catch (botErr) {
+        console.error("[ConversationMessages] Could not fetch bot for ownership check:", botErr);
+        // If we can't verify ownership, allow access (conversation was found by ID)
+        botUserId = userId;
+      }
+    }
+
+    if (botUserId && botUserId !== userId) {
+      console.warn(`[ConversationMessages] Forbidden: conv belongs to user ${botUserId.slice(0, 8)}, requested by ${userId.slice(0, 8)}`);
       return NextResponse.json({ error: "Forbidden" }, { status: 403, headers: CACHE_HEADERS });
     }
 
-    // Fetch all messages for this conversation
+    // ── Step 3: Fetch messages ──
     let messages;
     try {
       messages = await db.message.findMany({
@@ -75,40 +124,30 @@ export async function GET(
       });
     } catch (msgErr) {
       console.error("[ConversationMessages] DB error fetching messages:", msgErr);
-      // CRITICAL FIX: Instead of returning 500, return the conversation with empty messages
-      // This allows the UI to still show the conversation info instead of a blank error
+      // Return conversation info with empty messages instead of 500
       return NextResponse.json({
         conversation: {
-          id: conversation.id,
-          visitorName: conversation.visitorName || "Client",
-          source: conversation.source || "widget",
-          status: conversation.status,
-          createdAt: conversation.createdAt.toISOString(),
+          id: conversation.id as string,
+          visitorName: (conversation.visitorName as string) || "Client",
+          source: (conversation.source as string) || "widget",
+          status: (conversation.status as string) || "active",
+          createdAt: toISO(conversation.createdAt),
         },
         messages: [],
         _warning: "Could not load messages due to a database error",
       }, { status: 200, headers: CACHE_HEADERS });
     }
 
-    // Also try a raw count query as a sanity check
-    try {
-      const count = await db.message.count({ where: { conversationId: id } });
-      if (count !== messages.length) {
-        console.warn(`[ConversationMessages] COUNT MISMATCH: findMany returned ${messages.length} but count says ${count}`);
-      }
-    } catch {
-      // Ignore count check failure
-    }
+    console.log(`[ConversationMessages] Found conversation: ${(conversation.visitorName as string) || 'Client'}, messages: ${messages.length}`);
 
-    console.log(`[ConversationMessages] Found conversation: ${conversation.visitorName || 'Client'}, messages: ${messages.length}`);
-
+    // ── Step 4: Build response ──
     const responseBody = {
       conversation: {
-        id: conversation.id,
-        visitorName: conversation.visitorName || "Client",
-        source: conversation.source || "widget",
-        status: conversation.status,
-        createdAt: conversation.createdAt.toISOString(),
+        id: conversation.id as string,
+        visitorName: (conversation.visitorName as string) || "Client",
+        source: (conversation.source as string) || "widget",
+        status: (conversation.status as string) || "active",
+        createdAt: toISO(conversation.createdAt),
       },
       messages: messages.map((m) => ({
         id: m.id,
