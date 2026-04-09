@@ -54,41 +54,9 @@ export async function GET(request: NextRequest) {
       whereClause = { botId: { in: allBotIds } };
     }
 
-    // ── Try full query with include first (can fail under PgBouncer) ──
-    let leads: Array<Record<string, unknown>> = [];
-    let useFallback = false;
-
-    try {
-      const results = await db.lead.findMany({
-        where: whereClause,
-        orderBy: { createdAt: 'desc' },
-        take: 100,
-        include: { Bot: { select: { name: true } } },
-      });
-      leads = results as unknown as Array<Record<string, unknown>>;
-    } catch (includeErr) {
-      console.error('[Leads] Full query with include failed, trying fallback:', includeErr);
-      useFallback = true;
-    }
-
-    // ── Fallback: simple query without include ──
-    if (useFallback) {
-      try {
-        const results = await db.lead.findMany({
-          where: whereClause,
-          orderBy: { createdAt: 'desc' },
-          take: 100,
-        });
-        leads = results as unknown as Array<Record<string, unknown>>;
-      } catch (fallbackErr) {
-        console.error('[Leads] Fallback query also failed:', fallbackErr);
-        return NextResponse.json({ error: 'Server error' }, { status: 500, headers: CACHE_HEADERS });
-      }
-    }
-
-    // Build bot name lookup for fallback
+    // ── Build bot name map upfront (no include — safe under PgBouncer) ──
     let botNameMap: Record<string, string> = {};
-    if (useFallback && allBotIds.length > 0) {
+    if (allBotIds.length > 0) {
       try {
         const bots = await db.bot.findMany({
           where: { id: { in: allBotIds }, deletedAt: null },
@@ -102,23 +70,27 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Simple query WITHOUT include — guaranteed to work under PgBouncer
+    const leads = await db.lead.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
     return NextResponse.json({
-      leads: leads.map(l => {
-        const bot = l.Bot as Record<string, unknown> | undefined;
-        return {
-          id: l.id as string,
-          botId: l.botId as string,
-          botName: (bot?.name as string) || botNameMap[l.botId as string] || 'Unknown',
-          visitorName: l.visitorName as string | undefined,
-          visitorPhone: l.visitorPhone as string | undefined,
-          visitorEmail: l.visitorEmail as string | undefined,
-          ipAddress: l.ipAddress as string | undefined,
-          message: stripSessionMarker(l.message as string | null),
-          source: l.source as string,
-          status: l.status as string,
-          createdAt: toISO(l.createdAt),
-        };
-      }),
+      leads: leads.map(l => ({
+        id: l.id,
+        botId: l.botId,
+        botName: botNameMap[l.botId] || 'Unknown',
+        visitorName: l.visitorName ?? undefined,
+        visitorPhone: l.visitorPhone ?? undefined,
+        visitorEmail: l.visitorEmail ?? undefined,
+        ipAddress: l.ipAddress ?? undefined,
+        message: stripSessionMarker(l.message),
+        source: l.source,
+        status: l.status,
+        createdAt: toISO(l.createdAt),
+      })),
     }, { headers: CACHE_HEADERS });
   } catch (e) {
     console.error('[Leads] GET error:', e);

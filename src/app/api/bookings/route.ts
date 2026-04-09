@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
     if (!botId) {
       const userBots = await db.bot.findMany({
         where: { userId, deletedAt: null },
-        select: { id: true },
+        select: { id: true, name: true },
       });
       const botIds = userBots.map(b => b.id);
 
@@ -151,83 +151,39 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ appointments: [] }, { headers: CACHE_HEADERS });
       }
 
+      // Build bot name map upfront (no include — safe under PgBouncer)
+      const botNameMap: Record<string, string> = {};
+      for (const b of userBots) {
+        botNameMap[b.id] = b.name;
+      }
+
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-      // ── Try full query with include first (can fail under PgBouncer/supabase pooler) ──
-      let allAppointments: Array<Record<string, unknown>> = [];
-      let useFallback = false;
-
-      try {
-        const results = await db.appointment.findMany({
-          where: {
-            botId: { in: botIds },
-            date: { gte: thirtyDaysAgo },
-            status: { notIn: ['cancelled'] },
-          },
-          orderBy: { date: 'desc' },
-          take: 100,
-          include: { Bot: { select: { name: true } } },
-        });
-        allAppointments = results as unknown as Array<Record<string, unknown>>;
-      } catch (includeErr) {
-        console.error('[Bookings] Full query with include failed, trying fallback:', includeErr);
-        useFallback = true;
-      }
-
-      // ── Fallback: query without include, then fetch bot names separately ──
-      if (useFallback) {
-        try {
-          const results = await db.appointment.findMany({
-            where: {
-              botId: { in: botIds },
-              date: { gte: thirtyDaysAgo },
-              status: { notIn: ['cancelled'] },
-            },
-            orderBy: { date: 'desc' },
-            take: 100,
-          });
-          allAppointments = results as unknown as Array<Record<string, unknown>>;
-        } catch (fallbackErr) {
-          console.error('[Bookings] Fallback query also failed:', fallbackErr);
-          return NextResponse.json({ appointments: [] }, { headers: CACHE_HEADERS });
-        }
-      }
-
-      // Build bot name lookup if using fallback (no include)
-      let botNameMap: Record<string, string> = {};
-      if (useFallback) {
-        try {
-          const bots = await db.bot.findMany({
-            where: { id: { in: botIds }, deletedAt: null },
-            select: { id: true, name: true },
-          });
-          for (const b of bots) {
-            botNameMap[b.id] = b.name;
-          }
-        } catch {
-          // ignore
-        }
-      }
+      // Simple query WITHOUT include — guaranteed to work under PgBouncer
+      const allAppointments = await db.appointment.findMany({
+        where: {
+          botId: { in: botIds },
+          date: { gte: thirtyDaysAgo },
+          status: { notIn: ['cancelled'] },
+        },
+        orderBy: { date: 'desc' },
+        take: 100,
+      });
 
       return NextResponse.json({
-        appointments: allAppointments.map((apt) => {
-          const bot = apt.Bot as Record<string, unknown> | undefined;
-          const aptDate = apt.date instanceof Date ? apt.date.toISOString() : new Date(apt.date as string).toISOString();
-          const aptCreatedAt = apt.createdAt instanceof Date ? apt.createdAt.toISOString() : new Date(apt.createdAt as string).toISOString();
-          return {
-            id: apt.id as string,
-            botId: apt.botId as string,
-            botName: (bot?.name as string) || botNameMap[apt.botId as string] || 'Unknown',
-            visitorName: apt.visitorName as string,
-            visitorPhone: apt.visitorPhone as string,
-            visitorEmail: apt.visitorEmail as string | undefined,
-            service: apt.service as string | undefined,
-            date: aptDate,
-            duration: apt.duration as number,
-            status: apt.status as string,
-            createdAt: aptCreatedAt,
-          };
-        }),
+        appointments: allAppointments.map((apt) => ({
+          id: apt.id,
+          botId: apt.botId,
+          botName: botNameMap[apt.botId] || 'Unknown',
+          visitorName: apt.visitorName,
+          visitorPhone: apt.visitorPhone,
+          visitorEmail: apt.visitorEmail ?? undefined,
+          service: apt.service ?? undefined,
+          date: apt.date instanceof Date ? apt.date.toISOString() : new Date(apt.date as string).toISOString(),
+          duration: apt.duration,
+          status: apt.status,
+          createdAt: apt.createdAt instanceof Date ? apt.createdAt.toISOString() : new Date(apt.createdAt as string).toISOString(),
+        })),
       }, { headers: CACHE_HEADERS });
     }
 
@@ -363,77 +319,40 @@ async function getAvailableSlots(
  * FIX BUG #3: Also return recent past appointments (last 30 days) for complete visibility.
  */
 async function getUpcomingAppointments(botId: string) {
-  const now = new Date();
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  // ── Try full query with include first (can fail under PgBouncer) ──
-  let appointments: Array<Record<string, unknown>> = [];
-  let useFallback = false;
-
-  try {
-    const results = await db.appointment.findMany({
-      where: {
-        botId,
-        date: { gte: thirtyDaysAgo },
-        status: { notIn: ['cancelled'] },
-      },
-      orderBy: { date: 'desc' },
-      take: 100,
-      include: { Bot: { select: { name: true } } },
-    });
-    appointments = results as unknown as Array<Record<string, unknown>>;
-  } catch (includeErr) {
-    console.error('[Bookings] getUpcomingAppointments include failed, trying fallback:', includeErr);
-    useFallback = true;
-  }
-
-  // ── Fallback: query without include ──
-  if (useFallback) {
-    try {
-      const results = await db.appointment.findMany({
-        where: {
-          botId,
-          date: { gte: thirtyDaysAgo },
-          status: { notIn: ['cancelled'] },
-        },
-        orderBy: { date: 'desc' },
-        take: 100,
-      });
-      appointments = results as unknown as Array<Record<string, unknown>>;
-    } catch (fallbackErr) {
-      console.error('[Bookings] getUpcomingAppointments fallback also failed:', fallbackErr);
-      return NextResponse.json({ appointments: [] });
-    }
-  }
-
-  // Get bot name for fallback
+  // Get bot name (simple query, no include)
   let botName = 'Unknown';
-  if (useFallback) {
-    try {
-      const bot = await db.bot.findFirst({ where: { id: botId }, select: { name: true } });
-      if (bot) botName = bot.name;
-    } catch { /* ignore */ }
-  }
+  try {
+    const bot = await db.bot.findFirst({ where: { id: botId }, select: { name: true } });
+    if (bot) botName = bot.name;
+  } catch { /* ignore */ }
+
+  // Simple query WITHOUT include — guaranteed to work under PgBouncer
+  const appointments = await db.appointment.findMany({
+    where: {
+      botId,
+      date: { gte: thirtyDaysAgo },
+      status: { notIn: ['cancelled'] },
+    },
+    orderBy: { date: 'desc' },
+    take: 100,
+  });
 
   return NextResponse.json({
-    appointments: appointments.map((apt) => {
-      const bot = apt.Bot as Record<string, unknown> | undefined;
-      const aptDate = apt.date instanceof Date ? apt.date.toISOString() : new Date(apt.date as string).toISOString();
-      const aptCreatedAt = apt.createdAt instanceof Date ? apt.createdAt.toISOString() : new Date(apt.createdAt as string).toISOString();
-      return {
-        id: apt.id as string,
-        botId: apt.botId as string,
-        botName: (bot?.name as string) || botName,
-        visitorName: apt.visitorName as string,
-        visitorPhone: apt.visitorPhone as string,
-        visitorEmail: apt.visitorEmail as string | undefined,
-        service: apt.service as string | undefined,
-        date: aptDate,
-        duration: apt.duration as number,
-        status: apt.status as string,
-        createdAt: aptCreatedAt,
-      };
-    }),
+    appointments: appointments.map((apt) => ({
+      id: apt.id,
+      botId: apt.botId,
+      botName,
+      visitorName: apt.visitorName,
+      visitorPhone: apt.visitorPhone,
+      visitorEmail: apt.visitorEmail ?? undefined,
+      service: apt.service ?? undefined,
+      date: apt.date instanceof Date ? apt.date.toISOString() : new Date(apt.date as string).toISOString(),
+      duration: apt.duration,
+      status: apt.status,
+      createdAt: apt.createdAt instanceof Date ? apt.createdAt.toISOString() : new Date(apt.createdAt as string).toISOString(),
+    })),
   });
 }
 

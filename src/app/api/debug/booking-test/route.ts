@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
       steps.push({ step: 'leadFindMany_withInclude', ok: false, detail: String(e) });
     }
 
-    // Step 8: Try the exact same query as GET /api/bookings (no botId)
+    // Step 8: Try the EXACT same query as current GET /api/bookings (no include)
     try {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const allAppointments = await db.appointment.findMany({
@@ -123,24 +123,33 @@ export async function GET(request: NextRequest) {
         },
         orderBy: { date: 'desc' },
         take: 100,
-        include: { Bot: { select: { name: true } } },
       });
-      steps.push({ step: 'bookingsFullQuery', ok: true, detail: `Found ${allAppointments.length}` });
+      steps.push({ step: 'bookingsSimpleQuery', ok: true, detail: `Found ${allAppointments.length}` });
+      result.bookingsResult = allAppointments.slice(0, 3).map(a => ({
+        id: a.id,
+        visitorName: a.visitorName,
+        date: a.date instanceof Date ? a.date.toISOString() : String(a.date),
+        status: a.status,
+      }));
     } catch (e) {
-      steps.push({ step: 'bookingsFullQuery', ok: false, detail: String(e) });
+      steps.push({ step: 'bookingsSimpleQuery', ok: false, detail: String(e) });
     }
 
-    // Step 9: Try the exact same query as GET /api/leads
+    // Step 9: Try the EXACT same query as current GET /api/leads (no include)
     try {
       const allLeads = await db.lead.findMany({
         where: { botId: { in: botIds } },
         orderBy: { createdAt: 'desc' },
         take: 100,
-        include: { Bot: { select: { name: true } } },
       });
-      steps.push({ step: 'leadsFullQuery', ok: true, detail: `Found ${allLeads.length}` });
+      steps.push({ step: 'leadsSimpleQuery', ok: true, detail: `Found ${allLeads.length}` });
+      result.leadsResult = allLeads.slice(0, 3).map(l => ({
+        id: l.id,
+        visitorName: l.visitorName,
+        status: l.status,
+      }));
     } catch (e) {
-      steps.push({ step: 'leadsFullQuery', ok: false, detail: String(e) });
+      steps.push({ step: 'leadsSimpleQuery', ok: false, detail: String(e) });
     }
 
   } catch (e) {
