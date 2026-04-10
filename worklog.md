@@ -29,3 +29,35 @@ Stage Summary:
 - Webhook endpoint receives transcript, summary, duration, cost from Vapi
 - Each customer pays Vapi directly (no telephony costs on our side)
 - Next: customer needs to set up Vapi account, get API key, buy phone number, configure in settings
+
+---
+Task ID: 2
+Agent: main
+Task: Implement real lead generation campaigns with email + AI calls in "Привлечение клиентов"
+
+Work Log:
+- Analyzed existing LeadGenerationDialog: it was fake (setTimeout 2000ms), no real email/call sending
+- Company data was entered manually each time despite being in DB (user.company, user.vapiPhone, user.emailFrom)
+- Created /api/lead-campaign/route.ts — real campaign API:
+  - Sends emails via Resend with company-branded HTML template
+  - Initiates AI calls via Vapi with campaign-specific system prompt
+  - Supports 3 recipient modes: all clients, manual phones, manual emails
+  - Returns real results: emailsSent, emailsFailed, callsInitiated, callsFailed
+- Rewrote LeadGenerationDialog completely:
+  - Step 1: Loads company data from /api/user-settings and /api/vapi/settings (no manual input)
+  - Two channel toggles: Email (via Resend) + AI Calls (via Vapi)
+  - Vapi configuration status shown with warning if not set up
+  - Three recipient modes with appropriate inputs
+  - Step 2: Confirmation screen with full campaign parameters summary
+  - Step 3: Real results with stats cards, error list
+- Updated card description and badge to reflect real functionality
+- Fixed syntax error in lead-campaign route (missing closing parenthesis)
+- Lint clean, pushed as commit 39e75b8
+
+Stage Summary:
+- Lead generation is now fully functional with real email + AI call capabilities
+- Company name, email, phone auto-loaded from user profile & Vapi settings
+- Each customer acts under their own brand identity
+- Two independent channels: email through Resend, calls through Vapi
+- Campaign results tracked in AnalyticsEvent
+
