@@ -3199,6 +3199,10 @@ export function AiAgentPage() {
     totalMessages: number;
     confirmedBookings: number;
     lastActivity: string | null;
+    emailsSent: number;
+    callsMade: number;
+    newLeads: number;
+    conversationsProcessed: number;
   } | null>(null);
 
   // ── AI Performance metrics from /api/reports ──
@@ -3239,8 +3243,8 @@ export function AiAgentPage() {
     cancelation: false,
   });
 
-  // Issue 8: Check if user has bots
-  const hasBots = (user?.role === 'admin' || user?.role === 'user') ?? false;
+  // Check if user actually has bots (updated from API fetch)
+  const [hasBots, setHasBots] = useState(false);
 
   // Fetch real activity data on mount
   useEffect(() => {
@@ -3276,6 +3280,9 @@ export function AiAgentPage() {
         if (settingsRes?.emailFrom) {
           setUserEmailFrom(settingsRes.emailFrom);
         }
+
+        // Update hasBots based on actual bot count
+        setHasBots(Array.isArray(botsRes?.bots) && botsRes.bots.length > 0);
 
         const realItems: ActivityItem[] = [];
         let idCounter = 1;

@@ -69,9 +69,6 @@ export async function GET(request: NextRequest) {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    const lastWeekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    lastWeekStart.setHours(0, 0, 0, 0);
-
     // ── Parallel queries (all flat — no relation filters on Message) ──
     const [
       tasksToday,
@@ -130,30 +127,31 @@ export async function GET(request: NextRequest) {
         select: { createdAt: true },
       }),
 
-      // 7. Emails sent = leads that were contacted
+      // 7. Emails sent today = leads contacted today
       db.lead.count({
         where: {
           botId: { in: botIds },
           status: 'contacted',
+          createdAt: { gte: todayStart },
         },
       }),
 
-      // 8. Calls made (CallLog has userId directly — safe)
+      // 8. Calls made today (CallLog has userId directly — safe)
       db.callLog.count({
-        where: { userId },
+        where: { userId, createdAt: { gte: todayStart } },
       }),
 
-      // 9. New leads this week
+      // 9. New leads today
       db.lead.count({
         where: {
           botId: { in: botIds },
-          createdAt: { gte: lastWeekStart },
+          createdAt: { gte: todayStart },
         },
       }),
 
-      // 10. Conversations processed (has botId directly — safe)
+      // 10. Conversations today (has botId directly — safe)
       db.conversation.count({
-        where: { botId: { in: botIds } },
+        where: { botId: { in: botIds }, createdAt: { gte: todayStart } },
       }),
     ]);
 
