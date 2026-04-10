@@ -2581,34 +2581,90 @@ function LeadGenerationDialog({ open, onOpenChange }: { open: boolean; onOpenCha
 }
 
 // ──────────────────────────────────────────────────────────────
-// Issue 6: Reports & Analytics Dialog
+// Issue 6: Reports & Analytics Dialog (REAL data from /api/reports)
 // ──────────────────────────────────────────────────────────────
+
+interface ReportDay {
+  date: string;
+  label: string;
+  emails: number;
+  calls: number;
+  appointments: number;
+  leads: number;
+  conversations: number;
+}
+
+interface ReportTotals {
+  emails: number;
+  calls: number;
+  appointments: number;
+  leads: number;
+  conversations: number;
+}
 
 function ReportsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { language } = useAppStore();
+  const { user } = useAuthStore();
 
-  const reportData = [
-    { date: '01.06', emails: 12, calls: 5, appointments: 3, leads: 4, tickets: 8 },
-    { date: '02.06', emails: 18, calls: 7, appointments: 5, leads: 6, tickets: 12 },
-    { date: '03.06', emails: 15, calls: 4, appointments: 4, leads: 3, tickets: 10 },
-    { date: '04.06', emails: 22, calls: 9, appointments: 7, leads: 8, tickets: 15 },
-    { date: '05.06', emails: 14, calls: 6, appointments: 4, leads: 5, tickets: 9 },
-    { date: '06.06', emails: 20, calls: 8, appointments: 6, leads: 7, tickets: 11 },
-    { date: '07.06', emails: 25, calls: 10, appointments: 8, leads: 9, tickets: 14 },
-  ];
+  const [loading, setLoading] = useState(false);
+  const [dailyData, setDailyData] = useState<ReportDay[]>([]);
+  const [totals, setTotals] = useState<ReportTotals>({ emails: 0, calls: 0, appointments: 0, leads: 0, conversations: 0 });
 
-  const totals = reportData.reduce((acc, r) => ({
-    emails: acc.emails + r.emails,
-    calls: acc.calls + r.calls,
-    appointments: acc.appointments + r.appointments,
-    leads: acc.leads + r.leads,
-    tickets: acc.tickets + r.tickets,
-  }), { emails: 0, calls: 0, appointments: 0, leads: 0, tickets: 0 });
+  // Fetch real data when dialog opens
+  useEffect(() => {
+    if (!open || !user?.id) return;
+    let cancelled = false;
 
-  const handleExport = (type: 'csv' | 'pdf') => {
-    const msg = language === 'ru' ? `Отчёт экспортирован (${type.toUpperCase()})` : language === 'en' ? `Report exported (${type.toUpperCase()})` : `Rapor dışa aktarıldı (${type.toUpperCase()})`;
+    async function fetchReports() {
+      setLoading(true);
+      try {
+        const res = await fetch('/api/reports', { headers: { 'x-user-id': user.id } });
+        if (!res.ok) throw new Error('Failed to fetch reports');
+        const data = await res.json();
+        if (!cancelled) {
+          setDailyData(data.dailyData || []);
+          setTotals(data.totals || { emails: 0, calls: 0, appointments: 0, leads: 0, conversations: 0 });
+        }
+      } catch (err) {
+        console.error('[ReportsDialog] fetch error:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    fetchReports();
+    return () => { cancelled = true; };
+  }, [open, user?.id]);
+
+  // Real CSV export
+  const handleExportCSV = () => {
+    if (dailyData.length === 0) return;
+
+    const headers = {
+      ru: ['Дата', 'Писем', 'Звонков', 'Записей', 'Лиды', 'Диалоги'],
+      en: ['Date', 'Emails', 'Calls', 'Appointments', 'Leads', 'Conversations'],
+      tr: ['Tarih', 'E-posta', 'Arama', 'Randevu', 'Potansiyel', 'Diyalog'],
+    };
+    const h = headers[language as keyof typeof headers] || headers.en;
+
+    const rows = dailyData.map((r) => [r.label, r.emails, r.calls, r.appointments, r.leads, r.conversations]);
+    // Add totals row
+    rows.push(['—', totals.emails, totals.calls, totals.appointments, totals.leads, totals.conversations]);
+
+    const csvContent = [h.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `report-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    const msg = language === 'ru' ? 'CSV-отчёт загружен' : language === 'en' ? 'CSV report downloaded' : 'CSV raporu indirildi';
     toast.success(msg);
   };
+
+  const lbl = (ru: string, en: string, tr: string) => language === 'ru' ? ru : language === 'en' ? en : tr;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -2616,73 +2672,82 @@ function ReportsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BarChart3 className="size-5 text-emerald-600" />
-            {language === 'ru' ? 'Отчёт за 7 дней' : language === 'en' ? '7-Day Report' : '7 Günlük Rapor'}
+            {lbl('Отчёт за 7 дней', '7-Day Report', '7 Günlük Rapor')}
           </DialogTitle>
           <DialogDescription>
-            {language === 'ru' ? 'Сводные данные за последнюю неделю' : language === 'en' ? 'Summary data for the last week' : 'Son hafta özet verileri'}
+            {lbl('Реальные данные за последнюю неделю', 'Real data for the last week', 'Son hafta gerçek veriler')}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 pt-2">
-          <ScrollArea className="max-h-72">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">{language === 'ru' ? 'Дата' : language === 'en' ? 'Date' : 'Tarih'}</TableHead>
-                  <TableHead className="text-xs text-center">{language === 'ru' ? 'Писем' : language === 'en' ? 'Emails' : 'E-posta'}</TableHead>
-                  <TableHead className="text-xs text-center">{language === 'ru' ? 'Звонков' : language === 'en' ? 'Calls' : 'Arama'}</TableHead>
-                  <TableHead className="text-xs text-center">{language === 'ru' ? 'Записей' : language === 'en' ? 'Appointments' : 'Randevu'}</TableHead>
-                  <TableHead className="text-xs text-center">{language === 'ru' ? 'Лиды' : language === 'en' ? 'Leads' : 'Potansiyel'}</TableHead>
-                  <TableHead className="text-xs text-center">{language === 'ru' ? 'Тикеты' : language === 'en' ? 'Tickets' : 'Bilet'}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {reportData.map((row) => (
-                  <TableRow key={row.date}>
-                    <TableCell className="text-xs font-medium">{row.date}</TableCell>
-                    <TableCell className="text-xs text-center">{row.emails}</TableCell>
-                    <TableCell className="text-xs text-center">{row.calls}</TableCell>
-                    <TableCell className="text-xs text-center">{row.appointments}</TableCell>
-                    <TableCell className="text-xs text-center">{row.leads}</TableCell>
-                    <TableCell className="text-xs text-center">{row.tickets}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </ScrollArea>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : dailyData.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
+              <BarChart3 className="size-10 opacity-30" />
+              <p className="text-sm">{lbl('Данных за эту неделю пока нет', 'No data for this week yet', 'Bu hafta için henüz veri yok')}</p>
+            </div>
+          ) : (
+            <>
+              <ScrollArea className="max-h-72">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">{lbl('Дата', 'Date', 'Tarih')}</TableHead>
+                      <TableHead className="text-xs text-center">{lbl('Писем', 'Emails', 'E-posta')}</TableHead>
+                      <TableHead className="text-xs text-center">{lbl('Звонков', 'Calls', 'Arama')}</TableHead>
+                      <TableHead className="text-xs text-center">{lbl('Записей', 'Appointments', 'Randevu')}</TableHead>
+                      <TableHead className="text-xs text-center">{lbl('Лиды', 'Leads', 'Potansiyel')}</TableHead>
+                      <TableHead className="text-xs text-center">{lbl('Диалоги', 'Conversations', 'Diyalog')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dailyData.map((row) => (
+                      <TableRow key={row.date}>
+                        <TableCell className="text-xs font-medium">{row.label}</TableCell>
+                        <TableCell className="text-xs text-center">{row.emails}</TableCell>
+                        <TableCell className="text-xs text-center">{row.calls}</TableCell>
+                        <TableCell className="text-xs text-center">{row.appointments}</TableCell>
+                        <TableCell className="text-xs text-center">{row.leads}</TableCell>
+                        <TableCell className="text-xs text-center">{row.conversations}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
 
-          {/* Totals */}
-          <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 grid grid-cols-5 gap-2 text-center">
-            <div>
-              <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{totals.emails}</p>
-              <p className="text-[10px] text-muted-foreground">{language === 'ru' ? 'Писем' : language === 'en' ? 'Emails' : 'E-posta'}</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{totals.calls}</p>
-              <p className="text-[10px] text-muted-foreground">{language === 'ru' ? 'Звонков' : language === 'en' ? 'Calls' : 'Arama'}</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{totals.appointments}</p>
-              <p className="text-[10px] text-muted-foreground">{language === 'ru' ? 'Записей' : language === 'en' ? 'Appointments' : 'Randevu'}</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{totals.leads}</p>
-              <p className="text-[10px] text-muted-foreground">{language === 'ru' ? 'Лиды' : language === 'en' ? 'Leads' : 'Potansiyel'}</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{totals.tickets}</p>
-              <p className="text-[10px] text-muted-foreground">{language === 'ru' ? 'Тикеты' : language === 'en' ? 'Tickets' : 'Bilet'}</p>
-            </div>
-          </div>
+              {/* Totals */}
+              <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 grid grid-cols-5 gap-2 text-center">
+                <div>
+                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{totals.emails}</p>
+                  <p className="text-[10px] text-muted-foreground">{lbl('Писем', 'Emails', 'E-posta')}</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{totals.calls}</p>
+                  <p className="text-[10px] text-muted-foreground">{lbl('Звонков', 'Calls', 'Arama')}</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{totals.appointments}</p>
+                  <p className="text-[10px] text-muted-foreground">{lbl('Записей', 'Appointments', 'Randevu')}</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{totals.leads}</p>
+                  <p className="text-[10px] text-muted-foreground">{lbl('Лиды', 'Leads', 'Potansiyel')}</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{totals.conversations}</p>
+                  <p className="text-[10px] text-muted-foreground">{lbl('Диалоги', 'Conversations', 'Diyalog')}</p>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Export buttons */}
           <div className="flex gap-3">
-            <Button variant="outline" className="flex-1 gap-2" onClick={() => handleExport('csv')}>
+            <Button variant="outline" className="flex-1 gap-2" onClick={handleExportCSV} disabled={loading || dailyData.length === 0}>
               <Download className="size-4" />
-              Экспорт CSV
-            </Button>
-            <Button variant="outline" className="flex-1 gap-2" onClick={() => handleExport('pdf')}>
-              <Download className="size-4" />
-              Экспорт PDF
+              {lbl('Экспорт CSV', 'Export CSV', 'CSV Dışa Aktar')}
             </Button>
           </div>
         </div>
@@ -3136,6 +3201,13 @@ export function AiAgentPage() {
     lastActivity: string | null;
   } | null>(null);
 
+  // ── AI Performance metrics from /api/reports ──
+  const [aiPerformance, setAiPerformance] = useState<{
+    tasksCompleted: number;
+    satisfaction: number;
+    avgResponseSeconds: number | null;
+  } | null>(null);
+
   // ── User's configured sender email ──
   const [userEmailFrom, setUserEmailFrom] = useState<string | null>(null);
 
@@ -3179,12 +3251,13 @@ export function AiAgentPage() {
       try {
         const headers = { 'x-user-id': user.id };
 
-        // Fetch analytics for the week
-        const [analyticsRes, botsRes, statsRes, settingsRes] = await Promise.all([
+        // Fetch analytics for the week + AI performance
+        const [analyticsRes, botsRes, statsRes, settingsRes, reportsRes] = await Promise.all([
           fetch('/api/analytics?range=week', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
           fetch('/api/bots', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
           fetch('/api/agent-stats', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
           fetch('/api/user-settings', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch('/api/reports', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
         ]);
 
         if (cancelled) return;
@@ -3192,6 +3265,11 @@ export function AiAgentPage() {
         // Set real agent stats
         if (statsRes) {
           setAgentStats(statsRes);
+        }
+
+        // Set AI performance metrics
+        if (reportsRes?.performance) {
+          setAiPerformance(reportsRes.performance);
         }
 
         // Set user's configured sender email
@@ -3692,7 +3770,7 @@ export function AiAgentPage() {
             </CardContent>
           </Card>
 
-          {/* Issue 8: AI Performance - 0% for new users */}
+          {/* AI Performance - real data from /api/reports */}
           <Card className="border-border/60">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold">
@@ -3701,14 +3779,30 @@ export function AiAgentPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {[
-                { label: { ru: 'Задачи выполнены', en: 'Tasks completed', tr: 'Tamamlanan görevler' }, value: hasBots ? 92 : 0 },
-                { label: { ru: 'Удовлетворённость', en: 'Satisfaction', tr: 'Memnuniyet' }, value: hasBots ? 98.5 : 0 },
-                { label: { ru: 'Время отклика', en: 'Response time', tr: 'Yanıt süresi' }, value: hasBots ? 88 : 0 },
+                {
+                  label: { ru: 'Задачи выполнены', en: 'Tasks completed', tr: 'Tamamlanan görevler' },
+                  value: aiPerformance?.tasksCompleted ?? 0,
+                  display: aiPerformance ? `${aiPerformance.tasksCompleted}%` : '0%',
+                },
+                {
+                  label: { ru: 'Удовлетворённость', en: 'Satisfaction', tr: 'Memnuniyet' },
+                  value: aiPerformance?.satisfaction ?? 0,
+                  display: aiPerformance ? `${aiPerformance.satisfaction}%` : '0%',
+                },
+                {
+                  label: { ru: 'Время отклика', en: 'Response time', tr: 'Yanıt süresi' },
+                  value: aiPerformance?.avgResponseSeconds != null ? Math.max(0, 100 - Math.min(100, Math.round((aiPerformance.avgResponseSeconds / 10) * 100))) : 0,
+                  display: aiPerformance?.avgResponseSeconds != null
+                    ? (aiPerformance.avgResponseSeconds < 60
+                        ? `${Math.round(aiPerformance.avgResponseSeconds)}${language === 'ru' ? ' сек' : language === 'en' ? 's' : 'sn'}`
+                        : `${Math.round(aiPerformance.avgResponseSeconds / 60)}${language === 'ru' ? ' мин' : language === 'en' ? ' min' : ' dk'}`)
+                    : (language === 'ru' ? 'Нет данных' : language === 'en' ? 'No data' : 'Veri yok'),
+                },
               ].map((item) => (
                 <div key={item.label.ru} className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">{tx(item.label, language)}</span>
-                    <span className="font-medium">{hasBots ? `${item.value}%` : '0%'}</span>
+                    <span className="font-medium">{item.display}</span>
                   </div>
                   <Progress value={item.value} className="h-2 [&>[data-slot=indicator]]:bg-emerald-600" />
                 </div>

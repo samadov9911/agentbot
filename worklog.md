@@ -61,3 +61,41 @@ Stage Summary:
 - Two independent channels: email through Resend, calls through Vapi
 - Campaign results tracked in AnalyticsEvent
 
+---
+Task ID: 3
+Agent: main
+Task: Fix fake data in "Отчёты и аналитика" (Reports & Analytics) and "Эффективность AI" (AI Performance)
+
+Work Log:
+- Identified 3 sources of fake data:
+  1. ReportsDialog (lines 2587-2692): hardcoded 7-day data with random numbers
+  2. AI Performance card (lines 3695-3717): hardcoded 92%, 98.5%, 88%
+  3. Export buttons: only showed toast, no real export
+- Created /api/reports/route.ts — new API endpoint returning real daily data for last 7 days:
+  - Each day: emails (contacted leads), calls (CallLog), appointments, leads, conversations
+  - Totals aggregated across 7 days
+  - AI Performance metrics: tasksCompleted (confirmed/total appointments), satisfaction (non-flagged/total conversations), avgResponseSeconds (avg time between user→bot messages)
+  - All queries are PgBouncer-safe (flat filters, no cross-table joins)
+- Rewrote ReportsDialog in ai-agent-page.tsx:
+  - Fetches real data from /api/reports when dialog opens
+  - Shows loading spinner, empty state, or real data table
+  - Replaced "Тикеты" (Tickets) with "Диалоги" (Conversations) — no Ticket model exists
+  - Implemented real CSV export (generates and downloads .csv file with BOM for UTF-8)
+  - Removed fake PDF export button (no jspdf dependency needed)
+  - Trilingual labels (ru/en/tr)
+- Added aiPerformance state variable
+- Added /api/reports fetch to existing useEffect (alongside analytics, bots, agent-stats, user-settings)
+- Rewrote AI Performance card to use real metrics:
+  - Tasks completed: real percentage from DB
+  - Satisfaction: real percentage from DB
+  - Response time: real average in seconds/minutes (shows "Нет данных" if no conversations yet)
+  - Progress bars reflect real values
+- Lint clean, build passes (no new TS errors)
+- Pre-existing TS errors only in examples/ and request-reset routes (unrelated)
+
+Stage Summary:
+- ReportsDialog now shows real data from the database
+- AI Performance card shows real computed metrics
+- CSV export actually generates and downloads a file
+- No more hardcoded/fake numbers anywhere in these components
+
