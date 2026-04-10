@@ -2052,76 +2052,152 @@ function BookingNotificationsDialog({ open, onOpenChange }: { open: boolean; onO
 // Issue 4: Lead Generation Dialog — 3-step goal/contacts form
 // ──────────────────────────────────────────────────────────────
 
+
 function LeadGenerationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { language } = useAppStore();
   const { user } = useAuthStore();
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [companyName, setCompanyName] = useState(user?.name || '');
-  const [companyPhone, setCompanyPhone] = useState('');
   const [goal, setGoal] = useState('');
   const [clientPhones, setClientPhones] = useState('');
-  const [recipientMode, setRecipientMode] = useState<'manual' | 'individual'>('manual');
-  const [individualEmails, setIndividualEmails] = useState('');
-  const [approvalMode, setApprovalMode] = useState<'auto' | 'manual'>('auto');
-  const [generatedEmail, setGeneratedEmail] = useState('');
+  const [clientEmails, setClientEmails] = useState('');
+  const [recipientMode, setRecipientMode] = useState<'all' | 'phones' | 'emails'>('all');
+  const [channels, setChannels] = useState({ email: true, call: false });
   const [sending, setSending] = useState(false);
 
-  const companyLabel = companyName.trim() || (user?.name || '');
+  // Company data loaded from DB
+  const [companyName, setCompanyName] = useState('');
+  const [companyPhone, setCompanyPhone] = useState('');
+  const [senderEmail, setSenderEmail] = useState('');
+  const [vapiConfigured, setVapiConfigured] = useState(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
-  const generateEmailDraft = (goalText: string): string => {
-    const cName = companyLabel || (language === 'ru' ? 'Наша компания' : language === 'en' ? 'Our Company' : 'Şirketimiz');
-    const cPhone = companyPhone.trim();
-    const phoneLine = cPhone
-      ? (language === 'ru' ? `\n📞 Телефон: ${cPhone}` : language === 'en' ? `\n📞 Phone: ${cPhone}` : `\n📞 Telefon: ${cPhone}`)
-      : '';
+  // Campaign results
+  const [campaignResult, setCampaignResult] = useState<{
+    emailsSent: number;
+    emailsFailed: number;
+    emailsTotal: number;
+    callsInitiated: number;
+    callsFailed: number;
+    callsTotal: number;
+    errors: string[];
+    vapiNotConfigured: boolean;
+    emailNotConfigured: boolean;
+    companyName: string;
+    companyPhone: string;
+  } | null>(null);
 
-    const drafts: Record<string, Record<string, string>> = {
-      ru: {
-        subject: `Специальное предложение от ${cName}`,
-        body: `Здравствуйте!\n\n${cName} рад(а) предложить вам: ${goalText}\n\nЭто уникальная возможность, которую вы не хотите пропустить. Мы готовы помочь вам на каждом этапе и ответить на все вопросы.\n\nДля получения подробной информации свяжитесь с нами или ответьте на это письмо.${phoneLine}\n\nС уважением,\n${cName}`,
-      },
-      en: {
-        subject: `Special offer from ${cName}`,
-        body: `Hello!\n\n${cName} is pleased to offer you: ${goalText}\n\nThis is a unique opportunity you won't want to miss. We are ready to help you every step of the way and answer any questions.\n\nFor more details, contact us or reply to this email.${phoneLine}\n\nBest regards,\n${cName}`,
-      },
-      tr: {
-        subject: `${cName} özel teklifi`,
-        body: `Merhaba!\n\n${cName} size sunmaktan mutluluk duyuyor: ${goalText}\n\nKaçırmak istemeyeceğiniz benzersiz bir fırsat. Her adımda size yardıma hazırız ve tüm soruları yanıtlamak istiyoruz.\n\nDetaylar için bizi arayın veya bu e-postaya yanıt verin.${phoneLine}\n\nSaygılarımızla,\n${cName}`,
-      },
-    };
-    const langKey = language === 'en' ? 'en' : language === 'tr' ? 'tr' : 'ru';
-    const d = drafts[langKey];
-    return `${language === 'ru' ? 'Тема:' : language === 'en' ? 'Subject:' : 'Konu:'} ${d.subject}\n\n${d.body}`;
-  };
+  const t = (ru: string, en: string, tr: string) =>
+    language === 'ru' ? ru : language === 'en' ? en : tr;
+
+  // Load company data from DB on open
+  useEffect(() => {
+    if (!open || !user?.id) return;
+    let cancelled = false;
+
+    const headers = { 'x-user-id': user.id };
+
+    Promise.all([
+      fetch('/api/user-settings', { headers })
+        .then((r) => r.ok ? r.json() : null)
+        .catch(() => null),
+      fetch('/api/vapi/settings', { headers })
+        .then((r) => r.ok ? r.json() : null)
+        .catch(() => null),
+    ]).then(([settings, vapiSettings]) => {
+      if (cancelled) return;
+
+      if (settings) {
+        setCompanyName(settings.company || settings.name || '');
+        setSenderEmail(settings.emailFrom || '');
+      }
+      if (vapiSettings) {
+        setVapiConfigured(vapiSettings.configured);
+        setCompanyPhone(vapiSettings.vapiPhone || '');
+      }
+      setSettingsLoaded(true);
+    });
+
+    return () => { cancelled = true; };
+  }, [open, user?.id]);
 
   const handleStep1Next = () => {
     if (!companyName.trim()) {
-      toast.error(
-        language === 'ru' ? 'Введите название компании' : language === 'en' ? 'Enter company name' : 'Şirket adını girin'
-      );
+      toast.error(t('Укажите название компании в профиле', 'Set company name in profile', 'Profilde şirket adını belirtin'));
       return;
     }
     if (!goal.trim()) {
-      toast.error(
-        language === 'ru' ? 'Опишите цель' : language === 'en' ? 'Describe the goal' : 'Hedefi açıklayın'
-      );
+      toast.error(t('Опишите цель кампании', 'Describe the campaign goal', 'Kampanya hedefini açıklayın'));
       return;
     }
-    if (!companyPhone.trim()) {
-      toast.error(
-        language === 'ru' ? 'Введите телефон компании' : language === 'en' ? 'Enter company phone' : 'Şirket telefonunu girin'
-      );
+    if (channels.call && !vapiConfigured) {
+      toast.error(t('Сначала настройте Vapi в разделе "Звонки клиентам"', 'Set up Vapi in "Client Calls" section first', 'Önce "Müşteri Aramaları" bölümünde Vapi\'yi yapılandırın'));
       return;
     }
-    setGeneratedEmail(generateEmailDraft(goal));
+    if (channels.email && !channels.call && recipientMode === 'phones' && !clientEmails.trim()) {
+      toast.error(t('Укажите email получателей', 'Specify recipient emails', 'Alıcı e-postalarını belirtin'));
+      return;
+    }
+    if (channels.call && !channels.email && recipientMode === 'emails' && !clientPhones.trim()) {
+      toast.error(t('Укажите телефоны получателей', 'Specify recipient phones', 'Alıcı telefonlarını belirtin'));
+      return;
+    }
     setStep(2);
   };
 
-  const handleStep2Next = async () => {
+  const handleLaunch = async () => {
     setSending(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    setSending(false);
-    setStep(3);
+    try {
+      const phoneList = clientPhones.trim()
+        ? clientPhones.split(',').map((p) => p.trim()).filter(Boolean)
+        : [];
+      const emailList = clientEmails.trim()
+        ? clientEmails.split(',').map((e) => e.trim()).filter(Boolean)
+        : [];
+
+      const res = await fetch('/api/lead-campaign', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || '',
+        },
+        body: JSON.stringify({
+          goal: goal.trim(),
+          recipientMode,
+          clientPhones: phoneList,
+          clientEmails: emailList,
+          channels,
+          language: language || 'ru',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || t('Ошибка запуска кампании', 'Campaign launch failed', 'Kampanya başlatılamadı'));
+        setSending(false);
+        return;
+      }
+
+      setCampaignResult(data);
+      setStep(3);
+
+      if (data.emailsSent > 0 || data.callsInitiated > 0) {
+        toast.success(
+          t(
+            `Кампания запущена! Отправлено: ${data.emailsSent} писем, ${data.callsInitiated} звонков`,
+            `Campaign launched! Sent: ${data.emailsSent} emails, ${data.callsInitiated} calls`,
+            `Kampanya başlatıldı! Gönderilen: ${data.emailsSent} e-posta, ${data.callsInitiated} arama`
+          )
+        );
+      }
+      if (data.vapiNotConfigured) {
+        toast.error(t('Vapi не настроен — звонки не отправлены', 'Vapi not configured — calls not sent', 'Vapi yapılandırılmadı — aramalar gönderilmedi'));
+      }
+    } catch {
+      toast.error(t('Ошибка запуска кампании', 'Campaign launch failed', 'Kampanya başlatılamadı'));
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleClose = (v: boolean) => {
@@ -2129,251 +2205,287 @@ function LeadGenerationDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     if (!v) {
       setStep(1);
       setGoal('');
-      setCompanyName(user?.name || '');
-      setCompanyPhone('');
       setClientPhones('');
-      setRecipientMode('manual');
-      setIndividualEmails('');
-      setApprovalMode('auto');
-      setGeneratedEmail('');
+      setClientEmails('');
+      setRecipientMode('all');
+      setChannels({ email: true, call: false });
       setSending(false);
+      setCampaignResult(null);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="size-5 text-emerald-600" />
-            {language === 'ru' ? 'Привлечение клиентов' : language === 'en' ? 'Lead Generation' : 'Potansiyel Müşteri Kazanımı'}
+            {t('Привлечение клиентов', 'Lead Generation', 'Potansiyel Müşteri Kazanımı')}
           </DialogTitle>
           <DialogDescription>
             {step === 1
-              ? (language === 'ru' ? 'Опишите цель и контакт клиента' : language === 'en' ? 'Describe the goal and client contact' : 'Hedefi ve müşteri iletişimini açıklayın')
+              ? t('Настройте кампанию и укажите клиентов', 'Configure the campaign and specify clients', 'Kampanyayı yapılandırın ve müşterileri belirtin')
               : step === 2
-                ? (language === 'ru' ? 'Просмотрите черновик email' : language === 'en' ? 'Review the email draft' : 'E-posta taslağını gözden geçirin')
-                : (language === 'ru' ? 'Готово!' : language === 'en' ? 'Done!' : 'Tamamlandı!')}
+                ? t('Подтвердите параметры кампании', 'Confirm campaign parameters', 'Kampanya parametrelerini onaylayın')
+                : t('Результат кампании', 'Campaign results', 'Kampanya sonuçları')}
           </DialogDescription>
         </DialogHeader>
 
         {/* Step indicator */}
         <div className="flex items-center gap-2">
-          <div className={`flex items-center justify-center size-7 rounded-full text-xs font-bold ${
-            step >= 1 ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground'
-          }`}>1</div>
-          <div className={`flex-1 h-0.5 rounded-full ${step >= 2 ? 'bg-emerald-600' : 'bg-muted'}`} />
-          <div className={`flex items-center justify-center size-7 rounded-full text-xs font-bold ${
-            step >= 2 ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground'
-          }`}>2</div>
-          <div className={`flex-1 h-0.5 rounded-full ${step >= 3 ? 'bg-emerald-600' : 'bg-muted'}`} />
-          <div className={`flex items-center justify-center size-7 rounded-full text-xs font-bold ${
-            step >= 3 ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground'
-          }`}>3</div>
+          {[1, 2, 3].map((s) => (
+            <React.Fragment key={s}>
+              {s > 1 && (
+                <div className={`flex-1 h-0.5 rounded-full ${step >= s ? 'bg-emerald-600' : 'bg-muted'}`} />
+              )}
+              <div className={`flex items-center justify-center size-7 rounded-full text-xs font-bold shrink-0 ${
+                step >= s ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground'
+              }`}>{s}</div>
+            </React.Fragment>
+          ))}
         </div>
 
+        {/* Step 1: Configure */}
         {step === 1 && (
           <div className="space-y-4 pt-2">
-            {/* Company info banner */}
-            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <Bot className="size-4 text-emerald-600" />
-                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                  {language === 'ru' ? '🤖 AI-агент свяжется с клиентами от вашего имени' : language === 'en' ? '🤖 AI agent will contact clients on your behalf' : '🤖 AI ajanı sizin adınıza müşterilerle iletişim kuracak'}
-                </span>
+            {/* Company info card from DB */}
+            {settingsLoaded && (
+              <div className="rounded-lg border bg-emerald-50/50 dark:bg-emerald-950/30 p-3 space-y-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <Bot className="size-4 text-emerald-600" />
+                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                    {t('AI-агент свяжется с клиентами от вашего имени', 'AI agent will contact clients on your behalf', 'AI ajanı sizin adınıza müşterilerle iletişim kuracak')}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">{t('Компания:', 'Company:', 'Şirket:')}</span>
+                    <span className="font-medium">{companyName || user?.name || t('Не указано', 'Not set', 'Belirtilmedi')}</span>
+                  </div>
+                  {senderEmail && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{t('Email:', 'Email:', 'E-posta:')}</span>
+                      <span className="font-medium truncate max-w-[200px]">{senderEmail}</span>
+                    </div>
+                  )}
+                  {companyPhone && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{t('Телефон:', 'Phone:', 'Telefon:')}</span>
+                      <span className="font-medium">{companyPhone}</span>
+                    </div>
+                  )}
+                  {!companyName && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-snug">
+                      {t('Укажите название компании в настройках профиля', 'Set company name in profile settings', 'Profil ayarlarında şirket adını belirtin')}
+                    </p>
+                  )}
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {language === 'ru' ? 'Укажите данные вашей компании — AI-агент будет действовать от её имени' : language === 'en' ? 'Enter your company details — the AI agent will act on its behalf' : 'Şirket bilgilerinizi girin — AI ajanı onun adına hareket edecek'}
-              </p>
-            </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">
-                  {language === 'ru' ? 'Название компании *' : language === 'en' ? 'Company name *' : 'Şirket adı *'}
-                </Label>
-                <Input
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder={language === 'ru' ? 'ООО «Мой бизнес»' : language === 'en' ? 'My Business LLC' : 'Şirketim A.Ş.'}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">
-                  {language === 'ru' ? 'Телефон компании *' : language === 'en' ? 'Company phone *' : 'Şirket telefonu *'}
-                </Label>
-                <Input
-                  value={companyPhone}
-                  onChange={(e) => setCompanyPhone(e.target.value)}
-                  type="tel"
-                  placeholder="+7 (___) ___-__-__"
-                />
-              </div>
-            </div>
-
+            {/* Goal */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">
-                {language === 'ru' ? 'Цель (что предложить клиенту)' : language === 'en' ? 'Goal (what to offer the client)' : 'Hedef (müşteriye ne teklif edilecek)'}
+                {t('Что предложить клиентам? *', 'What to offer clients? *', 'Müşterilere ne teklif edilecek? *')}
               </Label>
               <Textarea
                 value={goal}
                 onChange={(e) => setGoal(e.target.value)}
                 placeholder={
-                  language === 'ru'
-                    ? 'Опишите цель (например, "Предложить новый подписной план со скидкой 30%")...'
-                    : language === 'en'
-                      ? 'Describe the goal (e.g., "Offer new subscription plan with 30% discount")...'
-                      : 'Hedefi açıklayın (ör. "%30 indirimli yeni abonelik planı teklif et")...'
+                  t('Опишите предложение (например, "Скидка 30% на первое посещение до конца месяца")...', 'Describe the offer (e.g., "30% off first visit until end of month")...', 'Teklifi açıklayın (ör. "Ay sonuna kadar ilk ziyarette %30 indirim")...')
                 }
-                className="min-h-[100px] resize-none"
+                className="min-h-[90px] resize-none"
               />
             </div>
 
+            {/* Channels */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">
-                {language === 'ru' ? 'Телефоны клиентов для обзвона (через запятую)' : language === 'en' ? 'Client phones to call (comma separated)' : 'Aranacak müşteri telefonları (virgülle ayırın)'}
+                {t('Каналы связи', 'Communication channels', 'İletişim kanalları')}
               </Label>
-              <Input
-                value={clientPhones}
-                onChange={(e) => setClientPhones(e.target.value)}
-                type="tel"
-                placeholder="+7 (999) 123-45-67, +7 (999) 765-43-21"
-              />
-              <p className="text-xs text-muted-foreground">
-                {language === 'ru' ? 'Оставьте пустым — AI-агент свяжется со всеми клиентами из базы' : language === 'en' ? 'Leave empty — AI agent will contact all clients from the database' : 'Boş bırakın — AI ajanı veritabanındaki tüm müşterilerle iletişim kuracak'}
-              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setChannels((c) => ({ ...c, email: !c.email }))}
+                  className={`text-left rounded-lg border p-3 transition-all duration-200 ${
+                    channels.email
+                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-500'
+                      : 'border-border hover:border-emerald-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Mail className="size-4 text-emerald-600" />
+                    <span className="text-xs font-semibold">{t('Email-рассылка', 'Email campaign', 'E-posta kampanyası')}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-tight">
+                    {senderEmail
+                      ? `From: ${senderEmail}`
+                      : t('Через Resend', 'Via Resend', 'Resend ile')}
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChannels((c) => ({ ...c, call: !c.call }))}
+                  className={`text-left rounded-lg border p-3 transition-all duration-200 ${
+                    channels.call
+                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-500'
+                      : 'border-border hover:border-emerald-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Phone className="size-4 text-emerald-600" />
+                    <span className="text-xs font-semibold">{t('AI-звонки', 'AI calls', 'AI aramaları')}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-tight">
+                    {vapiConfigured
+                      ? t(`Через Vapi: ${companyPhone || 'настроен'}`, `Via Vapi: ${companyPhone || 'configured'}`, `Vapi ile: ${companyPhone || 'yapılandırıldı'}`)
+                      : t('Нужно настроить Vapi', 'Vapi setup required', 'Vapi yapılandırması gerekli')}
+                  </p>
+                </button>
+              </div>
+              {channels.call && !vapiConfigured && (
+                <div className="rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 p-2">
+                  <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                    {t('Для AI-звонков сначала настройте Vapi.ai в карточке "Звонки клиентам"', 'For AI calls, first set up Vapi.ai in the "Client Calls" card', 'AI aramaları için önce "Müşteri Aramaları" kartında Vapi.ai\'yi yapılandırın')}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Recipients */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">
+                {t('Получатели', 'Recipients', 'Alıcılar')}
+              </Label>
+              <Select value={recipientMode} onValueChange={(v) => setRecipientMode(v as 'all' | 'phones' | 'emails')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('Все клиенты из базы', 'All clients from database', 'Veritabanındaki tüm müşteriler')}</SelectItem>
+                  <SelectItem value="phones">{t('Указать телефоны вручную', 'Enter phones manually', 'Telefonları manuel girin')}</SelectItem>
+                  <SelectItem value="emails">{t('Указать email вручную', 'Enter emails manually', 'E-postaları manuel girin')}</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {recipientMode === 'phones' && (
+                <div className="space-y-1.5">
+                  <Input
+                    value={clientPhones}
+                    onChange={(e) => setClientPhones(e.target.value)}
+                    type="tel"
+                    placeholder="+7 (999) 123-45-67, +7 (999) 765-43-21"
+                  />
+                  <p className="text-[11px] text-muted-foreground">{t('Несколько номеров через запятую', 'Multiple numbers comma-separated', 'Birden fazla numara virgülle ayırın')}</p>
+                </div>
+              )}
+              {recipientMode === 'emails' && (
+                <div className="space-y-1.5">
+                  <Input
+                    value={clientEmails}
+                    onChange={(e) => setClientEmails(e.target.value)}
+                    type="email"
+                    placeholder="client1@mail.com, client2@mail.com"
+                  />
+                  <p className="text-[11px] text-muted-foreground">{t('Несколько адресов через запятую', 'Multiple addresses comma-separated', 'Birden fazla adres virgülle ayırın')}</p>
+                </div>
+              )}
+              {recipientMode === 'all' && (
+                <p className="text-[11px] text-muted-foreground">
+                  {t('AI-агент свяжется со всеми клиентами из базы данных лидов', 'AI agent will contact all clients from the leads database', 'AI ajanı veritabanındaki tüm müşterilerle iletişim kuracak')}
+                </p>
+              )}
             </div>
 
             <Button
               onClick={handleStep1Next}
-              disabled={!companyName.trim() || !goal.trim() || !companyPhone.trim()}
+              disabled={!companyName.trim() || !goal.trim() || (!channels.email && !channels.call)}
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20"
             >
-              {language === 'ru' ? 'Далее' : language === 'en' ? 'Next' : 'İleri'}
+              {t('Далее', 'Next', 'İleri')}
               <ArrowRight className="size-4 ml-1.5" />
             </Button>
           </div>
         )}
 
+        {/* Step 2: Confirm */}
         {step === 2 && (
           <div className="space-y-4 pt-2">
-            {/* Generated email preview */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">
-                  {language === 'ru' ? 'Черновик email' : language === 'en' ? 'Email draft' : 'E-posta taslağı'}
-                </Label>
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="size-3.5 text-emerald-600" />
-                  <span className="text-xs text-emerald-600">
-                    {language === 'ru' ? 'AI генерация' : language === 'en' ? 'AI generated' : 'AI oluşturdu'}
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Bot className="size-4 text-emerald-600" />
+                <span className="text-xs font-semibold">{t('Параметры кампании', 'Campaign parameters', 'Kampanya parametreleri')}</span>
+              </div>
+              <div className="space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{t('От имени:', 'On behalf of:', 'Adına:')}</span>
+                  <span className="font-medium">{companyName}</span>
+                </div>
+                {companyPhone && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t('Телефон:', 'Phone:', 'Telefon:')}</span>
+                    <span className="font-medium">{companyPhone}</span>
+                  </div>
+                )}
+                {senderEmail && channels.email && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t('Email:', 'Email:', 'E-posta:')}</span>
+                    <span className="font-medium truncate max-w-[200px]">{senderEmail}</span>
+                  </div>
+                )}
+                <Separator />
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{t('Цель:', 'Goal:', 'Hedef:')}</span>
+                  <span className="font-medium text-right max-w-[260px] leading-snug">{goal}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{t('Каналы:', 'Channels:', 'Kanallar:')}</span>
+                  <span className="font-medium">
+                    {(channels.email ? 'Email' : '') + (channels.email && channels.call ? ' + ' : '') + (channels.call ? t('Звонки', 'Calls', 'Aramalar') : '')}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{t('Получатели:', 'Recipients:', 'Alıcılar:')}</span>
+                  <span className="font-medium">
+                    {recipientMode === 'all'
+                      ? t('Все клиенты', 'All clients', 'Tüm müşteriler')
+                      : recipientMode === 'phones'
+                        ? `${clientPhones.split(',').filter(Boolean).length} ${t('номер(ов)', 'number(s)', 'numara')}`
+                        : `${clientEmails.split(',').filter(Boolean).length} email`}
                   </span>
                 </div>
               </div>
-              <Textarea
-                value={generatedEmail}
-                onChange={(e) => setGeneratedEmail(e.target.value)}
-                className="min-h-[160px] resize-none text-sm leading-relaxed"
-              />
-              <p className="text-xs text-muted-foreground">
-                {language === 'ru' ? '✏️ Вы можете отредактировать текст письма' : language === 'en' ? '✏️ You can edit the email text' : '✏️ E-posta metnini düzenleyebilirsiniz'}
-              </p>
             </div>
 
-            {/* Recipient selection */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">
-                {language === 'ru' ? 'Кому отправить' : language === 'en' ? 'Send to' : 'Kime gönder'}
-              </Label>
-              <Select value={recipientMode} onValueChange={(v) => setRecipientMode(v as 'manual' | 'individual')}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manual">{language === 'ru' ? 'Телефоны клиентов из поля выше' : language === 'en' ? 'Client phones from above' : 'Yukarıdaki müşteri telefonları'}</SelectItem>
-                  <SelectItem value="individual">{language === 'ru' ? 'Выбрать получателей по email' : language === 'en' ? 'Choose recipients by email' : 'E-posta ile alıcı seç'}</SelectItem>
-                </SelectContent>
-              </Select>
-              {recipientMode === 'manual' && clientPhones.trim() && (
-                <div className="rounded-lg border bg-muted/30 p-2">
-                  <p className="text-xs text-muted-foreground mb-1">{language === 'ru' ? '🤖 AI-агент позвонит по номерам:' : language === 'en' ? '🤖 AI agent will call:' : '🤖 AI ajanı arayacak:'}</p>
-                  <p className="text-xs font-medium">{clientPhones}</p>
-                </div>
-              )}
-              {recipientMode === 'individual' && (
-                <Input
-                  value={individualEmails}
-                  onChange={(e) => setIndividualEmails(e.target.value)}
-                  placeholder={language === 'ru' ? 'Email через запятую: client1@mail.com, client2@mail.com' : language === 'en' ? 'Emails comma separated: client1@mail.com, client2@mail.com' : 'E-posta virgülle: client1@mail.com, client2@mail.com'}
-                />
-              )}
-            </div>
-
-            {/* Approval mode */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">
-                {language === 'ru' ? 'Режим отправки' : language === 'en' ? 'Sending mode' : 'Gönderim modu'}
-              </Label>
-              <div className="space-y-2">
-                <label className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all ${
-                  approvalMode === 'auto' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/50' : 'border-border hover:border-emerald-300'
-                }`}>
-                  <input
-                    type="radio"
-                    name="approvalMode"
-                    checked={approvalMode === 'auto'}
-                    onChange={() => setApprovalMode('auto')}
-                    className="accent-emerald-600"
-                  />
-                  <div>
-                    <p className="text-sm font-medium">
-                      {language === 'ru' ? 'Отправлять всем клиентам автоматически' : language === 'en' ? 'Send to all clients automatically' : 'Tüm müşterilere otomatik olarak gönder'}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {language === 'ru' ? 'AI будет рассылать без вашего участия' : language === 'en' ? 'AI will send without your involvement' : 'AI katılımınız olmadan gönderecek'}
-                    </p>
-                  </div>
-                </label>
-                <label className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all ${
-                  approvalMode === 'manual' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/50' : 'border-border hover:border-emerald-300'
-                }`}>
-                  <input
-                    type="radio"
-                    name="approvalMode"
-                    checked={approvalMode === 'manual'}
-                    onChange={() => setApprovalMode('manual')}
-                    className="accent-emerald-600"
-                  />
-                  <div>
-                    <p className="text-sm font-medium">
-                      {language === 'ru' ? 'Отправлять только по моему согласованию' : language === 'en' ? 'Send only with my approval' : 'Sadece onayım ile gönder'}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {language === 'ru' ? 'Каждое письмо будет ждать вашего подтверждения' : language === 'en' ? 'Each email will wait for your confirmation' : 'Her e-posta onayınızı bekleyecek'}
-                    </p>
-                  </div>
-                </label>
-              </div>
+            <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 px-3 py-2.5">
+              <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
+              <span className="text-xs text-amber-700 dark:text-amber-300 leading-snug">
+                {t(
+                  'AI-агент начнёт реальные действия: отправку писем и/или звонки клиентам от имени вашей компании.',
+                  'AI agent will start real actions: sending emails and/or calling clients on behalf of your company.',
+                  'AI ajanı gerçek eylemlere başlayacak: şirketiniz adına e-posta gönderme ve/veya müşteri arama.'
+                )}
+              </span>
             </div>
 
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>
-                {language === 'ru' ? '← Назад' : language === 'en' ? '← Back' : '← Geri'}
+                {t('Назад', 'Back', 'Geri')}
               </Button>
               <Button
-                onClick={handleStep2Next}
+                onClick={handleLaunch}
                 disabled={sending}
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20"
               >
                 {sending ? (
                   <>
-                    <div className="size-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    {language === 'ru' ? 'AI работает...' : language === 'en' ? 'AI is working...' : 'AI çalışıyor...'}
+                    <Loader2 className="size-4 mr-2 animate-spin" />
+                    {t('Запуск...', 'Launching...', 'Başlatılıyor...')}
                   </>
                 ) : (
                   <>
                     <Bot className="size-4 mr-2" />
-                    {language === 'ru' ? 'Запустить AI-агента' : language === 'en' ? 'Launch AI Agent' : 'AI Ajanını Başlat'}
+                    {t('Запустить AI-агента', 'Launch AI Agent', 'AI Ajanını Başlat')}
                   </>
                 )}
                 <ArrowRight className="size-4 ml-1.5" />
@@ -2382,101 +2494,84 @@ function LeadGenerationDialog({ open, onOpenChange }: { open: boolean; onOpenCha
           </div>
         )}
 
-        {step === 3 && (
+        {/* Step 3: Results */}
+        {step === 3 && campaignResult && (
           <div className="space-y-4 pt-2">
-            {/* Success message */}
-            <div className="flex flex-col items-center gap-3 py-6 rounded-lg bg-emerald-50 dark:bg-emerald-950/50">
-              <Bot className="size-10 text-emerald-500" />
-              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
-                ✅ {language === 'ru' ? 'AI-агент начал работу!' : language === 'en' ? 'AI agent is working!' : 'AI ajanı çalışmaya başladı!'}
-              </p>
-              <p className="text-xs text-center text-emerald-600 dark:text-emerald-400 max-w-xs">
-                {language === 'ru' ? `AI-агент от имени «${companyLabel}» связывается с клиентами` : language === 'en' ? `AI agent on behalf of "${companyLabel}" is contacting clients` : `AI ajanı "${companyLabel}" adına müşterilerle iletişim kuruyor`}
+            <div className={`flex flex-col items-center gap-3 py-5 rounded-lg ${
+              campaignResult.emailsSent > 0 || campaignResult.callsInitiated > 0
+                ? 'bg-emerald-50 dark:bg-emerald-950/50'
+                : 'bg-red-50 dark:bg-red-950/50'
+            }`}>
+              {(campaignResult.emailsSent > 0 || campaignResult.callsInitiated > 0) ? (
+                <>
+                  <CheckCircle2 className="size-10 text-emerald-500" />
+                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                    {t('Кампания запущена!', 'Campaign launched!', 'Kампания başlatıldı!')}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="size-10 text-red-500" />
+                  <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+                    {t('Не удалось запустить', 'Failed to launch', 'Başlatılamadı')}
+                  </p>
+                </>
+              )}
+              <p className="text-xs text-center text-muted-foreground max-w-xs">
+                {t(
+                  `AI-агент от имени "${campaignResult.companyName}" связывается с клиентами`,
+                  `AI agent on behalf of "${campaignResult.companyName}" is contacting clients`,
+                  `AI ajanı "${campaignResult.companyName}" adına müşterilerle iletişim kuruyor`
+                )}
               </p>
             </div>
 
-            {/* Email preview */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">
-                {language === 'ru' ? 'Превью email от вашего имени' : language === 'en' ? 'Email preview from your company' : 'Şirketiniz adına e-posta önizleme'}
-              </Label>
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">{generatedEmail}</pre>
-              </div>
-            </div>
-
-            {/* Campaign summary */}
-            <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">
-                  {language === 'ru' ? 'От имени:' : language === 'en' ? 'On behalf of:' : 'Adına:'}
-                </span>
-                <span className="font-medium">{companyLabel}</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">
-                  {language === 'ru' ? 'Телефон компании:' : language === 'en' ? 'Company phone:' : 'Şirket telefonu:'}
-                </span>
-                <span className="font-medium">{companyPhone}</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">
-                  {language === 'ru' ? 'Режим отправки:' : language === 'en' ? 'Sending mode:' : 'Gönderim modu:'}
-                </span>
-                <span className="font-medium">
-                  {approvalMode === 'auto'
-                    ? (language === 'ru' ? 'Авто — AI сам' : language === 'en' ? 'Auto — AI itself' : 'Otomatik — AI kendisi')
-                    : (language === 'ru' ? 'По согласованию' : language === 'en' ? 'With approval' : 'Onay ile')}
-                </span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">
-                  {language === 'ru' ? 'Цель:' : language === 'en' ? 'Goal:' : 'Hedef:'}
-                </span>
-                <span className="font-medium truncate max-w-[200px]">{goal}</span>
-              </div>
-              {recipientMode === 'manual' && clientPhones.trim() && (
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">
-                    {language === 'ru' ? 'Клиенты для обзвона:' : language === 'en' ? 'Clients to call:' : 'Aranacak müşteriler:'}
-                  </span>
-                  <span className="font-medium truncate max-w-[200px]">{clientPhones}</span>
+            <div className="grid grid-cols-2 gap-2">
+              {channels.email && (
+                <div className="rounded-lg border bg-muted/30 p-3 text-center space-y-1">
+                  <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+                    <Mail className="size-3.5" />
+                    {t('Email', 'Email', 'E-posta')}
+                  </div>
+                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{campaignResult.emailsSent}</p>
+                  <p className="text-[10px] text-muted-foreground">{t('отправлено', 'sent', 'gönderildi')}</p>
+                  {campaignResult.emailsFailed > 0 && (
+                    <p className="text-[10px] text-red-500">{campaignResult.emailsFailed} {t('ошибок', 'failed', 'başarısız')}</p>
+                  )}
                 </div>
               )}
-              {recipientMode === 'individual' && individualEmails.trim() && (
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">
-                    {language === 'ru' ? 'Email получателей:' : language === 'en' ? 'Recipient emails:' : 'Alıcı e-postaları:'}
-                  </span>
-                  <span className="font-medium truncate max-w-[200px]">{individualEmails}</span>
+              {channels.call && (
+                <div className="rounded-lg border bg-muted/30 p-3 text-center space-y-1">
+                  <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+                    <Phone className="size-3.5" />
+                    {t('Звонки', 'Calls', 'Aramalar')}
+                  </div>
+                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{campaignResult.callsInitiated}</p>
+                  <p className="text-[10px] text-muted-foreground">{t('инициировано', 'initiated', 'başlatıldı')}</p>
+                  {campaignResult.callsFailed > 0 && (
+                    <p className="text-[10px] text-red-500">{campaignResult.callsFailed} {t('ошибок', 'failed', 'başarısız')}</p>
+                  )}
                 </div>
               )}
             </div>
 
-            <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 px-3 py-2">
-              <Sparkles className="size-3.5 text-amber-600 shrink-0" />
-              <span className="text-xs text-amber-700 dark:text-amber-300">
-                {language === 'ru' ? 'AI-агент будет звонить и писать письма от имени вашей компании самостоятельно' : language === 'en' ? 'AI agent will call and send emails on behalf of your company autonomously' : 'AI ajanı şirketiniz adına bağımsız olarak arayacak ve e-posta gönderecek'}
-              </span>
-            </div>
+            {campaignResult.errors.length > 0 && (
+              <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-3 space-y-1.5">
+                <p className="text-xs font-semibold text-red-700 dark:text-red-300">{t('Ошибки:', 'Errors:', 'Hatalar:')}</p>
+                <div className="max-h-32 overflow-y-auto space-y-1">
+                  {campaignResult.errors.slice(0, 5).map((err, i) => (
+                    <p key={i} className="text-[11px] text-red-600 dark:text-red-400 leading-snug">{err}</p>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <Button
-              onClick={() => {
-                setStep(1);
-                setGoal('');
-                setCompanyName(user?.name || '');
-                setCompanyPhone('');
-                setClientPhones('');
-                setRecipientMode('manual');
-                setIndividualEmails('');
-                setApprovalMode('auto');
-                setGeneratedEmail('');
-                setSending(false);
-              }}
+              onClick={handleClose}
               variant="outline"
               className="w-full"
             >
-              {language === 'ru' ? 'Создать новую кампанию' : language === 'en' ? 'Create new campaign' : 'Yeni kampanya oluştur'}
+              {t('Закрыть', 'Close', 'Kapat')}
             </Button>
           </div>
         )}
@@ -3232,12 +3327,12 @@ export function AiAgentPage() {
         icon: <Users className="size-5" />,
         title: { ru: 'Привлечение клиентов', en: 'Lead Generation', tr: 'Potansiyel Müşteri Kazanımı' },
         description: {
-          ru: 'AI активно общается с посетителями сайта, квалифицирует лиды умными вопросами и собирает контактную информацию',
-          en: 'AI proactively engages website visitors, qualifies leads with smart questions, and collects contact info',
-          tr: 'AI web sitesi ziyaretçileriyle aktif iletişim kurar, akıllı sorularla potansiyel müşterileri niteler ve iletişim bilgilerini toplar',
+          ru: 'AI-агент массово связывается с клиентами от вашего имени: рассылает email и/или совершает звонки с персонализированным предложением',
+          en: 'AI agent contacts clients on your behalf at scale: sends personalized emails and/or makes AI phone calls',
+          tr: 'AI ajanı şirketiniz adına toplu olarak müşterilerle iletişim kurar: kişiselleştirilmiş e-posta ve/veya AI telefon aramaları yapar',
         },
-        buttonText: { ru: 'Попробовать', en: 'Try it', tr: 'Dene' },
-        badge: { ru: '+34%', en: '+34%', tr: '+34%' },
+        buttonText: { ru: 'Запустить', en: 'Launch', tr: 'Başlat' },
+        badge: { ru: 'Email + Звонки', en: 'Email + Calls', tr: 'E-posta + Arama' },
         badgeColor: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
         action: () => setLeadDialogOpen(true),
       },
