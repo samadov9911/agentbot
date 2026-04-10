@@ -188,7 +188,7 @@ export function SupportPage() {
       const aiMessage: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: 'ai',
-        content: data.response,
+        content: (data.response || '').replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1').replace(/^#{1,6}\s+/gm, '').replace(/`{1,3}([^`]+)`{1,3}/g, '$1').replace(/\n{3,}/g, '\n\n').trim(),
         timestamp: Date.now(),
       };
 

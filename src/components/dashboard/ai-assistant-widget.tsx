@@ -110,6 +110,18 @@ function generateId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Strip markdown formatting tokens (**, *, ##, ###, etc.) from AI response text */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')   // **bold** and *italic* → plain text
+    .replace(/^#{1,6}\s+/gm, '')                // ## heading → remove
+    .replace(/^\s*[-*+]\s+/gm, '• ')           // - list item → •
+    .replace(/`{1,3}([^`]+)`{1,3}/g, '$1')       // `code` and ```block``` → plain text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [link](url) → link text
+    .replace(/\n{3,}/g, '\n\n')                // multiple newlines → max 2
+    .trim();
+}
+
 function formatTime(ts: number, language: Language): string {
   const date = new Date(ts);
   if (language === 'tr') {
@@ -329,7 +341,7 @@ export function AiAssistantWidget() {
         const botMsg: ChatMessage = {
           id: generateId(),
           role: 'bot',
-          content: data.response || 'Sorry, I could not generate a response.',
+          content: stripMarkdown(data.response || 'Sorry, I could not generate a response.'),
           timestamp: Date.now(),
         };
 

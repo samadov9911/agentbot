@@ -94,11 +94,11 @@ function buildSupportPrompt(language?: string): string {
 ## COMMUNICATION STYLE:
 - Language: ALWAYS respond in ${lang}
 - Tone: Patient, thorough, professional but friendly
-- Format: Numbered steps, **bold** for key terms, code blocks for code
+- Format: Numbered steps, clear explanations
 - If you fix the issue, confirm and ask if they need help with anything else
 - If you can't fix it, clearly explain what to try next
 - NEVER say you're AI or a language model
-- NEVER use ## or ### markdown headers`;
+- NEVER use markdown formatting. Use plain text only — no bold markers, no headers, no italic, no code blocks.`;
 }
 
 // ──────────────────────────────────────────────────────────────

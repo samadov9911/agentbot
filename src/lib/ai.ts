@@ -296,7 +296,7 @@ export async function chatWithAi(
   // 1. Groq (fastest, free)
   const groqResult = await callGroq(systemPrompt, userMessage, history);
   if (groqResult) {
-    return { ok: true, text: groqResult, provider: 'Groq AI' };
+    return { ok: true, text: groqResult, provider: 'AgentBot AI' };
   }
 
   // 2. Gemini (Google)
@@ -337,7 +337,7 @@ export async function chatWithAi(
 
 export function getAiProviders(): { name: string; key: string; available: boolean }[] {
   return [
-    { name: 'Groq AI', key: 'GROQ_API_KEY', available: !!process.env.GROQ_API_KEY },
+    { name: 'AgentBot AI', key: 'GROQ_API_KEY', available: !!process.env.GROQ_API_KEY },
     { name: 'Gemini AI', key: 'GEMINI_API_KEY', available: !!process.env.GEMINI_API_KEY },
     { name: 'OpenRouter', key: 'OPENROUTER_API_KEY', available: !!process.env.OPENROUTER_API_KEY },
     { name: 'Pollinations AI', key: 'always-free', available: true },
