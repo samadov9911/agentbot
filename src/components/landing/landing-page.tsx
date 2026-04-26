@@ -236,7 +236,7 @@ export default function LandingPage() {
               <Bot className="h-5 w-5" />
             </div>
             <span className="text-lg font-bold tracking-tight">
-              AgentBot
+              {lang === 'ru' ? 'АгентБот' : 'AgentBot'}
             </span>
           </div>
 
@@ -479,7 +479,7 @@ export default function LandingPage() {
                     <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground">AgentBot</p>
+                    <p className="text-xs font-medium text-muted-foreground">{lang === 'ru' ? 'АгентБот' : 'AgentBot'}</p>
                     <p className="text-sm font-semibold">AI Powered</p>
                   </div>
                 </div>
@@ -769,7 +769,7 @@ export default function LandingPage() {
                   <Bot className="h-5 w-5" />
                 </div>
                 <span className="text-lg font-bold tracking-tight">
-                  AgentBot
+                  {lang === 'ru' ? 'АгентБот' : 'AgentBot'}
                 </span>
               </div>
               <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
@@ -849,7 +849,7 @@ export default function LandingPage() {
           {/* Bottom Bar */}
           <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-border/40 pt-8 sm:flex-row">
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} AgentBot.{' '}
+              © {new Date().getFullYear()} {lang === 'ru' ? 'АгентБот' : 'AgentBot'}.{' '}
               {t('landing.footerRights', lang)}
             </p>
             <div className="flex items-center gap-2">

@@ -379,7 +379,7 @@ function EmailComposerDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     welcome: {
       subject: { ru: 'Добро пожаловать в наш салон!', en: 'Welcome to our salon!', tr: 'Salonumuza hoş geldiniz!' },
       body: {
-        ru: 'Уважаемый(ая) клиент!\n\nРады приветствовать вас в нашем салоне красоты. Мы хотим предложить вам специальные условия на первое посещение — скидка 20% на любую услугу!\n\nЗапишитесь онлайн через наш сайт или напишите нам в чат.\n\nС уважением,\nКоманда AgentBot Beauty',
+        ru: 'Уважаемый(ая) клиент!\n\nРады приветствовать вас в нашем салоне красоты. Мы хотим предложить вам специальные условия на первое посещение — скидка 20% на любую услугу!\n\nЗапишитесь онлайн через наш сайт или напишите нам в чат.\n\nС уважением,\nКоманда АгентБот Beauty',
         en: 'Dear Client!\n\nWe are happy to welcome you to our beauty salon. We would like to offer you special conditions for your first visit — 20% off any service!\n\nBook online through our website or chat with us.\n\nBest regards,\nAgentBot Beauty Team',
         tr: 'Sayın Müşterimiz!\n\nGüzellik salonumuza hoş geldiniz. İlk ziyaretiniz için özel koşullar sunmak istiyoruz — herhangi bir hizmette %20 indirim!\n\nWeb sitemizden çevrimiçi randevu alın veya bize sohbet yazın.\n\nSaygılarımızla,\nAgentBot Beauty Ekibi',
       },
@@ -1575,7 +1575,7 @@ function CallScriptDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:16px;text-align:center;">
           <p style="font-size:13px;color:#92400e;">${isRu ? 'Транскрипция будет доступна после завершения звонка через Vapi webhook.' : 'Transcript will be available after the call ends via Vapi webhook.'}</p>
         </div>`}
-        <div style="margin-top:28px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;display:flex;justify-content:space-between;"><span>AgentBot — ${title}</span><span>ID: ${callResult.id}</span></div>
+        <div style="margin-top:28px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;display:flex;justify-content:space-between;"><span>${isRu ? 'АгентБот' : 'AgentBot'} — ${title}</span><span>ID: ${callResult.id}</span></div>
       `;
       document.body.appendChild(container);
       const canvas = await html2canvas(container, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
@@ -2953,7 +2953,7 @@ function CallHistoryDialog({ open, onOpenChange }: { open: boolean; onOpenChange
           const name = isAi ? aiLabel : clientLbl;
           return `<div style="display:flex;gap:10px;margin-bottom:10px;align-items:flex-start;"><div style="min-width:90px;font-size:11px;font-weight:700;color:${nameColor};padding:4px 8px;background:${bgColor};border-radius:4px;text-align:center;">${name}<br><span style="font-weight:400;font-size:10px;color:#9ca3af;">${fmtTime(line.timestamp)}</span></div><div style="flex:1;font-size:12px;color:#1f2937;padding-top:2px;">${line.text}</div></div>`;
         }).join('')}` : ''}
-        <div style="margin-top:28px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;display:flex;justify-content:space-between;"><span>AgentBot — ${title}</span><span>ID: ${data.id}</span></div>
+        <div style="margin-top:28px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;display:flex;justify-content:space-between;"><span>${isRu ? 'АгентБот' : 'AgentBot'} — ${title}</span><span>ID: ${data.id}</span></div>
       `;
       document.body.appendChild(container);
 

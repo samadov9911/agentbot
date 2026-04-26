@@ -517,7 +517,7 @@ function CalendarSyncDialog({
                 </div>
                 <div>
                   <p className="text-sm font-semibold">
-                    {language === 'ru' ? 'Через платформу AgentBot' :
+                    {language === 'ru' ? 'Через платформу АгентБот' :
                      language === 'tr' ? 'AgentBot Platformu Üzerinden' :
                      'Via AgentBot Platform'}
                   </p>
@@ -1132,7 +1132,7 @@ export function BookingsPage() {
                   <p className="text-sm font-semibold">
                     {currentSync?.type === 'external'
                       ? (language === 'ru' ? 'Внешний календарь' : language === 'tr' ? 'Dış Takvim' : 'External Calendar')
-                      : (language === 'ru' ? 'Через платформу AgentBot' : language === 'tr' ? 'AgentBot Platformu' : 'Via AgentBot Platform')}
+                      : (language === 'ru' ? 'Через платформу АгентБот' : language === 'tr' ? 'AgentBot Platformu' : 'Via AgentBot Platform')}
                   </p>
                   <Badge
                     variant="outline"
@@ -1155,7 +1155,7 @@ export function BookingsPage() {
                         ? `Senkron: ${currentSync.externalUrl}`
                         : `Synced with: ${currentSync.externalUrl}`)
                     : (language === 'ru'
-                      ? 'Все записи координируются через личный кабинет на платформе AgentBot'
+                      ? 'Все записи координируются через личный кабинет на платформе АгентБот'
                       : language === 'tr'
                         ? 'Tüm randevular AgentBot platformundaki kişisel panel üzerinden koordine edilir'
                         : 'All bookings are coordinated through the personal cabinet on the AgentBot platform')}

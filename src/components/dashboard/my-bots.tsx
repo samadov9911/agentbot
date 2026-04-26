@@ -549,7 +549,7 @@ function EmbedCodeModal({
       ),
       steps: [
         {
-          ru: 'AgentBot виджет работает на <b>любых веб-сайтах</b> — это плавающая кнопка чата в правом нижнем углу.',
+          ru: 'АгентБот виджет работает на <b>любых веб-сайтах</b> — это плавающая кнопка чата в правом нижнем углу.',
           en: 'The AgentBot widget works on <b>any website</b> — it\'s a floating chat button in the bottom-right corner.',
           tr: 'AgentBot widget <b>herhangi bir web sitesinde</b> çalışır — sağ alt köşede kayan bir sohbet düğmesi.',
         },

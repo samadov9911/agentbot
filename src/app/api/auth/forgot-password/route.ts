@@ -49,13 +49,13 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'AgentBot <onboarding@resend.dev>',
+        from: 'АгентБот <onboarding@resend.dev>',
         to: normalizedEmail,
-        subject: 'Сброс пароля — AgentBot',
+        subject: 'Сброс пароля — АгентБот',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 24px;">
-              <h1 style="color: #059669; margin: 0;">AgentBot</h1>
+              <h1 style="color: #059669; margin: 0;">АгентБот</h1>
               <p style="color: #6b7280; font-size: 14px;">Сброс пароля</p>
             </div>
             <p style="color: #374151; font-size: 15px;">

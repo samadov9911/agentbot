@@ -1250,7 +1250,7 @@ export function AdminPage() {
             {t('admin.title', lang)}
           </h2>
           <p className="text-sm text-muted-foreground">
-            Управление платформой AgentBot
+            Управление платформой АгентБот
           </p>
         </div>
       </div>

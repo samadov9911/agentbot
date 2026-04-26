@@ -684,7 +684,7 @@ function DashboardHeader() {
 
   const pageTitle = useMemo(() => {
     const key = PAGE_TITLE_KEYS[currentPage];
-    return key ? t(key, language) : 'AgentBot';
+    return key ? t(key, language) : (language === 'ru' ? 'АгентБот' : 'AgentBot');
   }, [currentPage, language]);
 
   return (
