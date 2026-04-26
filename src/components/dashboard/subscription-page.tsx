@@ -145,7 +145,7 @@ function getPricingPlans(lang: Language): PricingPlanConfig[] {
       id: 'quarterly',
       price: 74,
       periodLabel: `$74`,
-      periodSub: `3 ${lang === 'ru' ? 'мес' : lang === 'tr' ? 'ay' : 'mo'} — ${lang === 'ru' ? 'скидка' : 'save'} 15%`,
+      periodSub: `3 ${t('subscription.monthsShort', lang)} — ${t('subscription.discount', lang)} 15%`,
       savePercent: 15,
       popular: true,
       icon: Star,
@@ -154,7 +154,7 @@ function getPricingPlans(lang: Language): PricingPlanConfig[] {
       id: 'yearly',
       price: 244,
       periodLabel: `$244`,
-      periodSub: `1 ${lang === 'ru' ? 'год' : lang === 'tr' ? 'yıl' : 'yr'} — ${lang === 'ru' ? 'скидка' : 'save'} 30%`,
+      periodSub: `1 ${t('subscription.yearShort', lang)} — ${t('subscription.discount', lang)} 30%`,
       savePercent: 30,
       icon: Shield,
     },
@@ -162,7 +162,7 @@ function getPricingPlans(lang: Language): PricingPlanConfig[] {
       id: 'lifetime',
       price: 499,
       periodLabel: `$499`,
-      periodSub: lang === 'ru' ? 'единоразовый платёж' : lang === 'tr' ? 'tek seferlik ödeme' : 'one-time payment',
+      periodSub: t('subscription.oneTime', lang),
       icon: Infinity,
     },
   ];
@@ -602,7 +602,7 @@ export function SubscriptionPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">
-                    {lang === 'ru' ? 'Начало' : lang === 'tr' ? 'Başlangıç' : 'Start date'}
+                    {t('subscription.startDate', lang)}
                   </p>
                   <p className="text-sm font-semibold">{formatDate(subscription.startsAt)}</p>
                 </div>
@@ -616,8 +616,8 @@ export function SubscriptionPage() {
                 <div>
                   <p className="text-xs text-muted-foreground">
                     {subscription.plan === 'lifetime'
-                      ? (lang === 'ru' ? 'Навсегда' : lang === 'tr' ? 'Sonsuza kadar' : 'Forever')
-                      : (lang === 'ru' ? 'Истекает' : lang === 'tr' ? 'Son kullanma' : t('subscription.expires', lang))}
+                      ? t('subscription.forever', lang)
+                      : t('subscription.expires', lang)}
                   </p>
                   <p className="text-sm font-semibold">
                     {subscription.plan === 'lifetime'
@@ -636,12 +636,12 @@ export function SubscriptionPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">
-                    {lang === 'ru' ? 'Автопродление' : lang === 'tr' ? 'Otomatik yenileme' : 'Auto-renew'}
+                    {t('subscription.autoRenew', lang)}
                   </p>
                   <p className="text-sm font-semibold">
                     {subscription.autoRenew
-                      ? (lang === 'ru' ? 'Включено' : lang === 'tr' ? 'Açık' : 'Enabled')
-                      : (lang === 'ru' ? 'Выключено' : lang === 'tr' ? 'Kapalı' : 'Disabled')}
+                      ? t('subscription.enabled', lang)
+                      : t('subscription.disabled', lang)}
                   </p>
                 </div>
               </div>
@@ -653,7 +653,7 @@ export function SubscriptionPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">
-                    {lang === 'ru' ? 'Оплачено' : lang === 'tr' ? 'Ödenen' : 'Paid'}
+                    {t('subscription.paid', lang)}
                   </p>
                   <p className="text-sm font-semibold">
                     {subscription.pricePaid ? `$${subscription.pricePaid}` : '—'}
@@ -697,11 +697,7 @@ export function SubscriptionPage() {
                 {t('subscription.demoDescription', lang)}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {lang === 'ru'
-                  ? 'Выберите план ниже, чтобы получить полный доступ ко всем функциям'
-                  : lang === 'tr'
-                    ? 'Tüm özelliklere tam erişim için aşağıdan bir plan seçin'
-                    : 'Choose a plan below to get full access to all features'}
+                {t('subscription.selectPlanDesc', lang)}
               </p>
             </div>
           </CardContent>
@@ -786,7 +782,7 @@ export function SubscriptionPage() {
                   {isCurrent && (
                     <Button className="w-full" variant="outline" disabled>
                       <Check className="size-4" />
-                      {lang === 'ru' ? 'Текущий план' : lang === 'tr' ? 'Mevcut plan' : 'Current Plan'}
+                      {t('subscription.currentPlanBtn', lang)}
                     </Button>
                   )}
                   {!isCurrent && (
@@ -798,7 +794,7 @@ export function SubscriptionPage() {
                       }`}
                       onClick={() => setConfirmPlan(plan)}
                     >
-                      {lang === 'ru' ? 'Выбрать' : lang === 'tr' ? 'Seç' : 'Select'}
+                      {t('subscription.selectBtn', lang)}
                       <ChevronRight className="size-4" />
                     </Button>
                   )}
@@ -814,7 +810,7 @@ export function SubscriptionPage() {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <CreditCard className="size-4 text-muted-foreground" />
-            {lang === 'ru' ? 'История платежей' : lang === 'tr' ? 'Ödeme Geçmişi' : 'Payment History'}
+            {t('subscription.paymentHistory', lang)}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -869,33 +865,29 @@ export function SubscriptionPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CreditCard className="size-5 text-emerald-600" />
-              {lang === 'ru' ? 'Подтверждение оплаты' : lang === 'tr' ? 'Ödeme Onayı' : 'Confirm Payment'}
+              {t('subscription.paymentConfirm', lang)}
             </DialogTitle>
             <DialogDescription>
-              {lang === 'ru'
-                ? 'Вы собираетесь оформить подписку:'
-                : lang === 'tr'
-                  ? 'Aşağıdaki aboneliği oluşturmak üzeresiniz:'
-                  : 'You are about to subscribe to:'}
+              {t('subscription.paymentConfirmDesc', lang)}
             </DialogDescription>
           </DialogHeader>
 
           {confirmPlan && (
             <div className="rounded-lg border p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">{lang === 'ru' ? 'План' : 'Plan'}</span>
+                <span className="text-sm text-muted-foreground">{t('subscription.plan', lang)}</span>
                 <span className="font-semibold">{getPlanLabel(confirmPlan.id, lang)}</span>
               </div>
               <Separator />
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">{lang === 'ru' ? 'Сумма' : 'Amount'}</span>
+                <span className="text-sm text-muted-foreground">{t('subscription.amount', lang)}</span>
                 <span className="text-xl font-bold text-emerald-600">${confirmPlan.price}</span>
               </div>
               {confirmPlan.periodSub && (
                 <>
                   <Separator />
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{lang === 'ru' ? 'Период' : 'Period'}</span>
+                    <span className="text-sm text-muted-foreground">{t('subscription.period', lang)}</span>
                     <span className="text-sm">{confirmPlan.periodSub}</span>
                   </div>
                 </>
@@ -945,11 +937,7 @@ export function SubscriptionPage() {
               {t('subscription.cancelSubscription', lang)}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {lang === 'ru'
-                ? 'Вы уверены, что хотите отменить подписку? После отмены доступ к платным функциям будет прекращён в конце текущего периода. Вы сможете возобновить подписку в любой момент.'
-                : lang === 'tr'
-                  ? 'Aboneliğinizi iptal etmek istediğinizden emin misiniz? İptal sonrası ücretli özelliklere erişim mevcut dönemin sonunda sona erecektir. Aboneliğinizi istediğiniz zaman yenileyebilirsiniz.'
-                  : 'Are you sure you want to cancel your subscription? After cancellation, access to premium features will end at the end of the current billing period. You can renew your subscription at any time.'}
+              {t('subscription.cancelConfirmDesc', lang)}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

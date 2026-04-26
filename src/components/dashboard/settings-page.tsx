@@ -149,7 +149,7 @@ export function SettingsPage() {
   // ── Password change ──
   const handleChangePassword = useCallback(async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
-      toast.error('Заполните все поля пароля');
+      toast.error(t('settings.fillPasswordFields', language));
       return;
     }
     if (newPassword.length < 8) {
@@ -181,9 +181,9 @@ export function SettingsPage() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      toast.success('Пароль успешно изменён');
+      toast.success(t('settings.passwordChanged', language));
     } catch {
-      toast.error('Не удалось сменить пароль');
+      toast.error(t('settings.passwordFailed', language));
     } finally {
       setPasswordSaving(false);
     }
@@ -249,10 +249,10 @@ export function SettingsPage() {
     setDeleting(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1500));
-      toast.success('Аккаунт удалён');
+      toast.success(t('settings.accountDeleted', language));
       // In a real app, call logout and redirect
     } catch {
-      toast.error('Не удалось удалить аккаунт');
+      toast.error(t('settings.accountDeleteFailed', language));
     } finally {
       setDeleting(false);
       setDeleteDialogOpen(false);
@@ -275,7 +275,7 @@ export function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{t('settings.title', language)}</h1>
         <p className="text-muted-foreground">
-          Управляйте профилем, аккаунтом и настройками уведомлений
+          {t('settings.subtitle', language)}
         </p>
       </div>
 
@@ -295,7 +295,7 @@ export function SettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="danger" className="gap-1.5 text-destructive">
             <ShieldAlert className="size-4" />
-            <span className="hidden sm:inline">Опасная зона</span>
+            <span className="hidden sm:inline">{t('settings.dangerZone', language)}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -308,7 +308,7 @@ export function SettingsPage() {
                 {t('settings.profile', language)}
               </CardTitle>
               <CardDescription>
-                Обновите вашу личную информацию
+                {t('settings.updateProfile', language)}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -331,7 +331,7 @@ export function SettingsPage() {
                         id="settings-name"
                         value={profileName}
                         onChange={(e) => setProfileName(e.target.value)}
-                        placeholder="Иван Иванов"
+                        placeholder={t('settings.namePlaceholder', language)}
                       />
                     </div>
                     <div className="space-y-2">
@@ -342,7 +342,7 @@ export function SettingsPage() {
                         disabled
                         className="bg-muted cursor-not-allowed"
                       />
-                      <p className="text-xs text-muted-foreground">Email нельзя изменить</p>
+                      <p className="text-xs text-muted-foreground">{t('settings.emailHint', language)}</p>
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -351,7 +351,7 @@ export function SettingsPage() {
                       id="settings-company"
                       value={profileCompany}
                       onChange={(e) => setProfileCompany(e.target.value)}
-                      placeholder="Моя компания"
+                      placeholder={t('settings.companyPlaceholder', language)}
                     />
                   </div>
                 </div>
@@ -385,29 +385,29 @@ export function SettingsPage() {
                 {t('settings.changePassword', language)}
               </CardTitle>
               <CardDescription>
-                Обновите пароль для вашей учетной записи
+                {t('settings.passwordSection', language)}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="current-password">Текущий пароль</Label>
+                <Label htmlFor="current-password">{t('settings.currentPassword', language)}</Label>
                 <Input
                   id="current-password"
                   type="password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="Введите текущий пароль"
+                  placeholder={t('settings.currentPasswordPlaceholder', language)}
                 />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="new-password">Новый пароль</Label>
+                  <Label htmlFor="new-password">{t('settings.newPassword', language)}</Label>
                   <Input
                     id="new-password"
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Минимум 8 символов"
+                    placeholder={t('settings.newPasswordPlaceholder', language)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -417,7 +417,7 @@ export function SettingsPage() {
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Подтвердите новый пароль"
+                    placeholder={t('settings.confirmNewPassword', language)}
                   />
                 </div>
               </div>
@@ -438,7 +438,7 @@ export function SettingsPage() {
                   ) : (
                     <Lock className="mr-2 size-4" />
                   )}
-                  Сменить пароль
+                  {t('settings.changePassword', language)}
                 </Button>
               </div>
             </CardContent>
@@ -452,7 +452,7 @@ export function SettingsPage() {
                 {t('settings.language', language)}
               </CardTitle>
               <CardDescription>
-                Выберите язык интерфейса
+                {t('settings.languageDesc', language)}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -487,16 +487,16 @@ export function SettingsPage() {
                 {t('settings.theme', language)}
               </CardTitle>
               <CardDescription>
-                Настройте внешний вид интерфейса
+                {t('settings.themeDesc', language)}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-3 gap-3">
                 {([
-                  { value: 'light', label: 'Светлая', icon: Sun },
-                  { value: 'dark', label: 'Тёмная', icon: Moon },
-                  { value: 'system', label: 'Системная', icon: MonitorIcon },
-                ] as const).map(({ value, label, icon: Icon }) => (
+                  { value: 'light' as const, label: t('settings.light', language), icon: Sun },
+                  { value: 'dark' as const, label: t('settings.dark', language), icon: Moon },
+                  { value: 'system' as const, label: t('settings.system', language), icon: MonitorIcon },
+                ]).map(({ value, label, icon: Icon }) => (
                   <button
                     key={value}
                     onClick={() => handleThemeChange(value)}
@@ -524,7 +524,7 @@ export function SettingsPage() {
                 {t('settings.notifications', language)}
               </CardTitle>
               <CardDescription>
-                Настройте, какие уведомления вы хотите получать
+                {t('settings.notificationsDesc', language)}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -536,8 +536,8 @@ export function SettingsPage() {
                       <Mail className="size-5 text-emerald-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">Email уведомления</p>
-                      <p className="text-xs text-muted-foreground">Получайте важные обновления по email</p>
+                      <p className="text-sm font-medium">{t('settings.emailNotifications', language)}</p>
+                      <p className="text-xs text-muted-foreground">{t('settings.emailNotificationsDesc', language)}</p>
                     </div>
                   </div>
                   <Switch
@@ -555,8 +555,8 @@ export function SettingsPage() {
                       <Bot className="size-5 text-teal-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">Активность ботов</p>
-                      <p className="text-xs text-muted-foreground">Оповещения при нестандартной активности</p>
+                      <p className="text-sm font-medium">{t('settings.botActivity', language)}</p>
+                      <p className="text-xs text-muted-foreground">{t('settings.botActivityDesc', language)}</p>
                     </div>
                   </div>
                   <Switch
@@ -574,8 +574,8 @@ export function SettingsPage() {
                       <BarChart3 className="size-5 text-amber-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">Еженедельные отчёты</p>
-                      <p className="text-xs text-muted-foreground">Сводка активности за неделю</p>
+                      <p className="text-sm font-medium">{t('settings.weeklyReports', language)}</p>
+                      <p className="text-xs text-muted-foreground">{t('settings.weeklyReportsDesc', language)}</p>
                     </div>
                   </div>
                   <Switch
@@ -593,8 +593,8 @@ export function SettingsPage() {
                       <Megaphone className="size-5 text-violet-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">Маркетинговые рассылки</p>
-                      <p className="text-xs text-muted-foreground">Новости, обновления и специальные предложения</p>
+                      <p className="text-sm font-medium">{t('settings.marketingEmails', language)}</p>
+                      <p className="text-xs text-muted-foreground">{t('settings.marketingEmailsDesc', language)}</p>
                     </div>
                   </div>
                   <Switch
@@ -630,10 +630,10 @@ export function SettingsPage() {
             <CardHeader className="text-destructive">
               <CardTitle className="flex items-center gap-2">
                 <ShieldAlert className="size-5" />
-                Опасная зона
+                {t('settings.dangerZone', language)}
               </CardTitle>
               <CardDescription className="text-destructive/70">
-                Эти действия необратимы. Пожалуйста, будьте осторожны.
+                {t('settings.dangerZoneDesc', language)}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -644,7 +644,7 @@ export function SettingsPage() {
                       {t('settings.deleteAccount', language)}
                     </h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Удалите ваш аккаунт и все связанные данные навсегда. Это действие нельзя отменить.
+                      {t('settings.deleteAccountDesc', language)}
                     </p>
                   </div>
                   <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -658,17 +658,18 @@ export function SettingsPage() {
                       <AlertDialogHeader>
                         <AlertDialogTitle className="flex items-center gap-2">
                           <ShieldAlert className="size-5 text-destructive" />
-                          Вы уверены?
+                          {t('settings.areYouSure', language)}
                         </AlertDialogTitle>
                         <AlertDialogDescription asChild>
                           <div className="space-y-3">
                             <p>
-                              Это действие навсегда удалит ваш аккаунт, всех ботов, диалоги,
-                              настройки подписки и другие данные. Это действие нельзя отменить.
+                              {t('settings.deleteConfirmDesc', language)}
                             </p>
                             <div className="space-y-2">
                               <p className="text-sm font-medium">
-                                Введите <Badge variant="destructive">DELETE</Badge> для подтверждения:
+                                {t('settings.typeToDeleteBefore', language)}{' '}
+                                <Badge variant="destructive">DELETE</Badge>{' '}
+                                {t('settings.typeToDeleteAfter', language)}
                               </p>
                               <Input
                                 value={deleteConfirmText}

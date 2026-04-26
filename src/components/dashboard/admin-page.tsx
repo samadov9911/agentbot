@@ -355,7 +355,7 @@ function OverviewTab({ lang, onNavigate }: { lang: string; onNavigate: (tab: Adm
         textColor: 'text-amber-600 dark:text-amber-400',
       },
       {
-        label: t('admin.totalBots', lang) || 'Всего ботов',
+        label: t('admin.totalBots', lang),
         value: a ? String(a.totalBots) : '0',
         icon: Bot,
         bgColor: 'bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-400',
@@ -365,10 +365,10 @@ function OverviewTab({ lang, onNavigate }: { lang: string; onNavigate: (tab: Adm
   }, [analytics, lang]);
 
   const quickLinks = useMemo(() => [
-    { id: 'admin-users' as AdminTab, label: t('admin.users', lang), description: 'Управление пользователями, блокировка, имперсонация', icon: Users, count: userCount },
-    { id: 'admin-analytics' as AdminTab, label: t('admin.analytics', lang), description: 'MRR, ARR, аналитика регистраций, статистика', icon: BarChart3, count: null },
-    { id: 'admin-logs' as AdminTab, label: t('admin.logs', lang), description: 'Журнал действий администраторов', icon: FileText, count: logCount },
-    { id: 'admin-embed' as AdminTab, label: t('admin.embedCodes', lang), description: 'Управление кодами внедрения виджетов', icon: Code2, count: embedCodeCount },
+    { id: 'admin-users' as AdminTab, label: t('admin.users', lang), description: t('admin.userManagementDesc', lang), icon: Users, count: userCount },
+    { id: 'admin-analytics' as AdminTab, label: t('admin.analytics', lang), description: t('admin.analyticsStatsDesc', lang), icon: BarChart3, count: null },
+    { id: 'admin-logs' as AdminTab, label: t('admin.logs', lang), description: t('admin.activityLogDesc', lang), icon: FileText, count: logCount },
+    { id: 'admin-embed' as AdminTab, label: t('admin.embedCodes', lang), description: t('admin.embedManagementDesc', lang), icon: Code2, count: embedCodeCount },
   ], [lang, userCount, logCount, embedCodeCount]);
 
   if (isLoading) return <OverviewSkeleton />;
@@ -402,7 +402,7 @@ function OverviewTab({ lang, onNavigate }: { lang: string; onNavigate: (tab: Adm
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400" />
-            Быстрый доступ
+            {t('admin.quickAccess', lang)}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6 pt-0">
@@ -464,7 +464,7 @@ function UsersTab({ lang }: { lang: string }) {
         const data = await fetchAdminData<{ users: AdminUser[] }>('users', user.id);
         if (!cancelled) setUsers(data.users);
       } catch (err) {
-        if (!cancelled) setError('Не удалось загрузить пользователей');
+        if (!cancelled) setError(t('admin.failedUsers', lang));
         console.error('Failed to load users:', err);
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -576,7 +576,7 @@ function UsersTab({ lang }: { lang: string }) {
             </div>
             <Select value={roleFilter} onValueChange={handleRoleFilterChange}>
               <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="Роль" />
+                <SelectValue placeholder={t('admin.role', lang)} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t('common.all', lang)}</SelectItem>
@@ -610,8 +610,8 @@ function UsersTab({ lang }: { lang: string }) {
                 <TableRow className="bg-muted/50">
                   <TableHead className="w-[250px]">{t('common.name', lang)}</TableHead>
                   <TableHead className="hidden md:table-cell">Email</TableHead>
-                  <TableHead className="hidden lg:table-cell">Компания</TableHead>
-                  <TableHead>Роль</TableHead>
+                  <TableHead className="hidden lg:table-cell">{t('admin.company', lang)}</TableHead>
+                  <TableHead>{t('admin.role', lang)}</TableHead>
                   <TableHead>{t('common.status', lang)}</TableHead>
                   <TableHead className="hidden sm:table-cell">{t('common.date', lang)}</TableHead>
                   <TableHead className="text-right">{t('common.actions', lang)}</TableHead>
@@ -654,7 +654,7 @@ function UsersTab({ lang }: { lang: string }) {
                             size="icon"
                             className="size-8"
                             onClick={() => setSelectedUser(u)}
-                            title="Подробнее"
+                            title={t('admin.details', lang)}
                           >
                             <Eye className="size-4" />
                           </Button>
@@ -682,7 +682,7 @@ function UsersTab({ lang }: { lang: string }) {
                                     {t('admin.blockUser', lang)}
                                   </AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Вы уверены, что хотите заблокировать пользователя <span className="font-semibold">{u.name}</span> ({u.email})? Пользователь потеряет доступ к своей учётной записи.
+                                    {t('admin.blockConfirm', lang, { email: u.email })}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -722,7 +722,7 @@ function UsersTab({ lang }: { lang: string }) {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            {(page - 1) * perPage + 1}–{Math.min(page * perPage, filteredUsers.length)} из {filteredUsers.length}
+            {(page - 1) * perPage + 1}–{Math.min(page * perPage, filteredUsers.length)} {t('admin.of', lang)} {filteredUsers.length}
           </p>
           <div className="flex items-center gap-2">
             <Button
@@ -765,8 +765,8 @@ function UsersTab({ lang }: { lang: string }) {
       <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Подробности пользователя</DialogTitle>
-            <DialogDescription>Полная информация об учётной записи</DialogDescription>
+            <DialogTitle>{t('admin.userDetails', lang)}</DialogTitle>
+            <DialogDescription>{t('admin.userDetailsDesc', lang)}</DialogDescription>
           </DialogHeader>
           {selectedUser && (
             <div className="flex flex-col gap-4">
@@ -784,27 +784,27 @@ function UsersTab({ lang }: { lang: string }) {
               <Separator />
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-muted-foreground">Компания</p>
+                  <p className="text-muted-foreground">{t('admin.company', lang)}</p>
                   <p className="font-medium">{selectedUser.company || '—'}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Роль</p>
+                  <p className="text-muted-foreground">{t('admin.role', lang)}</p>
                   {roleBadge(selectedUser.role)}
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Статус</p>
+                  <p className="text-muted-foreground">{t('common.status', lang)}</p>
                   {userStatusBadge(selectedUser.isActive, lang)}
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Боты</p>
+                  <p className="text-muted-foreground">{t('bots.title', lang)}</p>
                   <p className="font-medium">{selectedUser.botsCount}</p>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-muted-foreground">Дата регистрации</p>
+                  <p className="text-muted-foreground">{t('admin.registrationDate', lang)}</p>
                   <p className="font-medium">{new Date(selectedUser.createdAt).toLocaleDateString('ru-RU')}</p>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-muted-foreground">ID</p>
+                  <p className="text-muted-foreground">{t('admin.id', lang)}</p>
                   <p className="font-mono text-xs text-muted-foreground bg-muted rounded px-2 py-1 inline-block">{selectedUser.id}</p>
                 </div>
               </div>
@@ -835,7 +835,7 @@ function AnalyticsTab({ lang }: { lang: string }) {
         const data = await fetchAdminData<AnalyticsData>('analytics', user.id);
         if (!cancelled) setAnalytics(data);
       } catch (err) {
-        if (!cancelled) setError('Не удалось загрузить аналитику');
+        if (!cancelled) setError(t('admin.failedAnalytics', lang));
         console.error('Failed to load analytics:', err);
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -933,7 +933,7 @@ function AnalyticsTab({ lang }: { lang: string }) {
                 <Bot className="size-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-muted-foreground">Всего ботов</p>
+                <p className="text-xs font-medium text-muted-foreground">{t('admin.totalBots', lang)}</p>
                 <p className="text-2xl font-bold tabular-nums text-violet-600 dark:text-violet-400">
                   {a ? a.totalBots : 0}
                 </p>
