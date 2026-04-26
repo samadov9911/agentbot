@@ -189,8 +189,8 @@ const STATS = [
 // ─── USD prices (base) ──────────────────────────────────────────
 const USD_PRICES: Record<string, number> = {
   monthly: 29,
-  quarterly_monthly: 24.67,
-  yearly_monthly: 20.33,
+  quarterly: 24.67,
+  yearly: 20.33,
   lifetime: 499,
   quarterly_total: 74,
   yearly_total: 244,
