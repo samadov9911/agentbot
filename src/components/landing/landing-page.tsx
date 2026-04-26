@@ -37,6 +37,9 @@ import {
   Sun,
   Menu,
   X,
+  Mail,
+  Phone,
+  MapPin,
 } from 'lucide-react';
 
 // ─── Section IDs for smooth scrolling ───────────────────────────────
@@ -761,9 +764,9 @@ export default function LandingPage() {
       {/* ──────────── FOOTER ──────────── */}
       <footer className="border-t border-border/40 bg-background">
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-5">
             {/* Brand Column */}
-            <div className="sm:col-span-2 lg:col-span-1">
+            <div className="lg:col-span-1">
               <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white">
                   <Bot className="h-5 w-5" />
@@ -824,10 +827,31 @@ export default function LandingPage() {
               </ul>
             </div>
 
+            {/* Contacts */}
+            <div>
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                {lang === 'ru' ? 'Контакты' : lang === 'tr' ? 'İletişim' : 'Contact'}
+              </h3>
+              <ul className="space-y-2.5 text-sm text-muted-foreground">
+                <li className="flex items-center gap-2">
+                  <Mail className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <span>{lang === 'ru' ? 'mahdi9911@mail.ru' : lang === 'tr' ? 'boyazidwork@gmail.com' : 'ulugbeksamadov95@gmail.com'}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Phone className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <span>{lang === 'ru' ? '+7 927 784 50 45' : lang === 'tr' ? '+905 343 94 05 67' : '+1 732 581 00 43'}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <span>{lang === 'ru' ? 'Москва, Россия' : lang === 'tr' ? 'Türkiye, Istanbul' : 'USA, Denver'}</span>
+                </li>
+              </ul>
+            </div>
+
             {/* Social Links */}
             <div>
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Social
+                {lang === 'ru' ? 'Социальные сети' : 'Social'}
               </h3>
               <div className="flex gap-3">
                 {/* Telegram */}
