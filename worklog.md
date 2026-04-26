@@ -136,3 +136,30 @@ Stage Summary:
 - Bot.embedCode reference is kept in sync with EmbedCode.isActive state
 - Overview page shows real embed code count in quick access links
 
+
+---
+Task ID: 5
+Agent: main
+Task: Create 4 detailed documentation pages for Help section
+
+Work Log:
+- Analyzed help-page.tsx: found 4 DOC_LINKS cards with no click handler
+- Created DocumentationOverlay component in documentation-pages.tsx (~1500 lines)
+- Each page is a full-screen overlay with ScrollArea and back navigation
+- 1. API Documentation: endpoints for Bots, Conversations, Appointments, Analytics, Webhooks, error codes
+- 2. Integration Guides: tabs for General, CRM (amoCRM, Bitrix24, YClients), Websites (WordPress, Tilda, Shopify), Other (Python, Node.js, Telegram relay)
+- 3. Widget Setup: step-by-step installation, customization (color, position, greeting), advanced settings (auto-open, page filtering), troubleshooting
+- 4. Telegram Setup: BotFather creation, token configuration, welcome message, inline buttons, operator transfer, troubleshooting, security
+- Added CodeBlock component with copy-to-clipboard and language badges
+- Added Callout component (info/warning/tip) for highlighting important notes
+- Added StepNumber, SectionHeading, EndpointRow shared components
+- Updated help-page.tsx: added onClick to DOC_LINKS cards, documentation overlay state management
+- Lint clean, compilation successful (317ms)
+- Pushed as commit b247a43
+
+Stage Summary:
+- 4 full documentation pages created with professional UI
+- All cards now link to their respective pages
+- Pages support Escape key to close, scroll area, responsive design
+- Code examples include copy buttons with toast feedback
+- No external routes needed — everything works within single-page app
