@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useSyncExternalStore } from 'react';
+import { DocumentationOverlay, type DocPageId } from '@/components/dashboard/documentation-pages';
 import {
   Bot,
   Wrench,
@@ -204,6 +205,13 @@ const COLOR_MAP: Record<string, { bg: string; icon: string; border: string }> = 
   },
 };
 
+const DOC_LINK_MAP: Record<string, DocPageId> = {
+  'API документация': 'api',
+  'Руководства по интеграции': 'integration',
+  'Настройка виджета': 'widget',
+  'Настройка Telegram': 'telegram',
+};
+
 // ──────────────────────────────────────────────────────────────
 // Help Page
 // ──────────────────────────────────────────────────────────────
@@ -231,6 +239,17 @@ export function HelpPage() {
         item.answer.toLowerCase().includes(query)
     );
   }, [faqSearch]);
+
+  // ── Documentation overlay ──
+  const [activeDocPage, setActiveDocPage] = useState<DocPageId | null>(null);
+
+  const handleOpenDoc = useCallback((title: string) => {
+    setActiveDocPage(DOC_LINK_MAP[title] || null);
+  }, []);
+
+  const handleCloseDoc = useCallback(() => {
+    setActiveDocPage(null);
+  }, []);
 
   // ── Contact form ──
   const [contactName, setContactName] = useState('');
@@ -271,6 +290,11 @@ export function HelpPage() {
         <div className="h-[500px] animate-pulse rounded-lg bg-muted" />
       </div>
     );
+  }
+
+  // Show documentation overlay if active
+  if (activeDocPage) {
+    return <DocumentationOverlay pageId={activeDocPage} onBack={handleCloseDoc} />;
   }
 
   return (
@@ -503,6 +527,7 @@ export function HelpPage() {
               <Card
                 key={title}
                 className="group cursor-pointer transition-all hover:shadow-md"
+                onClick={() => handleOpenDoc(title)}
               >
                 <CardContent className="pt-6">
                   <div className="flex items-start gap-4">
