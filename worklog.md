@@ -163,3 +163,29 @@ Stage Summary:
 - Pages support Escape key to close, scroll area, responsive design
 - Code examples include copy buttons with toast feedback
 - No external routes needed — everything works within single-page app
+
+---
+Task ID: 6
+Agent: main
+Task: Replace all hardcoded Russian text with i18n t() calls across dashboard components
+
+Work Log:
+- Ran comprehensive audit of all dashboard components for hardcoded Russian text
+- Found 400+ hardcoded strings across 11 files
+- Added 120+ new i18n keys to ru.json, en.json, tr.json:
+  - help section: 57 keys (FAQ 8 items, steps 4, quick links 3, doc links 4, section headings, toasts, search)
+  - admin section: 18 keys (quick access, descriptions, user details, error messages)
+  - settings section: 31 keys (profile, password, theme, notifications, danger zone)
+  - subscription section: 17 keys (payment labels, plan selection, cancellation)
+- Updated help-page.tsx: refactored FAQ_ITEMS, STEPS, QUICK_LINKS, DOC_LINKS to use i18n keys, changed DOC_LINK_MAP to index-based
+- Updated admin-page.tsx: replaced 23 hardcoded strings with t() calls including block confirmation with {email} var
+- Updated settings-page.tsx: replaced 38 hardcoded strings with t() calls including split delete confirmation with Badge
+- Updated subscription-page.tsx: replaced 16 lang===ru ternaries with t() calls
+- Lint clean, compilation successful (212ms)
+- Pushed as commit 4cd97e1
+
+Stage Summary:
+- 4 major dashboard pages fully internationalized (help, admin, settings, subscription)
+- All cards, headings, labels, buttons, toasts, placeholders now translate
+- 3 languages supported: Russian (ru), English (en), Turkish (tr)
+- Remaining: dashboard-layout.tsx notifications (minor, ~10 strings), bot-builder.tsx AI prompts (technical, not UI-facing), documentation-pages.tsx (technical docs, ~150 strings)
