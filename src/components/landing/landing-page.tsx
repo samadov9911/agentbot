@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useSyncExternalStore } from 'react';
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import { useAppStore } from '@/stores';
 import { t, allLanguages, type Language } from '@/lib/i18n';
 import { useTheme } from 'next-themes';
@@ -186,6 +186,21 @@ const STATS = [
   { valueKey: 'landing.statsSupportValue', labelKey: 'landing.statsSupport' },
 ] as const;
 
+// ─── USD prices (base) ──────────────────────────────────────────
+const USD_PRICES: Record<string, number> = {
+  monthly: 29,
+  quarterly_monthly: 24.67,
+  yearly_monthly: 20.33,
+  lifetime: 499,
+  quarterly_total: 74,
+  yearly_total: 244,
+};
+
+function formatRub(usd: number, rate: number): string {
+  const rub = Math.round(usd * rate);
+  return `${rub.toLocaleString('ru-RU')} ₽`;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Main Component
 // ═══════════════════════════════════════════════════════════════════
@@ -193,6 +208,16 @@ export default function LandingPage() {
   const { language, setLanguage, setPage } = useAppStore();
   const { theme, setTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [usdRate, setUsdRate] = useState<number | null>(null);
+
+  // Fetch CBR USD rate for Russian locale
+  useEffect(() => {
+    if (language !== 'ru') return;
+    fetch('/api/cbr-rate')
+      .then((r) => r.json())
+      .then((data) => setUsdRate(data.rate))
+      .catch(() => setUsdRate(90)); // fallback
+  }, [language]);
 
   // Avoid hydration mismatch — client-only after mount
   const mounted = useSyncExternalStore(
@@ -646,7 +671,9 @@ export default function LandingPage() {
                   )}
                   <div className="mt-3">
                     <span className="text-4xl font-extrabold">
-                      {t(plan.priceKey, lang)}
+                      {lang === 'ru' && usdRate && USD_PRICES[plan.id]
+                        ? formatRub(USD_PRICES[plan.id], usdRate)
+                        : t(plan.priceKey, lang)}
                     </span>
                     {plan.periodKey && (
                       <span className="text-sm text-muted-foreground">
@@ -656,7 +683,13 @@ export default function LandingPage() {
                   </div>
                   {plan.billingKey && (
                     <CardDescription className="mt-1">
-                      {t(plan.billingKey, lang)}
+                      {plan.billingKey
+                        ? (lang === 'ru' && usdRate && plan.id === 'quarterly'
+                          ? `за квартал (${formatRub(USD_PRICES.quarterly_total, usdRate)})`
+                          : lang === 'ru' && usdRate && plan.id === 'yearly'
+                            ? `за год (${formatRub(USD_PRICES.yearly_total, usdRate)})`
+                            : t(plan.billingKey, lang))
+                        : t(plan.billingKey, lang)}
                     </CardDescription>
                   )}
                 </CardHeader>
