@@ -13,6 +13,7 @@
     "next": "Далее",
     "search": "Поиск",
     "noData": "Нет данных",
+    "noResults": "Ничего не найдено",
     "success": "Успешно",
     "error": "Ошибка",
     "warning": "Внимание",
@@ -337,7 +338,17 @@
     "unblockUser": "Разблокировать",
     "generateCode": "Сгенерировать код",
     "revokeCode": "Отозвать код",
-    "embedCodes": "Коды внедрения"
+    "revoked": "Отозван",
+    "embedCodes": "Коды внедрения",
+    "embedCode": "Код",
+    "botName": "Бот",
+    "owner": "Владелец",
+    "totalEmbedCodes": "Всего кодов",
+    "activeEmbedCodes": "Активных",
+    "revokedEmbedCodes": "Отозвано",
+    "noEmbedCodes": "Кодов внедрения пока нет",
+    "embedCodesEmptyDesc": "Коды внедрения появляются при создании и публикации ботов",
+    "tryDifferentSearch": "Попробуйте изменить параметры поиска"
   },
   "bookings": {
     "title": "Записи",

@@ -99,3 +99,40 @@ Stage Summary:
 - CSV export actually generates and downloads a file
 - No more hardcoded/fake numbers anywhere in these components
 
+---
+Task ID: 4
+Agent: main
+Task: Implement working "Коды внедрения" (Embed Codes) section in admin panel
+
+Work Log:
+- Analyzed EmbedCodesTab — it was a pure placeholder with hardcoded empty state, no data fetching
+- Analyzed /api/admin/route.ts — no 'embed' section handler existed (returned 400)
+- Prisma schema already had EmbedCode model (id, botId, code, isActive, createdBy, revokedAt)
+- Bot model already had embedCode field
+- Added 'embed' section to GET /api/admin: fetches all EmbedCode records with Bot → User relation
+- Added 3 new POST actions to /api/admin:
+  - revoke_embed_code: sets isActive=false, revokedAt=now, clears Bot.embedCode
+  - activate_embed_code: sets isActive=true, revokedAt=null, restores Bot.embedCode
+  - regenerate_embed_code: generates new 16-char uppercase code, updates EmbedCode + Bot
+- All admin actions are logged to AdminLog
+- Completely rewrote EmbedCodesTab:
+  - 3 summary cards: total codes, active, revoked (real counts)
+  - Search input (filters by code, bot name, owner name, owner email)
+  - Status filter dropdown (all / active / revoked)
+  - Full data table: code (with copy button), bot name + niche, owner name + email, status badge, date
+  - Actions: revoke (with confirmation dialog), activate, regenerate (with confirmation dialog)
+  - Loading skeleton, error banner, empty state with contextual messages
+  - Responsive design (mobile-first)
+- Updated OverviewTab to fetch embed code count and display it in quick links
+- Updated embedStatusBadge to accept isActive + revokedAt params (localization support)
+- Added i18n keys for RU, EN, TR: revoked, embedCode, botName, owner, totalEmbedCodes, activeEmbedCodes, revokedEmbedCodes, noEmbedCodes, embedCodesEmptyDesc, tryDifferentSearch, noResults
+- Added crypto import for UUID-based code generation
+- Lint clean, compilation successful
+
+Stage Summary:
+- Embed Codes section is now fully functional with real database data
+- Admin can search, filter, copy, revoke, activate, and regenerate embed codes
+- All actions are logged in admin logs
+- Bot.embedCode reference is kept in sync with EmbedCode.isActive state
+- Overview page shows real embed code count in quick access links
+

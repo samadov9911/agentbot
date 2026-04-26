@@ -106,6 +106,28 @@ interface AnalyticsData {
   arr: number;
 }
 
+interface EmbedCodeBot {
+  id: string;
+  name: string;
+  type: string;
+  niche: string | null;
+  isActive: boolean;
+  ownerName: string;
+  ownerEmail: string;
+}
+
+interface EmbedCodeRecord {
+  id: string;
+  code: string;
+  botId: string;
+  isActive: boolean;
+  createdBy: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  bot: EmbedCodeBot | null;
+}
+
 // ──────────────────────────────────────────────────────────────
 // Tab definitions
 // ──────────────────────────────────────────────────────────────
@@ -169,17 +191,14 @@ function actionLabel(actionType: string) {
   return labels[actionType] ?? actionType;
 }
 
-function embedStatusBadge(status: string) {
-  switch (status) {
-    case 'active':
-      return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 hover:bg-emerald-100">Active</Badge>;
-    case 'revoked':
-      return <Badge className="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 hover:bg-red-100">Revoked</Badge>;
-    case 'expired':
-      return <Badge className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-100">Expired</Badge>;
-    default:
-      return <Badge variant="secondary">{status}</Badge>;
+function embedStatusBadge(isActive: boolean, revokedAt: string | null, lang: string) {
+  if (isActive && !revokedAt) {
+    return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 hover:bg-emerald-100">{t('common.active', lang)}</Badge>;
   }
+  if (revokedAt) {
+    return <Badge className="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 hover:bg-red-100">{t('admin.revoked', lang) || 'Отозван'}</Badge>;
+  }
+  return <Badge variant="secondary">{t('common.inactive', lang)}</Badge>;
 }
 
 function userStatusBadge(isActive: boolean, lang: string) {
@@ -282,6 +301,7 @@ function OverviewTab({ lang, onNavigate }: { lang: string; onNavigate: (tab: Adm
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [userCount, setUserCount] = useState<number>(0);
   const [logCount, setLogCount] = useState<number>(0);
+  const [embedCodeCount, setEmbedCodeCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -290,15 +310,17 @@ function OverviewTab({ lang, onNavigate }: { lang: string; onNavigate: (tab: Adm
 
     async function load() {
       try {
-        const [analyticsData, usersData, logsData] = await Promise.all([
+        const [analyticsData, usersData, logsData, embedData] = await Promise.all([
           fetchAdminData<{ totalUsers: number; activeUsers: number; activeSubscriptions: number; totalBots: number; totalConversations: number; totalAppointments: number; mrr: number; arr: number }>('analytics', user.id),
           fetchAdminData<{ users: AdminUser[] }>('users', user.id),
           fetchAdminData<{ logs: AdminLog[] }>('logs', user.id),
+          fetchAdminData<{ embedCodes: EmbedCodeRecord[] }>('embed', user.id),
         ]);
         if (!cancelled) {
           setAnalytics(analyticsData);
           setUserCount(usersData.users.length);
           setLogCount(logsData.logs.length);
+          setEmbedCodeCount(embedData.embedCodes.length);
         }
       } catch (err) {
         console.error('Failed to load overview data:', err);
@@ -349,8 +371,8 @@ function OverviewTab({ lang, onNavigate }: { lang: string; onNavigate: (tab: Adm
     { id: 'admin-users' as AdminTab, label: t('admin.users', lang), description: 'Управление пользователями, блокировка, имперсонация', icon: Users, count: userCount },
     { id: 'admin-analytics' as AdminTab, label: t('admin.analytics', lang), description: 'MRR, ARR, аналитика регистраций, статистика', icon: BarChart3, count: null },
     { id: 'admin-logs' as AdminTab, label: t('admin.logs', lang), description: 'Журнал действий администраторов', icon: FileText, count: logCount },
-    { id: 'admin-embed' as AdminTab, label: t('admin.embedCodes', lang), description: 'Управление кодами внедрения виджетов', icon: Code2, count: 0 },
-  ], [lang, userCount, logCount]);
+    { id: 'admin-embed' as AdminTab, label: t('admin.embedCodes', lang), description: 'Управление кодами внедрения виджетов', icon: Code2, count: embedCodeCount },
+  ], [lang, userCount, logCount, embedCodeCount]);
 
   if (isLoading) return <OverviewSkeleton />;
 
@@ -1145,54 +1167,412 @@ function LogsTab({ lang }: { lang: string }) {
 // ──────────────────────────────────────────────────────────────
 
 function EmbedCodesTab({ lang }: { lang: string }) {
+  const { user } = useAuthStore();
+  const [embedCodes, setEmbedCodes] = useState<EmbedCodeRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const loadEmbedCodes = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const data = await fetchAdminData<{ embedCodes: EmbedCodeRecord[] }>('embed', user.id);
+      setEmbedCodes(data.embedCodes);
+    } catch (err) {
+      setError('Не удалось загрузить коды внедрения');
+      console.error('Failed to load embed codes:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadEmbedCodes();
+  }, [loadEmbedCodes]);
+
+  const filteredCodes = useMemo(() => {
+    let result = embedCodes;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (ec) =>
+          ec.code.toLowerCase().includes(q) ||
+          ec.bot?.name.toLowerCase().includes(q) ||
+          ec.bot?.ownerName.toLowerCase().includes(q) ||
+          ec.bot?.ownerEmail.toLowerCase().includes(q)
+      );
+    }
+    if (statusFilter === 'active') {
+      result = result.filter((ec) => ec.isActive && !ec.revokedAt);
+    } else if (statusFilter === 'revoked') {
+      result = result.filter((ec) => ec.revokedAt);
+    } else if (statusFilter === 'inactive') {
+      result = result.filter((ec) => !ec.isActive);
+    }
+    return result;
+  }, [embedCodes, search, statusFilter]);
+
+  const handleCopy = useCallback(async (code: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      // Fallback
+      const textarea = document.createElement('textarea');
+      textarea.value = code;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
+  }, []);
+
+  const handleRevoke = useCallback(async (embedCodeId: string) => {
+    if (!user?.id) return;
+    setProcessingId(embedCodeId);
+    try {
+      await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+        body: JSON.stringify({
+          action: 'revoke_embed_code',
+          embedCodeId,
+          details: { action: 'revoke_embed_code', embedCodeId },
+        }),
+      });
+      setEmbedCodes((prev) =>
+        prev.map((ec) =>
+          ec.id === embedCodeId
+            ? { ...ec, isActive: false, revokedAt: new Date().toISOString() }
+            : ec
+        )
+      );
+    } catch (err) {
+      console.error('Failed to revoke embed code:', err);
+    } finally {
+      setProcessingId(null);
+    }
+  }, [user?.id]);
+
+  const handleActivate = useCallback(async (embedCodeId: string) => {
+    if (!user?.id) return;
+    setProcessingId(embedCodeId);
+    try {
+      await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+        body: JSON.stringify({
+          action: 'activate_embed_code',
+          embedCodeId,
+          details: { action: 'activate_embed_code', embedCodeId },
+        }),
+      });
+      setEmbedCodes((prev) =>
+        prev.map((ec) =>
+          ec.id === embedCodeId
+            ? { ...ec, isActive: true, revokedAt: null }
+            : ec
+        )
+      );
+    } catch (err) {
+      console.error('Failed to activate embed code:', err);
+    } finally {
+      setProcessingId(null);
+    }
+  }, [user?.id]);
+
+  const handleRegenerate = useCallback(async (embedCodeId: string) => {
+    if (!user?.id) return;
+    setProcessingId(embedCodeId);
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+        body: JSON.stringify({
+          action: 'regenerate_embed_code',
+          embedCodeId,
+          details: { action: 'regenerate_embed_code', embedCodeId },
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.data?.code) {
+        setEmbedCodes((prev) =>
+          prev.map((ec) =>
+            ec.id === embedCodeId
+              ? { ...ec, code: data.data.code, isActive: true, revokedAt: null }
+              : ec
+          )
+        );
+      }
+    } catch (err) {
+      console.error('Failed to regenerate embed code:', err);
+    } finally {
+      setProcessingId(null);
+    }
+  }, [user?.id]);
+
+  const activeCount = embedCodes.filter((ec) => ec.isActive && !ec.revokedAt).length;
+  const revokedCount = embedCodes.filter((ec) => ec.revokedAt).length;
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Card><CardContent className="p-4"><Skeleton className="h-12 w-full" /></CardContent></Card>
+        <Card><CardContent className="p-6"><div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div></CardContent></Card>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      {/* Header */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Error banner */}
+      {error && (
+        <Card className="border-red-200 dark:border-red-900">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertTriangle className="size-5 text-red-500 shrink-0" />
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Stats cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card className="transition-shadow hover:shadow-md">
+          <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <Code2 className="size-5 text-emerald-600 dark:text-emerald-400" />
-              <div>
-                <p className="text-sm font-semibold">{t('admin.embedCodes', lang)}</p>
-                <p className="text-xs text-muted-foreground">
-                  Управление кодами внедрения виджетов
-                </p>
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
+                <Code2 className="size-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-muted-foreground">{t('admin.totalEmbedCodes', lang) || 'Всего кодов'}</p>
+                <p className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{embedCodes.length}</p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+        <Card className="transition-shadow hover:shadow-md">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-950 dark:text-sky-400">
+                <CheckCircle2 className="size-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-muted-foreground">{t('admin.activeEmbedCodes', lang) || 'Активных'}</p>
+                <p className="text-2xl font-bold tabular-nums text-sky-600 dark:text-sky-400">{activeCount}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="transition-shadow hover:shadow-md">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400">
+                <XCircle className="size-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-muted-foreground">{t('admin.revokedEmbedCodes', lang) || 'Отозвано'}</p>
+                <p className="text-2xl font-bold tabular-nums text-red-600 dark:text-red-400">{revokedCount}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder={`${t('common.search', lang)}...`}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder={t('common.status', lang)} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('common.all', lang)}</SelectItem>
+                <SelectItem value="active">{t('common.active', lang)}</SelectItem>
+                <SelectItem value="revoked">{t('admin.revoked', lang) || 'Отозван'}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Badge variant="secondary" className="h-10 px-3 shrink-0 tabular-nums">
+              {filteredCodes.length}
+            </Badge>
           </div>
         </CardContent>
       </Card>
 
-      {/* Empty State */}
+      {/* Table */}
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead>Код</TableHead>
-                  <TableHead>Бот</TableHead>
+                  <TableHead className="min-w-[140px]">{t('admin.embedCode', lang) || 'Код'}</TableHead>
+                  <TableHead>{t('admin.botName', lang) || 'Бот'}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t('admin.owner', lang) || 'Владелец'}</TableHead>
                   <TableHead>{t('common.status', lang)}</TableHead>
                   <TableHead className="hidden sm:table-cell">{t('common.date', lang)}</TableHead>
-                  <TableHead className="hidden md:table-cell">Последнее использование</TableHead>
                   <TableHead className="text-right">{t('common.actions', lang)}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow>
-                  <TableCell colSpan={6} className="h-40">
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <div className="flex size-12 items-center justify-center rounded-full bg-muted">
-                        <Code2 className="size-6 text-muted-foreground/50" />
+                {filteredCodes.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-40">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <div className="flex size-12 items-center justify-center rounded-full bg-muted">
+                          <Code2 className="size-6 text-muted-foreground/50" />
+                        </div>
+                        <p className="text-sm font-medium text-muted-foreground">{search || statusFilter !== 'all' ? (t('common.noResults', lang) || 'Ничего не найдено') : (t('admin.noEmbedCodes', lang) || 'Кодов внедрения пока нет')}</p>
+                        <p className="text-xs text-muted-foreground/70 text-center max-w-sm">
+                          {search || statusFilter !== 'all'
+                            ? (t('admin.tryDifferentSearch', lang) || 'Попробуйте изменить параметры поиска')
+                            : (t('admin.embedCodesEmptyDesc', lang) || 'Коды внедрения появляются при создании и публикации ботов')}
+                        </p>
                       </div>
-                      <p className="text-sm font-medium text-muted-foreground">Кодов внедрения пока нет</p>
-                      <p className="text-xs text-muted-foreground/70 text-center max-w-sm">
-                        Коды внедрения появятся после создания и публикации AI-агентов
-                      </p>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredCodes.map((ec) => (
+                    <TableRow key={ec.id} className="group">
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <code className="text-xs font-mono bg-muted px-2 py-1 rounded select-all">
+                            {ec.code}
+                          </code>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 shrink-0"
+                            onClick={() => handleCopy(ec.code, ec.id)}
+                            title={t('common.copy', lang) || 'Копировать'}
+                          >
+                            {copiedId === ec.id ? (
+                              <CheckCircle2 className="size-3.5 text-emerald-500" />
+                            ) : (
+                              <Copy className="size-3.5" />
+                            )}
+                          </Button>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-sm font-medium truncate max-w-[180px]">{ec.bot?.name || '—'}</span>
+                          {ec.bot?.niche && (
+                            <span className="text-xs text-muted-foreground">{ec.bot.niche}</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-sm text-muted-foreground truncate max-w-[180px]">{ec.bot?.ownerName || '—'}</span>
+                          <span className="text-xs text-muted-foreground/70">{ec.bot?.ownerEmail}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{embedStatusBadge(ec.isActive, ec.revokedAt, lang)}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
+                        {new Date(ec.createdAt).toLocaleDateString('ru-RU')}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-1">
+                          {ec.isActive && !ec.revokedAt ? (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                                  disabled={processingId === ec.id}
+                                  title={t('admin.revokeCode', lang)}
+                                >
+                                  <Ban className="size-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle className="flex items-center gap-2">
+                                    <AlertTriangle className="size-5 text-red-500" />
+                                    {t('admin.revokeCode', lang)}
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Вы уверены, что хотите отозвать код <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{ec.code}</code>? Виджет перестанет работать на сайте.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>{t('common.cancel', lang)}</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-red-600 hover:bg-red-700"
+                                    onClick={() => handleRevoke(ec.id)}
+                                  >
+                                    {t('admin.revokeCode', lang)}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                              disabled={processingId === ec.id}
+                              onClick={() => handleActivate(ec.id)}
+                              title="Активировать"
+                            >
+                              <ShieldCheck className="size-4" />
+                            </Button>
+                          )}
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
+                                disabled={processingId === ec.id}
+                                title="Перегенерировать код"
+                              >
+                                <RefreshCw className={`size-4 ${processingId === ec.id ? 'animate-spin' : ''}`} />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle className="flex items-center gap-2">
+                                  <RefreshCw className="size-5 text-amber-500" />
+                                  Перегенерировать код
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Будет сгенерирован новый код для виджета. Старый код <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{ec.code}</code> перестанет работать. Это действие нельзя отменить.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>{t('common.cancel', lang)}</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-amber-600 hover:bg-amber-700"
+                                  onClick={() => handleRegenerate(ec.id)}
+                                >
+                                  Перегенерировать
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>

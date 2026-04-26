@@ -13,6 +13,7 @@
     "next": "İleri",
     "search": "Ara",
     "noData": "Veri yok",
+    "noResults": "Sonuç bulunamadı",
     "success": "Başarılı",
     "error": "Hata",
     "warning": "Uyarı",
@@ -336,7 +337,18 @@
     "blockUser": "Kullanıcıyı Engelle",
     "unblockUser": "Kullanıcının Engeli Kaldır",
     "generateCode": "Kod Oluştur",
-    "revokeCode": "Kodu İptal Et"
+    "revokeCode": "Kodu İptal Et",
+    "revoked": "İptal Edildi",
+    "embedCodes": "Gömme Kodları",
+    "embedCode": "Kod",
+    "botName": "Bot",
+    "owner": "Sahip",
+    "totalEmbedCodes": "Toplam Kod",
+    "activeEmbedCodes": "Aktif",
+    "revokedEmbedCodes": "İptal Edildi",
+    "noEmbedCodes": "Henüz gömme kodu yok",
+    "embedCodesEmptyDesc": "Gömme kodları, botlar oluşturulup yayınlandığında görünür",
+    "tryDifferentSearch": "Arama parametrelerinizi değiştirmeyi deneyin"
   },
   "bookings": {
     "title": "Randevular",

@@ -13,6 +13,7 @@
     "next": "Next",
     "search": "Search",
     "noData": "No data",
+    "noResults": "No results found",
     "success": "Success",
     "error": "Error",
     "warning": "Warning",
@@ -336,7 +337,18 @@
     "blockUser": "Block User",
     "unblockUser": "Unblock User",
     "generateCode": "Generate Code",
-    "revokeCode": "Revoke Code"
+    "revokeCode": "Revoke Code",
+    "revoked": "Revoked",
+    "embedCodes": "Embed Codes",
+    "embedCode": "Code",
+    "botName": "Bot",
+    "owner": "Owner",
+    "totalEmbedCodes": "Total Codes",
+    "activeEmbedCodes": "Active",
+    "revokedEmbedCodes": "Revoked",
+    "noEmbedCodes": "No embed codes yet",
+    "embedCodesEmptyDesc": "Embed codes appear when bots are created and published",
+    "tryDifferentSearch": "Try adjusting your search parameters"
   },
   "bookings": {
     "title": "Bookings",

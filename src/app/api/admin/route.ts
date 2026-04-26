@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import crypto from 'crypto';
 
 export async function GET(request: NextRequest) {
   try {
@@ -88,6 +89,48 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    if (section === 'embed') {
+      const embedCodes = await db.embedCode.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        include: {
+          Bot: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              niche: true,
+              isActive: true,
+              User: {
+                select: { id: true, name: true, email: true },
+              },
+            },
+          },
+        },
+      });
+      return NextResponse.json({
+        embedCodes: embedCodes.map(ec => ({
+          id: ec.id,
+          code: ec.code,
+          botId: ec.botId,
+          isActive: ec.isActive,
+          createdBy: ec.createdBy,
+          revokedAt: ec.revokedAt?.toISOString() ?? null,
+          createdAt: ec.createdAt.toISOString(),
+          updatedAt: ec.updatedAt.toISOString(),
+          bot: ec.Bot ? {
+            id: ec.Bot.id,
+            name: ec.Bot.name,
+            type: ec.Bot.type,
+            niche: ec.Bot.niche,
+            isActive: ec.Bot.isActive,
+            ownerName: ec.Bot.User?.name || ec.Bot.User?.email || '—',
+            ownerEmail: ec.Bot.User?.email || '',
+          } : null,
+        })),
+      });
+    }
+
     return NextResponse.json({ error: 'Invalid section' }, { status: 400 });
   } catch (error) {
     console.error('Admin error:', error);
@@ -107,7 +150,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { action, targetUserId, details } = await request.json();
+    const { action, targetUserId, details, embedCodeId } = await request.json();
 
     // Log admin action
     await db.adminLog.create({
@@ -126,6 +169,64 @@ export async function POST(request: NextRequest) {
     if (action === 'unblock_user' && targetUserId) {
       await db.user.update({ where: { id: targetUserId }, data: { isActive: true } });
       return NextResponse.json({ success: true, message: 'User unblocked' });
+    }
+
+    if (action === 'revoke_embed_code' && embedCodeId) {
+      const existing = await db.embedCode.findUnique({ where: { id: embedCodeId } });
+      if (!existing) {
+        return NextResponse.json({ error: 'Embed code not found' }, { status: 404 });
+      }
+      const updated = await db.embedCode.update({
+        where: { id: embedCodeId },
+        data: { isActive: false, revokedAt: new Date() },
+      });
+      // Also clear the embedCode reference on the Bot
+      if (existing.botId) {
+        await db.bot.update({
+          where: { id: existing.botId },
+          data: { embedCode: null },
+        });
+      }
+      return NextResponse.json({ success: true, message: 'Embed code revoked', data: { code: updated.code } });
+    }
+
+    if (action === 'activate_embed_code' && embedCodeId) {
+      const existing = await db.embedCode.findUnique({ where: { id: embedCodeId } });
+      if (!existing) {
+        return NextResponse.json({ error: 'Embed code not found' }, { status: 404 });
+      }
+      const updated = await db.embedCode.update({
+        where: { id: embedCodeId },
+        data: { isActive: true, revokedAt: null },
+      });
+      // Restore the embedCode reference on the Bot
+      if (existing.botId) {
+        await db.bot.update({
+          where: { id: existing.botId },
+          data: { embedCode: updated.code },
+        });
+      }
+      return NextResponse.json({ success: true, message: 'Embed code activated', data: { code: updated.code } });
+    }
+
+    if (action === 'regenerate_embed_code' && embedCodeId) {
+      const existing = await db.embedCode.findUnique({ where: { id: embedCodeId } });
+      if (!existing) {
+        return NextResponse.json({ error: 'Embed code not found' }, { status: 404 });
+      }
+      const newCode = crypto.randomUUID().replace(/-/g, '').substring(0, 16).toUpperCase();
+      const updated = await db.embedCode.update({
+        where: { id: embedCodeId },
+        data: { code: newCode, isActive: true, revokedAt: null },
+      });
+      // Update the embedCode reference on the Bot
+      if (existing.botId) {
+        await db.bot.update({
+          where: { id: existing.botId },
+          data: { embedCode: newCode },
+        });
+      }
+      return NextResponse.json({ success: true, message: 'Embed code regenerated', data: { code: newCode } });
     }
 
     return NextResponse.json({ success: true });
