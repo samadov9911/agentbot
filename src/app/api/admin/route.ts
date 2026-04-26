@@ -41,7 +41,6 @@ export async function GET(request: NextRequest) {
     }
 
     if (section === 'analytics') {
-      // Run each query independently — if one fails, return defaults for that metric
       const [totalUsers, activeUsers, activeSubscriptions, totalBots, totalConversations, totalAppointments, paidSubscriptions] = await Promise.all([
         db.user.count({ where: { deletedAt: null } }).catch(() => 0),
         db.user.count({ where: { deletedAt: null, isActive: true } }).catch(() => 0),
@@ -90,43 +89,49 @@ export async function GET(request: NextRequest) {
     }
 
     if (section === 'embed') {
-      const embedCodes = await db.embedCode.findMany({
-        orderBy: { createdAt: 'desc' },
+      // Fetch bots that have an embedCode set — use Bot table directly
+      const botsWithCodes = await db.bot.findMany({
+        where: {
+          deletedAt: null,
+          embedCode: { not: null },
+        },
+        orderBy: { updatedAt: 'desc' },
         take: 100,
-        include: {
-          Bot: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-              niche: true,
-              isActive: true,
-              User: {
-                select: { id: true, name: true, email: true },
-              },
-            },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          niche: true,
+          embedCode: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          publishedAt: true,
+          User: {
+            select: { id: true, name: true, email: true },
           },
         },
       });
+
       return NextResponse.json({
-        embedCodes: embedCodes.map(ec => ({
-          id: ec.id,
-          code: ec.code,
-          botId: ec.botId,
-          isActive: ec.isActive,
-          createdBy: ec.createdBy,
-          revokedAt: ec.revokedAt?.toISOString() ?? null,
-          createdAt: ec.createdAt.toISOString(),
-          updatedAt: ec.updatedAt.toISOString(),
-          bot: ec.Bot ? {
-            id: ec.Bot.id,
-            name: ec.Bot.name,
-            type: ec.Bot.type,
-            niche: ec.Bot.niche,
-            isActive: ec.Bot.isActive,
-            ownerName: ec.Bot.User?.name || ec.Bot.User?.email || '—',
-            ownerEmail: ec.Bot.User?.email || '',
-          } : null,
+        embedCodes: botsWithCodes.map(bot => ({
+          id: bot.id,
+          code: bot.embedCode,
+          botId: bot.id,
+          isActive: bot.isActive,
+          createdBy: bot.User?.name || bot.User?.email || null,
+          revokedAt: null,
+          createdAt: bot.createdAt.toISOString(),
+          updatedAt: bot.updatedAt.toISOString(),
+          bot: {
+            id: bot.id,
+            name: bot.name,
+            type: bot.type,
+            niche: bot.niche,
+            isActive: bot.isActive,
+            ownerName: bot.User?.name || bot.User?.email || '—',
+            ownerEmail: bot.User?.email || '',
+          },
         })),
       });
     }
@@ -171,62 +176,56 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: 'User unblocked' });
     }
 
+    // All embed code actions use botId (embedCodeId is actually bot.id)
     if (action === 'revoke_embed_code' && embedCodeId) {
-      const existing = await db.embedCode.findUnique({ where: { id: embedCodeId } });
-      if (!existing) {
-        return NextResponse.json({ error: 'Embed code not found' }, { status: 404 });
-      }
-      const updated = await db.embedCode.update({
+      const bot = await db.bot.findUnique({
         where: { id: embedCodeId },
-        data: { isActive: false, revokedAt: new Date() },
+        select: { id: true, name: true, embedCode: true },
       });
-      // Also clear the embedCode reference on the Bot
-      if (existing.botId) {
-        await db.bot.update({
-          where: { id: existing.botId },
-          data: { embedCode: null },
-        });
+      if (!bot) {
+        return NextResponse.json({ error: 'Bot not found' }, { status: 404 });
       }
-      return NextResponse.json({ success: true, message: 'Embed code revoked', data: { code: updated.code } });
-    }
-
-    if (action === 'activate_embed_code' && embedCodeId) {
-      const existing = await db.embedCode.findUnique({ where: { id: embedCodeId } });
-      if (!existing) {
-        return NextResponse.json({ error: 'Embed code not found' }, { status: 404 });
-      }
-      const updated = await db.embedCode.update({
+      await db.bot.update({
         where: { id: embedCodeId },
-        data: { isActive: true, revokedAt: null },
+        data: { embedCode: null },
       });
-      // Restore the embedCode reference on the Bot
-      if (existing.botId) {
-        await db.bot.update({
-          where: { id: existing.botId },
-          data: { embedCode: updated.code },
-        });
-      }
-      return NextResponse.json({ success: true, message: 'Embed code activated', data: { code: updated.code } });
+      return NextResponse.json({ success: true, message: 'Embed code revoked', data: { code: bot.embedCode } });
     }
 
     if (action === 'regenerate_embed_code' && embedCodeId) {
-      const existing = await db.embedCode.findUnique({ where: { id: embedCodeId } });
-      if (!existing) {
-        return NextResponse.json({ error: 'Embed code not found' }, { status: 404 });
+      const bot = await db.bot.findUnique({
+        where: { id: embedCodeId },
+        select: { id: true, name: true },
+      });
+      if (!bot) {
+        return NextResponse.json({ error: 'Bot not found' }, { status: 404 });
       }
       const newCode = crypto.randomUUID().replace(/-/g, '').substring(0, 16).toUpperCase();
-      const updated = await db.embedCode.update({
+      await db.bot.update({
         where: { id: embedCodeId },
-        data: { code: newCode, isActive: true, revokedAt: null },
+        data: { embedCode: newCode },
       });
-      // Update the embedCode reference on the Bot
-      if (existing.botId) {
-        await db.bot.update({
-          where: { id: existing.botId },
-          data: { embedCode: newCode },
-        });
-      }
       return NextResponse.json({ success: true, message: 'Embed code regenerated', data: { code: newCode } });
+    }
+
+    if (action === 'activate_embed_code' && embedCodeId) {
+      // Generate a new embed code for a bot that doesn't have one
+      const bot = await db.bot.findUnique({
+        where: { id: embedCodeId },
+        select: { id: true, name: true, embedCode: true },
+      });
+      if (!bot) {
+        return NextResponse.json({ error: 'Bot not found' }, { status: 404 });
+      }
+      if (bot.embedCode) {
+        return NextResponse.json({ success: true, message: 'Embed code already active', data: { code: bot.embedCode } });
+      }
+      const newCode = crypto.randomUUID().replace(/-/g, '').substring(0, 16).toUpperCase();
+      await db.bot.update({
+        where: { id: embedCodeId },
+        data: { embedCode: newCode },
+      });
+      return NextResponse.json({ success: true, message: 'Embed code activated', data: { code: newCode } });
     }
 
     return NextResponse.json({ success: true });

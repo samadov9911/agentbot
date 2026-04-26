@@ -191,12 +191,9 @@ function actionLabel(actionType: string) {
   return labels[actionType] ?? actionType;
 }
 
-function embedStatusBadge(isActive: boolean, revokedAt: string | null, lang: string) {
-  if (isActive && !revokedAt) {
+function embedStatusBadge(isActive: boolean, lang: string) {
+  if (isActive) {
     return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 hover:bg-emerald-100">{t('common.active', lang)}</Badge>;
-  }
-  if (revokedAt) {
-    return <Badge className="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 hover:bg-red-100">{t('admin.revoked', lang) || 'Отозван'}</Badge>;
   }
   return <Badge variant="secondary">{t('common.inactive', lang)}</Badge>;
 }
@@ -1206,9 +1203,7 @@ function EmbedCodesTab({ lang }: { lang: string }) {
       );
     }
     if (statusFilter === 'active') {
-      result = result.filter((ec) => ec.isActive && !ec.revokedAt);
-    } else if (statusFilter === 'revoked') {
-      result = result.filter((ec) => ec.revokedAt);
+      result = result.filter((ec) => ec.isActive);
     } else if (statusFilter === 'inactive') {
       result = result.filter((ec) => !ec.isActive);
     }
@@ -1237,7 +1232,7 @@ function EmbedCodesTab({ lang }: { lang: string }) {
     if (!user?.id) return;
     setProcessingId(embedCodeId);
     try {
-      await fetch('/api/admin', {
+      const res = await fetch('/api/admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
         body: JSON.stringify({
@@ -1246,13 +1241,10 @@ function EmbedCodesTab({ lang }: { lang: string }) {
           details: { action: 'revoke_embed_code', embedCodeId },
         }),
       });
-      setEmbedCodes((prev) =>
-        prev.map((ec) =>
-          ec.id === embedCodeId
-            ? { ...ec, isActive: false, revokedAt: new Date().toISOString() }
-            : ec
-        )
-      );
+      if (res.ok) {
+        // Remove from list — revoked codes are no longer returned by API
+        setEmbedCodes((prev) => prev.filter((ec) => ec.id !== embedCodeId));
+      }
     } catch (err) {
       console.error('Failed to revoke embed code:', err);
     } finally {
@@ -1317,8 +1309,8 @@ function EmbedCodesTab({ lang }: { lang: string }) {
     }
   }, [user?.id]);
 
-  const activeCount = embedCodes.filter((ec) => ec.isActive && !ec.revokedAt).length;
-  const revokedCount = embedCodes.filter((ec) => ec.revokedAt).length;
+  const activeCount = embedCodes.filter((ec) => ec.isActive).length;
+  const inactiveCount = embedCodes.filter((ec) => !ec.isActive).length;
 
   if (isLoading) {
     return (
@@ -1372,12 +1364,12 @@ function EmbedCodesTab({ lang }: { lang: string }) {
         <Card className="transition-shadow hover:shadow-md">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400">
                 <XCircle className="size-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-muted-foreground">{t('admin.revokedEmbedCodes', lang) || 'Отозвано'}</p>
-                <p className="text-2xl font-bold tabular-nums text-red-600 dark:text-red-400">{revokedCount}</p>
+                <p className="text-xs font-medium text-muted-foreground">{t('admin.inactiveEmbedCodes', lang) || 'Неактивных'}</p>
+                <p className="text-2xl font-bold tabular-nums text-amber-600 dark:text-amber-400">{inactiveCount}</p>
               </div>
             </div>
           </CardContent>
@@ -1404,7 +1396,7 @@ function EmbedCodesTab({ lang }: { lang: string }) {
               <SelectContent>
                 <SelectItem value="all">{t('common.all', lang)}</SelectItem>
                 <SelectItem value="active">{t('common.active', lang)}</SelectItem>
-                <SelectItem value="revoked">{t('admin.revoked', lang) || 'Отозван'}</SelectItem>
+                <SelectItem value="inactive">{t('common.inactive', lang)}</SelectItem>
               </SelectContent>
             </Select>
             <Badge variant="secondary" className="h-10 px-3 shrink-0 tabular-nums">
@@ -1483,58 +1475,45 @@ function EmbedCodesTab({ lang }: { lang: string }) {
                           <span className="text-xs text-muted-foreground/70">{ec.bot?.ownerEmail}</span>
                         </div>
                       </TableCell>
-                      <TableCell>{embedStatusBadge(ec.isActive, ec.revokedAt, lang)}</TableCell>
+                      <TableCell>{embedStatusBadge(ec.isActive, lang)}</TableCell>
                       <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
                         {new Date(ec.createdAt).toLocaleDateString('ru-RU')}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
-                          {ec.isActive && !ec.revokedAt ? (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="size-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                                  disabled={processingId === ec.id}
-                                  title={t('admin.revokeCode', lang)}
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                                disabled={processingId === ec.id}
+                                title={t('admin.revokeCode', lang)}
+                              >
+                                <Ban className="size-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle className="flex items-center gap-2">
+                                  <AlertTriangle className="size-5 text-red-500" />
+                                  {t('admin.revokeCode', lang)}
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Вы уверены, что хотите отозвать код <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{ec.code}</code>? Виджет перестанет работать на сайте.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>{t('common.cancel', lang)}</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-red-600 hover:bg-red-700"
+                                  onClick={() => handleRevoke(ec.id)}
                                 >
-                                  <Ban className="size-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle className="flex items-center gap-2">
-                                    <AlertTriangle className="size-5 text-red-500" />
-                                    {t('admin.revokeCode', lang)}
-                                  </AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Вы уверены, что хотите отозвать код <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{ec.code}</code>? Виджет перестанет работать на сайте.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>{t('common.cancel', lang)}</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    className="bg-red-600 hover:bg-red-700"
-                                    onClick={() => handleRevoke(ec.id)}
-                                  >
-                                    {t('admin.revokeCode', lang)}
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950"
-                              disabled={processingId === ec.id}
-                              onClick={() => handleActivate(ec.id)}
-                              title="Активировать"
-                            >
-                              <ShieldCheck className="size-4" />
-                            </Button>
-                          )}
+                                  {t('admin.revokeCode', lang)}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button
