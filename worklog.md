@@ -243,3 +243,28 @@ Stage Summary:
 - documentation-pages.tsx: Full i18n support with 247 t() calls
 - All 3 locale files updated with doc section (~275 keys each)
 - Documentation overlays (API, Integration, Widget, Telegram) now properly translate when switching languages
+
+---
+Task ID: 2
+Agent: main
+Task: Replace all hardcoded Russian code blocks in documentation-pages.tsx with t() calls
+
+Work Log:
+- Replaced 21 hardcoded Russian code block `code` props with t('doc.code.XXX', language) calls
+- Replaced 3 hardcoded CardTitle platform names (WordPress, Tilda, Shopify) with t() calls
+- Added `doc.code` section with 21 keys to all 3 locale files (ru.json, en.json, tr.json):
+  - doc.code.apiCreateBot, apiBotResponse, apiAppointmentStatus, apiWebhookPayload
+  - doc.code.amocrmWebhook, bitrixWebhook, yclientsApi
+  - doc.code.wordpressWidget, tildaWidget
+  - doc.code.pythonWebhook, nodeWebhook, telegramRelay
+  - doc.code.widgetHtmlPage, widgetConfig, widgetAutoOpen, widgetPageFilter
+  - doc.code.botfatherDialog, botfatherSettings, dashboardSettings, welcomeMessage, inlineButtons
+- Added doc.integration.wordpress, doc.integration.tilda, doc.integration.shopify keys to all 3 locale files
+- Preserved code blocks with NO Russian text (HTTP auth header, analytics JSON, error JSON) as-is
+- Lint clean — no errors
+
+Stage Summary:
+- All 21 code blocks with Russian text now fully internationalized (RU/EN/TR)
+- Platform names (WordPress, Tilda, Shopify) in CardTitle components now translated
+- Code examples adapt to selected language: Russian, English, Turkish
+- Total new i18n keys added: 21 code keys × 3 files + 3 platform keys × 3 files = 72 keys

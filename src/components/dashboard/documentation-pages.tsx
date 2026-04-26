@@ -258,37 +258,12 @@ Content-Type: application/json`}
           <CodeBlock
             lang="json"
             filename="POST /v1/bots"
-            code={`{
-  "name": "Мой помощник",
-  "type": "ai",
-  "niche": "salon",
-  "config": {
-    "greeting": "Здравствуйте! Чем могу помочь?",
-    "tone": "friendly",
-    "language": "ru"
-  },
-  "appearance": {
-    "primaryColor": "#10b981",
-    "position": "right",
-    "widgetTitle": "Онлайн-помощник"
-  }
-}`}
+            code={t('doc.code.apiCreateBot', language)}
           />
           <h3 className="text-sm font-semibold">{t('doc.api.exampleResponse', language)}</h3>
           <CodeBlock
             lang="json"
-            code={`{
-  "success": true,
-  "data": {
-    "id": "bot_a1b2c3d4e5f6",
-    "name": "Мой помощник",
-    "type": "ai",
-    "niche": "salon",
-    "embedCode": "ABCD1234EFGH5678",
-    "isActive": true,
-    "createdAt": "2025-01-15T10:30:00Z"
-  }
-}`}
+            code={t('doc.code.apiBotResponse', language)}
           />
         </CardContent>
       </Card>
@@ -348,10 +323,7 @@ Content-Type: application/json`}
           <CodeBlock
             lang="json"
             filename="PATCH /v1/appointments/appt_x1y2z3/status"
-            code={`{
-  "status": "confirmed",
-  "notes": "Подтверждено оператором"
-}`}
+            code={t('doc.code.apiAppointmentStatus', language)}
           />
           <Callout type="tip">
             <strong>{t('doc.api.tip', language)}:</strong> {t('doc.api.statusesTip', language)}
@@ -420,20 +392,7 @@ Content-Type: application/json`}
           <CodeBlock
             lang="json"
             filename={t('doc.api.webhookPayloadExample', language)}
-            code={`{
-  "event": "appointment.created",
-  "timestamp": "2025-01-15T14:30:00Z",
-  "data": {
-    "appointmentId": "appt_x1y2z3",
-    "botId": "bot_a1b2c3",
-    "visitorName": "Иван Петров",
-    "visitorPhone": "+79991234567",
-    "visitorEmail": "ivan@example.com",
-    "service": "Стрижка",
-    "date": "2025-01-16T10:00:00Z",
-    "status": "pending"
-  }
-}`}
+            code={t('doc.code.apiWebhookPayload', language)}
           />
         </CardContent>
       </Card>
@@ -594,33 +553,7 @@ function IntegrationGuidesPage() {
               <CodeBlock
                 lang="json"
                 filename={t('doc.integration.amocrmCodeFilename', language)}
-                code={`// АгентБот отправляет POST на ваш сервер
-// Ваш сервер создаёт сделку в amoCRM
-
-POST https://example.com/webhook/agentbot
-{
-  "event": "conversation.created",
-  "data": {
-    "visitorName": "Мария Иванова",
-    "visitorPhone": "+79991234567",
-    "visitorEmail": "maria@example.com",
-    "message": "Хочу записаться на стрижку",
-    "source": "widget"
-  }
-}
-
-// Ваш сервер → POST к amoCRM API
-POST https://your-domain.amocrm.ru/api/v4/leads
-{
-  "name": "Запрос с сайта — Мария Иванова",
-  "contacts": {
-    "name": "Мария Иванова",
-    "phone": "+79991234567"
-  },
-  "custom_fields": {
-    "source": "agentbot_widget"
-  }
-}`}
+                code={t('doc.code.amocrmWebhook', language)}
               />
               <StepNumber num={3} title={t('doc.integration.amocrmStep3', language)} />
               <p className="ml-11 text-sm text-muted-foreground">
@@ -649,24 +582,7 @@ POST https://your-domain.amocrm.ru/api/v4/leads
               <CodeBlock
                 lang="json"
                 filename={t('doc.integration.bitrixCodeFilename', language)}
-                code={`// POST на URL входящего вебхука Битрикс24
-POST https://your-domain.bitrix24.ru/rest/1/your_webhook_code/crm.lead.add.json
-{
-  "fields": {
-    "TITLE": "Новый лид с сайта",
-    "NAME": "Мария",
-    "LAST_NAME": "Иванова",
-    "PHONE": [
-      { "VALUE": "+79991234567", "VALUE_TYPE": "WORK" }
-    ],
-    "EMAIL": [
-      { "VALUE": "maria@example.com", "VALUE_TYPE": "WORK" }
-    ],
-    "SOURCE_ID": "WEB",
-    "COMMENTS": "Обращение через AI-чат АгентБот. Запрос: запись на стрижку."
-  },
-  "params": { "REGISTER_SONET_EVENT": "Y" }
-}`}
+                code={t('doc.code.bitrixWebhook', language)}
               />
               <StepNumber num={3} title={t('doc.integration.bitrixStep3', language)} />
               <p className="ml-11 text-sm text-muted-foreground">
@@ -692,23 +608,7 @@ POST https://your-domain.bitrix24.ru/rest/1/your_webhook_code/crm.lead.add.json
               <CodeBlock
                 lang="json"
                 filename={t('doc.integration.yclientsCodeFilename', language)}
-                code={`// Получение списка услуг из YClients
-GET https://api.yclients.com/api/v1/services/{company_id}
-Authorization: Bearer ycl_token_xxxxx
-
-// Создание записи
-POST https://api.yclients.com/api/v1/records/{company_id}
-Authorization: Bearer ycl_token_xxxxx
-{
-  "staff_id": 123,
-  "services": [456],
-  "datetime": "2025-01-16 10:00",
-  "client": {
-    "name": "Мария Иванова",
-    "phone": "79991234567"
-  },
-  "comment": "Запись через AI-ассистент"
-}`}
+                code={t('doc.code.yclientsApi', language)}
               />
               <Callout type="tip">
                 <strong>{t('doc.api.tip', language)}:</strong> {t('doc.integration.yclientsTip', language)}
@@ -722,7 +622,7 @@ Authorization: Bearer ycl_token_xxxxx
           {/* WordPress */}
           <Card>
             <CardHeader>
-              <CardTitle>WordPress</CardTitle>
+              <CardTitle>{t('doc.integration.wordpress', language)}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <StepNumber num={1} title={t('doc.integration.wpStep1', language)} />
@@ -730,20 +630,7 @@ Authorization: Bearer ycl_token_xxxxx
               <CodeBlock
                 lang="html"
                 filename={t('doc.integration.wpCodeFilename', language)}
-                code={`// Добавьте в functions.php вашей темы WordPress
-function agentbot_widget() {
-    ?>
-    <script>
-      (function(w,d,s,o){
-        var j=d.createElement(s);j.async=true;
-        j.src='https://widget.agentbot.ru/v1/loader.js';
-        j.setAttribute('data-code','ВАШ_КОД_ВНЕДРЕНИЯ');
-        d.head.appendChild(j);
-      })(window,document,'script');
-    </script>
-    <?php
-}
-add_action('wp_footer', 'agentbot_widget');`}
+                code={t('doc.code.wordpressWidget', language)}
               />
               <StepNumber num={2} title={t('doc.integration.wpStep2', language)} />
               <p className="ml-11 text-sm text-muted-foreground">{t('doc.integration.wpStep2Desc', language)}</p>
@@ -753,7 +640,7 @@ add_action('wp_footer', 'agentbot_widget');`}
           {/* Tilda */}
           <Card>
             <CardHeader>
-              <CardTitle>Tilda</CardTitle>
+              <CardTitle>{t('doc.integration.tilda', language)}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <StepNumber num={1} title={t('doc.integration.tildaStep1', language)} />
@@ -762,15 +649,7 @@ add_action('wp_footer', 'agentbot_widget');`}
               </p>
               <CodeBlock
                 lang="html"
-                code={`<!-- Вставьте в «Код в <body>» в настройках Tilda -->
-<script>
-  (function(w,d,s,o){
-    var j=d.createElement(s);j.async=true;
-    j.src='https://widget.agentbot.ru/v1/loader.js';
-    j.setAttribute('data-code','ВАШ_КОД_ВНЕДРЕНИЯ');
-    d.head.appendChild(j);
-  })(window,document,'script');
-</script>`}
+                code={t('doc.code.tildaWidget', language)}
               />
               <Callout type="tip">
                 <strong>{t('doc.api.tip', language)}:</strong> {t('doc.integration.tildaTip', language)}
@@ -781,7 +660,7 @@ add_action('wp_footer', 'agentbot_widget');`}
           {/* Shopify */}
           <Card>
             <CardHeader>
-              <CardTitle>Shopify</CardTitle>
+              <CardTitle>{t('doc.integration.shopify', language)}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <StepNumber num={1} title={t('doc.integration.shopifyStep1', language)} />
@@ -809,65 +688,12 @@ add_action('wp_footer', 'agentbot_widget');`}
               <CodeBlock
                 lang="python"
                 filename={t('doc.integration.pythonWebhookFilename', language)}
-                code={`from flask import Flask, request, jsonify
-
-app = Flask(__name__)
-
-@app.route('/webhook/agentbot', methods=['POST'])
-def handle_agentbot_event():
-    data = request.json
-    event = data.get('event')
-    
-    if event == 'appointment.created':
-        visitor = data['data']
-        # Создать запись в вашей системе
-        create_booking(
-            name=visitor['visitorName'],
-            phone=visitor['visitorPhone'],
-            service=visitor['service'],
-            date=visitor['date']
-        )
-    elif event == 'message.received':
-        # Переслать сообщение в CRM
-        forward_to_crm(data['data'])
-    
-    return jsonify({"success": True}), 200
-
-if __name__ == '__main__':
-    app.run(port=3000)`}
+                code={t('doc.code.pythonWebhook', language)}
               />
               <CodeBlock
                 lang="javascript"
                 filename={t('doc.integration.nodeWebhookFilename', language)}
-                code={`const express = require('express');
-const app = express();
-
-app.use(express.json());
-
-app.post('/webhook/agentbot', async (req, res) => {
-  const { event, data } = req.body;
-  
-  switch (event) {
-    case 'appointment.created':
-      // Создать запись в вашей системе
-      await createBooking({
-        name: data.visitorName,
-        phone: data.visitorPhone,
-        service: data.service,
-        date: data.date,
-      });
-      break;
-      
-    case 'message.received':
-      // Переслать в CRM / Telegram-канал оператора
-      await forwardMessage(data);
-      break;
-  }
-  
-  res.json({ success: true });
-});
-
-app.listen(3000, () => console.log('Webhook server running'));`}
+                code={t('doc.code.nodeWebhook', language)}
               />
             </CardContent>
           </Card>
@@ -883,31 +709,7 @@ app.listen(3000, () => console.log('Webhook server running'));`}
               <CodeBlock
                 lang="python"
                 filename={t('doc.integration.telegramRelayFilename', language)}
-                code={`import requests
-
-TELEGRAM_TOKEN = "your_bot_token"
-CHAT_ID = "your_chat_id"
-
-def send_to_telegram(message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": message,
-        "parse_mode": "HTML"
-    }
-    requests.post(url, json=payload)
-
-# При получении вебхука от АгентБот:
-def handle_agentbot_event(event, data):
-    if event == "appointment.created":
-        msg = (
-            f"📋 Новая запись!\\n"
-            f"👤 {data['visitorName']}\\n"
-            f"📞 {data['visitorPhone']}\\n"
-            f"💈 {data.get('service', '—')}\\n"
-            f"📅 {data['date']}"
-        )
-        send_to_telegram(msg)`}
+                code={t('doc.code.telegramRelay', language)}
               />
             </CardContent>
           </Card>
@@ -1007,29 +809,7 @@ function WidgetSetupPage() {
             <CodeBlock
               lang="html"
               filename={t('doc.widget.htmlPageFilename', language)}
-              code={`<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Мой сайт</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <h1>Добро пожаловать!</h1>
-  <p>Содержимое вашего сайта...</p>
-
-  <!-- Код виджета АгентБот — вставьте перед </body> -->
-  <script>
-    (function(w,d,s,o){
-      var j=d.createElement(s);j.async=true;
-      j.src='https://widget.agentbot.ru/v1/loader.js';
-      j.setAttribute('data-code','ABCD1234EFGH5678');
-      d.head.appendChild(j);
-    })(window,document,'script');
-  </script>
-</body>
-</html>`}
+              code={t('doc.code.widgetHtmlPage', language)}
             />
           </div>
 
@@ -1061,23 +841,7 @@ function WidgetSetupPage() {
               <CodeBlock
                 lang="html"
                 filename={t('doc.widget.colorConfigFilename', language)}
-                code={`<script>
-  var config = {
-    code: 'ABCD1234EFGH5678',
-    color: '#10b981',        // Основной цвет
-    position: 'right',       // Позиция: right или left
-    title: 'Онлайн-помощник', // Заголовок чата
-    greeting: 'Здравствуйте! Чем могу помочь?',
-    avatar: 'https://your-site.com/bot-avatar.png'
-  };
-  
-  (function(w,d,s,o){
-    var j=d.createElement(s);j.async=true;
-    j.src='https://widget.agentbot.ru/v1/loader.js';
-    Object.keys(config).forEach(function(k){ j.setAttribute('data-'+k, config[k]); });
-    d.head.appendChild(j);
-  })(window,document,'script');
-</script>`}
+                code={t('doc.code.widgetConfig', language)}
               />
             </div>
 
@@ -1109,14 +873,7 @@ function WidgetSetupPage() {
               <h4 className="mb-2 font-semibold text-sm">{t('doc.widget.autoOpen', language)}</h4>
               <CodeBlock
                 lang="html"
-                code={`<script>
-  // Автоматически открыть чат через 10 секунд
-  var config = {
-    code: 'ABCD1234EFGH5678',
-    autoOpen: '10'  // секунд до автозапуска
-  };
-  // ... остальной код загрузчика
-</script>`}
+                code={t('doc.code.widgetAutoOpen', language)}
               />
             </div>
 
@@ -1131,19 +888,7 @@ function WidgetSetupPage() {
               <h4 className="mb-2 font-semibold text-sm">{t('doc.widget.pageFiltering', language)}</h4>
               <CodeBlock
                 lang="html"
-                code={`<!-- Показывать виджет только на страницах /services и /contacts -->
-<script>
-  var showOnPages = ['/services', '/contacts'];
-  if (showOnPages.some(function(p) {
-    return window.location.pathname.indexOf(p) !== -1;
-  })) {
-    var j = document.createElement('script');
-    j.async = true;
-    j.src = 'https://widget.agentbot.ru/v1/loader.js';
-    j.setAttribute('data-code', 'ABCD1234EFGH5678');
-    document.head.appendChild(j);
-  }
-</script>`}
+                code={t('doc.code.widgetPageFilter', language)}
               />
             </div>
           </div>
@@ -1257,12 +1002,7 @@ function TelegramSetupPage() {
             <CodeBlock
               lang="text"
               filename={t('doc.telegram.botfatherDialog', language)}
-              code={`1. Откройте Telegram и найдите @BotFather
-2. Отправьте команду: /newbot
-3. Введите имя бота: Мой Салон AI
-4. Введите username бота: my_salon_ai_bot (должен заканчиваться на _bot)
-5. @BotFather ответит с токеном бота:
-   ✅ Token: 123456789:ABCdefGHIjklMNOpqrsTUVwxyz`}
+              code={t('doc.code.botfatherDialog', language)}
             />
           </div>
           <Callout type="warning">
@@ -1277,20 +1017,7 @@ function TelegramSetupPage() {
             <CodeBlock
               lang="text"
               filename={t('doc.telegram.botfatherExtraSettings', language)}
-              code={`/setdescription — Описание бота (показывается при запуске)
-  Пример: "AI-ассистент салона красоты. Запишитесь на услугу за 1 минуту!"
-
-/setabouttext — Краткое описание (показывается в профиле бота)
-  Пример: "🤖 AI-помощник салона красоты"
-
-/setuserpic — Установите аватар бота
-  Отправьте изображение, которое будет отображаться в качестве аватара
-
-/setcommands — Настройте меню команд
-  /start — Запустить бота
-  /services — Список услуг
-  /book — Записаться
-  /contact — Контакты`}
+              code={t('doc.code.botfatherSettings', language)}
             />
           </div>
 
@@ -1302,12 +1029,7 @@ function TelegramSetupPage() {
             <CodeBlock
               lang="text"
               filename={t('doc.telegram.dashboardSettings', language)}
-              code={`1. Откройте личный кабинет АгентБот
-2. Перейдите в раздел "Мои боты"
-3. Нажмите на нужного бота → "Настройки"
-4. Перейдите в раздел "Каналы" → "Telegram"
-5. Вставьте токен бота из @BotFather
-6. Нажмите "Сохранить и подключить"`}
+              code={t('doc.code.dashboardSettings', language)}
             />
           </div>
 
@@ -1323,15 +1045,7 @@ function TelegramSetupPage() {
             <CodeBlock
               lang="text"
               filename={t('doc.telegram.welcomeMessageExample', language)}
-              code={`Здравствуйте! 👋 Я AI-ассистент салона красоты "Эстетика".
-
-Чем могу помочь?
-💇 Записаться на услугу
-📋 Узнать цены и акции
-🕐 Уточнить расписание
-📍 Узнать адрес и контакты
-
-Просто напишите ваш вопрос!`}
+              code={t('doc.code.welcomeMessage', language)}
             />
           </div>
 
@@ -1370,16 +1084,7 @@ function TelegramSetupPage() {
               </p>
               <CodeBlock
                 lang="text"
-                code={`Пример меню inline-кнопок:
-
-┌─────────────────────────────┐
-│ 💇 Записаться на стрижку     │
-│ 💅 Записаться на маникюр     │
-│ 📋 Все услуги               │
-│ 🕐 Расписание               │
-│ 📍 Контакты                 │
-│ 👤 Связаться с оператором   │
-└─────────────────────────────┘`}
+                code={t('doc.code.inlineButtons', language)}
               />
             </div>
 
