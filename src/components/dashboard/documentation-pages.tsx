@@ -800,7 +800,7 @@ add_action('wp_footer', 'agentbot_widget');`}
         <TabsContent value="other" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Server className="size-5" /> Custom Backend</CardTitle>
+              <CardTitle className="flex items-center gap-2"><Server className="size-5" /> {t('doc.integration.customBackend', language)}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
@@ -874,7 +874,7 @@ app.listen(3000, () => console.log('Webhook server running'));`}
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Globe className="size-5" /> Telegram Bot API</CardTitle>
+              <CardTitle className="flex items-center gap-2"><Globe className="size-5" /> {t('doc.integration.telegramBotApi', language)}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">

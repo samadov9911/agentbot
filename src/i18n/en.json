@@ -255,15 +255,16 @@
   },
   "leads": {
     "title": "Potential Leads",
-    "empty": "No leads yet. They will appear when visitors start chatting with the bot.",
+    "description": "Clients who chatted with your bot",
+    "empty": "No lead data yet",
     "name": "Name",
     "phone": "Phone",
     "email": "Email",
     "ip": "IP Address",
     "region": "Region",
+    "anonymous": "Anonymous",
     "status": "Status",
     "date": "Date",
-    "anonymous": "Anonymous",
     "new": "New",
     "contacted": "Contacted",
     "converted": "Converted",
@@ -452,7 +453,6 @@
     "generateCode": "Generate Code",
     "revokeCode": "Revoke Code",
     "revoked": "Revoked",
-    "embedCodes": "Embed Codes",
     "embedCode": "Code",
     "botName": "Bot",
     "owner": "Owner",
@@ -513,8 +513,29 @@
     "pending": "Pending",
     "cancelled": "Cancelled",
     "completed": "Completed",
-    "allDayNames": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-    "monthNames": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+    "allDayNames": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "monthNames": [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ],
     "concurrentSlots": "concurrent bookings",
     "concurrentInfo": "This bot allows multiple clients to book the same time slot simultaneously"
   },
@@ -541,23 +562,6 @@
     "categoryAccount": "Account",
     "categoryBilling": "Billing",
     "categoryIntegration": "Integration"
-  },
-  "leads": {
-    "title": "Potential Leads",
-    "description": "Clients who chatted with your bot",
-    "empty": "No lead data yet",
-    "name": "Name",
-    "phone": "Phone",
-    "email": "Email",
-    "ip": "IP Address",
-    "region": "Region",
-    "anonymous": "Anonymous",
-    "status": "Status",
-    "date": "Date",
-    "new": "New",
-    "contacted": "Contacted",
-    "converted": "Converted",
-    "lost": "Lost"
   },
   "doc": {
     "shared": {
@@ -715,7 +719,9 @@
       "pythonWebhookFilename": "Python / Flask — webhook handler example",
       "nodeWebhookFilename": "Node.js / Express — webhook handler example",
       "telegramRelayDesc": "You can create your own Telegram bot that forwards AgentBot notifications to the operator's chat.",
-      "telegramRelayFilename": "Python — forwarding notifications to Telegram"
+      "telegramRelayFilename": "Python — forwarding notifications to Telegram",
+      "customBackend": "Custom Backend",
+      "telegramBotApi": "Telegram Bot API"
     },
     "widget": {
       "title": "Widget Setup",

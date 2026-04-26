@@ -255,17 +255,18 @@
   },
   "leads": {
     "title": "Potansiyel Müşteriler",
-    "empty": "Henüz potansiyel müşteri yok. Ziyaretçiler botla konuşmaya başladığında burada görünecekler.",
-    "name": "İsim",
+    "description": "Botunuzla sohbet eden müşteriler",
+    "empty": "Henüz müşteri verisi yok",
+    "name": "Ad",
     "phone": "Telefon",
     "email": "E-posta",
     "ip": "IP Adresi",
     "region": "Bölge",
+    "anonymous": "Anonim",
     "status": "Durum",
     "date": "Tarih",
-    "anonymous": "Anonim",
     "new": "Yeni",
-    "contacted": "İletişim Kuruldu",
+    "contacted": "İletişime Geçildi",
     "converted": "Dönüştürüldü",
     "lost": "Kaybedildi"
   },
@@ -452,7 +453,6 @@
     "generateCode": "Kod Oluştur",
     "revokeCode": "Kodu İptal Et",
     "revoked": "İptal Edildi",
-    "embedCodes": "Gömme Kodları",
     "embedCode": "Kod",
     "botName": "Bot",
     "owner": "Sahip",
@@ -513,8 +513,29 @@
     "pending": "Beklemede",
     "cancelled": "İptal Edildi",
     "completed": "Tamamlandı",
-    "allDayNames": ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"],
-    "monthNames": ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"],
+    "allDayNames": [
+      "Pzt",
+      "Sal",
+      "Çar",
+      "Per",
+      "Cum",
+      "Cmt",
+      "Paz"
+    ],
+    "monthNames": [
+      "Ocak",
+      "Şubat",
+      "Mart",
+      "Nisan",
+      "Mayıs",
+      "Haziran",
+      "Temmuz",
+      "Ağustos",
+      "Eylül",
+      "Ekim",
+      "Kasım",
+      "Aralık"
+    ],
     "concurrentSlots": "eşzamanlı randevular",
     "concurrentInfo": "Bu bot, birden fazla müşterinin aynı zaman dilimine eşzamanlı olarak randevu almasına olanak tanır"
   },
@@ -541,23 +562,6 @@
     "categoryAccount": "Hesap",
     "categoryBilling": "Faturalama",
     "categoryIntegration": "Entegrasyon"
-  },
-  "leads": {
-    "title": "Potansiyel Müşteriler",
-    "description": "Botunuzla sohbet eden müşteriler",
-    "empty": "Henüz müşteri verisi yok",
-    "name": "Ad",
-    "phone": "Telefon",
-    "email": "E-posta",
-    "ip": "IP Adresi",
-    "region": "Bölge",
-    "anonymous": "Anonim",
-    "status": "Durum",
-    "date": "Tarih",
-    "new": "Yeni",
-    "contacted": "İletişime Geçildi",
-    "converted": "Dönüştürüldü",
-    "lost": "Kaybedildi"
   },
   "doc": {
     "shared": {
@@ -715,7 +719,9 @@
       "pythonWebhookFilename": "Python / Flask — webhook işleyici örneği",
       "nodeWebhookFilename": "Node.js / Express — webhook işleyici örneği",
       "telegramRelayDesc": "AgentBot bildirimlerini operatör sohbetine ileten kendi Telegram botunuzu oluşturabilirsiniz.",
-      "telegramRelayFilename": "Python — Telegram'a bildirim iletimi"
+      "telegramRelayFilename": "Python — Telegram'a bildirim iletimi",
+      "customBackend": "Özel Backend",
+      "telegramBotApi": "Telegram Bot API"
     },
     "widget": {
       "title": "Widget Kurulumu",
