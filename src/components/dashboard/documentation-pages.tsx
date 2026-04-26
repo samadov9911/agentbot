@@ -32,6 +32,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { t } from '@/lib/i18n';
+import { useAppStore } from '@/stores';
 import { toast } from 'sonner';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,14 +44,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 // ──────────────────────────────────────────────────────────────
 // Shared Code Block Component
 // ──────────────────────────────────────────────────────────────
-function CodeBlock({ code, language = 'bash', filename }: { code: string; language?: string; filename?: string }) {
+function CodeBlock({ code, lang = 'bash', filename }: { code: string; lang?: string; filename?: string }) {
   const [copied, setCopied] = useState(false);
+  const language = useAppStore((s) => s.language);
 
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
-      toast.success('Скопировано в буфер обмена');
+      toast.success(t('doc.shared.copiedToClipboard', language));
       setTimeout(() => setCopied(false), 2000);
     } catch {
       const textarea = document.createElement('textarea');
@@ -60,10 +62,10 @@ function CodeBlock({ code, language = 'bash', filename }: { code: string; langua
       document.execCommand('copy');
       document.body.removeChild(textarea);
       setCopied(true);
-      toast.success('Скопировано в буфер обмена');
+      toast.success(t('doc.shared.copiedToClipboard', language));
       setTimeout(() => setCopied(false), 2000);
     }
-  }, [code]);
+  }, [code, language]);
 
   return (
     <div className="group relative my-4 overflow-hidden rounded-lg border border-slate-200 bg-slate-950 dark:border-slate-700">
@@ -71,7 +73,7 @@ function CodeBlock({ code, language = 'bash', filename }: { code: string; langua
         <div className="flex items-center gap-2 border-b border-slate-700 bg-slate-800/50 px-4 py-2">
           <FileJson className="size-3.5 text-slate-400" />
           <span className="text-xs text-slate-400">{filename}</span>
-          <Badge variant="secondary" className="ml-auto text-[10px]">{language}</Badge>
+          <Badge variant="secondary" className="ml-auto text-[10px]">{lang}</Badge>
         </div>
       )}
       <pre className="overflow-x-auto p-4 text-sm leading-relaxed text-slate-100">
@@ -159,6 +161,8 @@ function EndpointRow({ method, path, description }: { method: string; path: stri
 // 1. API Documentation Page
 // ──────────────────────────────────────────────────────────────
 function ApiDocsPage() {
+  const language = useAppStore((s) => s.language);
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -168,8 +172,8 @@ function ApiDocsPage() {
             <Code2 className="size-6 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">API документация</h1>
-            <p className="text-muted-foreground">Полное описание REST API для интеграции АгентБот с вашими системами</p>
+            <h1 className="text-2xl font-bold tracking-tight">{t('doc.api.title', language)}</h1>
+            <p className="text-muted-foreground">{t('doc.api.subtitle', language)}</p>
           </div>
         </div>
       </div>
@@ -177,25 +181,24 @@ function ApiDocsPage() {
       {/* Overview */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Globe className="size-5" /> Обзор API</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Globe className="size-5" /> {t('doc.api.overview', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm leading-relaxed text-muted-foreground">
           <p>
-            REST API АгентБот позволяет программно управлять ботами, диалогами, записями и аналитикой.
-            API использует стандартные HTTP-методы, возвращает JSON-ответы и поддерживает CORS для браузерных запросов.
+            {t('doc.api.overviewDesc', language)}
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="flex items-start gap-2">
               <Shield className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-              <div><strong>Аутентификация</strong><br />API Key через заголовок <code className="rounded bg-muted px-1.5 py-0.5 text-xs">Authorization: Bearer &lt;key&gt;</code></div>
+              <div><strong>{t('doc.api.auth', language)}</strong><br />{t('doc.api.authDesc', language)}</div>
             </div>
             <div className="flex items-start gap-2">
               <FileJson className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-              <div><strong>Формат данных</strong><br />Все запросы и ответы в формате JSON</div>
+              <div><strong>{t('doc.api.dataFormat', language)}</strong><br />{t('doc.api.dataFormatDesc', language)}</div>
             </div>
             <div className="flex items-start gap-2">
               <Clock className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-              <div><strong>Рейт-лимиты</strong><br />100 запросов/мин для стандартного тарифа</div>
+              <div><strong>{t('doc.api.rateLimits', language)}</strong><br />{t('doc.api.rateLimitsDesc', language)}</div>
             </div>
           </div>
         </CardContent>
@@ -203,35 +206,35 @@ function ApiDocsPage() {
 
       {/* Base URL */}
       <Callout type="info">
-        <strong>Базовый URL:</strong> <code className="rounded bg-sky-100 px-1.5 py-0.5 dark:bg-sky-900">https://api.agentbot.ru/v1</code> — все эндпоинты указаны относительно базового URL.
+        <strong>{t('doc.api.baseUrl', language)}:</strong> <code className="rounded bg-sky-100 px-1.5 py-0.5 dark:bg-sky-900">https://api.agentbot.ru/v1</code> — {t('doc.api.baseUrlDesc', language)}
       </Callout>
 
       {/* Authentication */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Key className="size-5" /> Аутентификация</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Key className="size-5" /> {t('doc.api.authSection', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Все запросы к API требуют передачи API-ключа. Получить ключ можно в разделе <strong>Настройки → API</strong> в личном кабинете.
+            {t('doc.api.authSectionDesc', language)}
           </p>
           <CodeBlock
-            language="http"
+            lang="http"
             code={`GET /v1/bots HTTP/1.1
 Host: api.agentbot.ru
 Authorization: Bearer abk_live_xxxxxxxxxxxxxxxxxxxx
 Content-Type: application/json`}
           />
-          <h3 className="text-sm font-semibold">Получение API-ключа:</h3>
+          <h3 className="text-sm font-semibold">{t('doc.api.gettingKey', language)}:</h3>
           <ol className="ml-4 list-decimal space-y-1 text-sm text-muted-foreground">
-            <li>Откройте <strong>Настройки</strong> в личном кабинете</li>
-            <li>Перейдите в раздел <strong>API</strong></li>
-            <li>Нажмите <strong>«Сгенерировать ключ»</strong></li>
-            <li>Скопируйте ключ и сохраните в безопасном месте</li>
-            <li>Используйте ключ в заголовке <code className="rounded bg-muted px-1 text-xs">Authorization</code> для всех запросов</li>
+            <li>{t('doc.api.gettingKeyStep1', language)}</li>
+            <li>{t('doc.api.gettingKeyStep2', language)}</li>
+            <li>{t('doc.api.gettingKeyStep3', language)}</li>
+            <li>{t('doc.api.gettingKeyStep4', language)}</li>
+            <li>{t('doc.api.gettingKeyStep5', language)}</li>
           </ol>
           <Callout type="warning">
-            <strong>Важно:</strong> Никогда не раскрывайте ваш API-ключ в клиентском коде (frontend). Используйте его только на серверной стороне (backend).
+            <strong>{t('doc.api.important', language)}:</strong> {t('doc.api.authWarning', language)}
           </Callout>
         </CardContent>
       </Card>
@@ -239,21 +242,21 @@ Content-Type: application/json`}
       {/* Bots Endpoints */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Bot className="size-5" /> Боты (Bots)</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Bot className="size-5" /> {t('doc.api.botsSection', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">Управление AI-ботами: создание, получение списка, обновление и удаление.</p>
+          <p className="text-sm text-muted-foreground">{t('doc.api.botsDesc', language)}</p>
           <div className="space-y-2">
-            <EndpointRow method="GET" path="/v1/bots" description="Получить список всех ботов" />
-            <EndpointRow method="GET" path="/v1/bots/:id" description="Получить данные бота по ID" />
-            <EndpointRow method="POST" path="/v1/bots" description="Создать нового бота" />
-            <EndpointRow method="PUT" path="/v1/bots/:id" description="Обновить настройки бота" />
-            <EndpointRow method="DELETE" path="/v1/bots/:id" description="Удалить бота" />
+            <EndpointRow method="GET" path="/v1/bots" description={t('doc.api.botsGetAll', language)} />
+            <EndpointRow method="GET" path="/v1/bots/:id" description={t('doc.api.botsGetById', language)} />
+            <EndpointRow method="POST" path="/v1/bots" description={t('doc.api.botsCreate', language)} />
+            <EndpointRow method="PUT" path="/v1/bots/:id" description={t('doc.api.botsUpdate', language)} />
+            <EndpointRow method="DELETE" path="/v1/bots/:id" description={t('doc.api.botsDelete', language)} />
           </div>
 
-          <h3 className="pt-2 text-sm font-semibold">Пример: Создание бота</h3>
+          <h3 className="pt-2 text-sm font-semibold">{t('doc.api.exampleCreateBot', language)}</h3>
           <CodeBlock
-            language="json"
+            lang="json"
             filename="POST /v1/bots"
             code={`{
   "name": "Мой помощник",
@@ -271,9 +274,9 @@ Content-Type: application/json`}
   }
 }`}
           />
-          <h3 className="text-sm font-semibold">Пример ответа:</h3>
+          <h3 className="text-sm font-semibold">{t('doc.api.exampleResponse', language)}</h3>
           <CodeBlock
-            language="json"
+            lang="json"
             code={`{
   "success": true,
   "data": {
@@ -293,34 +296,34 @@ Content-Type: application/json`}
       {/* Conversations Endpoints */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Send className="size-5" /> Диалоги (Conversations)</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Send className="size-5" /> {t('doc.api.conversationsSection', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">Просмотр истории диалогов, отправка сообщений и управление беседами.</p>
+          <p className="text-sm text-muted-foreground">{t('doc.api.conversationsDesc', language)}</p>
           <div className="space-y-2">
-            <EndpointRow method="GET" path="/v1/conversations" description="Список всех диалогов (с пагинацией)" />
-            <EndpointRow method="GET" path="/v1/conversations/:id" description="Данные диалога с сообщениями" />
-            <EndpointRow method="GET" path="/v1/conversations?botId=:botId" description="Диалоги конкретного бота" />
-            <EndpointRow method="POST" path="/v1/conversations/:id/messages" description="Отправить сообщение в диалог" />
-            <EndpointRow method="PATCH" path="/v1/conversations/:id/status" description="Изменить статус диалога" />
+            <EndpointRow method="GET" path="/v1/conversations" description={t('doc.api.conversationsGetAll', language)} />
+            <EndpointRow method="GET" path="/v1/conversations/:id" description={t('doc.api.conversationsGetById', language)} />
+            <EndpointRow method="GET" path="/v1/conversations?botId=:botId" description={t('doc.api.conversationsByBot', language)} />
+            <EndpointRow method="POST" path="/v1/conversations/:id/messages" description={t('doc.api.conversationsSendMessage', language)} />
+            <EndpointRow method="PATCH" path="/v1/conversations/:id/status" description={t('doc.api.conversationsChangeStatus', language)} />
           </div>
 
-          <h3 className="pt-2 text-sm font-semibold">Параметры запроса GET /v1/conversations:</h3>
+          <h3 className="pt-2 text-sm font-semibold">{t('doc.api.conversationsParams', language)}</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left">
-                  <th className="pb-2 pr-4 font-medium">Параметр</th>
-                  <th className="pb-2 pr-4 font-medium">Тип</th>
-                  <th className="pb-2 font-medium">Описание</th>
+                  <th className="pb-2 pr-4 font-medium">{t('doc.api.paramHeader', language)}</th>
+                  <th className="pb-2 pr-4 font-medium">{t('doc.api.typeHeader', language)}</th>
+                  <th className="pb-2 font-medium">{t('doc.api.descHeader', language)}</th>
                 </tr>
               </thead>
               <tbody className="text-muted-foreground">
-                <tr className="border-b"><td className="py-2 pr-4"><code>botId</code></td><td className="py-2 pr-4">string</td><td className="py-2">Фильтр по ID бота</td></tr>
+                <tr className="border-b"><td className="py-2 pr-4"><code>botId</code></td><td className="py-2 pr-4">string</td><td className="py-2">{t('doc.api.paramBotId', language)}</td></tr>
                 <tr className="border-b"><td className="py-2 pr-4"><code>status</code></td><td className="py-2 pr-4">string</td><td className="py-2">active, closed, archived</td></tr>
-                <tr className="border-b"><td className="py-2 pr-4"><code>from</code></td><td className="py-2 pr-4">date</td><td className="py-2">Начало периода (ISO 8601)</td></tr>
-                <tr className="border-b"><td className="py-2 pr-4"><code>to</code></td><td className="py-2 pr-4">date</td><td className="py-2">Конец периода (ISO 8601)</td></tr>
-                <tr><td className="py-2 pr-4"><code>limit</code></td><td className="py-2 pr-4">number</td><td className="py-2">Кол-во результатов (max 100, default 20)</td></tr>
+                <tr className="border-b"><td className="py-2 pr-4"><code>from</code></td><td className="py-2 pr-4">date</td><td className="py-2">{t('doc.api.paramFrom', language)}</td></tr>
+                <tr className="border-b"><td className="py-2 pr-4"><code>to</code></td><td className="py-2 pr-4">date</td><td className="py-2">{t('doc.api.paramTo', language)}</td></tr>
+                <tr><td className="py-2 pr-4"><code>limit</code></td><td className="py-2 pr-4">number</td><td className="py-2">{t('doc.api.paramLimit', language)}</td></tr>
               </tbody>
             </table>
           </div>
@@ -330,20 +333,20 @@ Content-Type: application/json`}
       {/* Appointments Endpoints */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Terminal className="size-5" /> Записи (Appointments)</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Terminal className="size-5" /> {t('doc.api.appointmentsSection', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">Управление записями клиентов: просмотр, создание, подтверждение и отмена.</p>
+          <p className="text-sm text-muted-foreground">{t('doc.api.appointmentsDesc', language)}</p>
           <div className="space-y-2">
-            <EndpointRow method="GET" path="/v1/appointments" description="Список всех записей" />
-            <EndpointRow method="GET" path="/v1/appointments/:id" description="Детали записи" />
-            <EndpointRow method="POST" path="/v1/appointments" description="Создать запись вручную" />
-            <EndpointRow method="PATCH" path="/v1/appointments/:id/status" description="Обновить статус записи" />
-            <EndpointRow method="DELETE" path="/v1/appointments/:id" description="Отменить запись" />
+            <EndpointRow method="GET" path="/v1/appointments" description={t('doc.api.appointmentsGetAll', language)} />
+            <EndpointRow method="GET" path="/v1/appointments/:id" description={t('doc.api.appointmentsGetById', language)} />
+            <EndpointRow method="POST" path="/v1/appointments" description={t('doc.api.appointmentsCreate', language)} />
+            <EndpointRow method="PATCH" path="/v1/appointments/:id/status" description={t('doc.api.appointmentsUpdateStatus', language)} />
+            <EndpointRow method="DELETE" path="/v1/appointments/:id" description={t('doc.api.appointmentsCancel', language)} />
           </div>
-          <h3 className="pt-2 text-sm font-semibold">Пример: Обновление статуса записи</h3>
+          <h3 className="pt-2 text-sm font-semibold">{t('doc.api.exampleUpdateStatus', language)}</h3>
           <CodeBlock
-            language="json"
+            lang="json"
             filename="PATCH /v1/appointments/appt_x1y2z3/status"
             code={`{
   "status": "confirmed",
@@ -351,7 +354,7 @@ Content-Type: application/json`}
 }`}
           />
           <Callout type="tip">
-            <strong>Совет:</strong> Статусы записей: <code>pending</code> — ожидает, <code>confirmed</code> — подтверждена, <code>cancelled</code> — отменена, <code>completed</code> — завершена.
+            <strong>{t('doc.api.tip', language)}:</strong> {t('doc.api.statusesTip', language)}
           </Callout>
         </CardContent>
       </Card>
@@ -359,19 +362,19 @@ Content-Type: application/json`}
       {/* Analytics Endpoints */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Layers className="size-5" /> Аналитика (Analytics)</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Layers className="size-5" /> {t('doc.api.analyticsSection', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">Получение статистических данных и аналитических отчётов.</p>
+          <p className="text-sm text-muted-foreground">{t('doc.api.analyticsDesc', language)}</p>
           <div className="space-y-2">
-            <EndpointRow method="GET" path="/v1/analytics/overview" description="Обзорная статистика" />
-            <EndpointRow method="GET" path="/v1/analytics/daily" description="Ежедневная статистика" />
-            <EndpointRow method="GET" path="/v1/analytics/bots/:id" description="Статистика конкретного бота" />
-            <EndpointRow method="GET" path="/v1/analytics/export" description="Экспорт отчёта (CSV/PDF)" />
+            <EndpointRow method="GET" path="/v1/analytics/overview" description={t('doc.api.analyticsOverview', language)} />
+            <EndpointRow method="GET" path="/v1/analytics/daily" description={t('doc.api.analyticsDaily', language)} />
+            <EndpointRow method="GET" path="/v1/analytics/bots/:id" description={t('doc.api.analyticsByBot', language)} />
+            <EndpointRow method="GET" path="/v1/analytics/export" description={t('doc.api.analyticsExport', language)} />
           </div>
-          <h3 className="pt-2 text-sm font-semibold">Пример: Обзорная аналитика</h3>
+          <h3 className="pt-2 text-sm font-semibold">{t('doc.api.exampleAnalytics', language)}</h3>
           <CodeBlock
-            language="json"
+            lang="json"
             code={`// GET /v1/analytics/overview
 {
   "success": true,
@@ -394,19 +397,18 @@ Content-Type: application/json`}
       {/* Webhooks */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Webhook className="size-5" /> Вебхуки (Webhooks)</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Webhook className="size-5" /> {t('doc.api.webhooksSection', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Настройте вебхуки для получения уведомлений о событиях в реальном времени.
-            Когда происходит событие (новое сообщение, запись и т.д.), АгентБот отправляет POST-запрос на указанный URL.
+            {t('doc.api.webhooksDesc', language)}
           </p>
           <div className="space-y-2">
-            <EndpointRow method="POST" path="/v1/webhooks" description="Создать вебхук" />
-            <EndpointRow method="GET" path="/v1/webhooks" description="Список вебхуков" />
-            <EndpointRow method="DELETE" path="/v1/webhooks/:id" description="Удалить вебхук" />
+            <EndpointRow method="POST" path="/v1/webhooks" description={t('doc.api.webhooksCreate', language)} />
+            <EndpointRow method="GET" path="/v1/webhooks" description={t('doc.api.webhooksGetAll', language)} />
+            <EndpointRow method="DELETE" path="/v1/webhooks/:id" description={t('doc.api.webhooksDelete', language)} />
           </div>
-          <h3 className="text-sm font-semibold">Доступные события:</h3>
+          <h3 className="text-sm font-semibold">{t('doc.api.availableEvents', language)}:</h3>
           <div className="grid gap-2 sm:grid-cols-2">
             {['conversation.created', 'message.received', 'message.sent', 'appointment.created', 'appointment.status_changed', 'bot.status_changed'].map((event) => (
               <div key={event} className="flex items-center gap-2 rounded-lg border bg-card p-2.5">
@@ -416,8 +418,8 @@ Content-Type: application/json`}
             ))}
           </div>
           <CodeBlock
-            language="json"
-            filename="Пример payload вебхука"
+            lang="json"
+            filename={t('doc.api.webhookPayloadExample', language)}
             code={`{
   "event": "appointment.created",
   "timestamp": "2025-01-15T14:30:00Z",
@@ -439,47 +441,47 @@ Content-Type: application/json`}
       {/* Error Handling */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><AlertCircle className="size-5" /> Обработка ошибок</CardTitle>
+          <CardTitle className="flex items-center gap-2"><AlertCircle className="size-5" /> {t('doc.api.errorHandling', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">API возвращает стандартные HTTP-коды ошибок с подробным JSON-описанием.</p>
+          <p className="text-sm text-muted-foreground">{t('doc.api.errorHandlingDesc', language)}</p>
           <div className="space-y-2">
             <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
               <Badge className="bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-400">200</Badge>
-              <span className="text-sm"><strong>OK</strong> — запрос выполнен успешно</span>
+              <span className="text-sm"><strong>OK</strong> — {t('doc.api.error200', language)}</span>
             </div>
             <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
               <Badge className="bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-400">201</Badge>
-              <span className="text-sm"><strong>Created</strong> — ресурс успешно создан</span>
+              <span className="text-sm"><strong>Created</strong> — {t('doc.api.error201', language)}</span>
             </div>
             <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
               <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400">400</Badge>
-              <span className="text-sm"><strong>Bad Request</strong> — неверные параметры запроса</span>
+              <span className="text-sm"><strong>Bad Request</strong> — {t('doc.api.error400', language)}</span>
             </div>
             <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
               <Badge className="bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400">401</Badge>
-              <span className="text-sm"><strong>Unauthorized</strong> — отсутствует или неверный API-ключ</span>
+              <span className="text-sm"><strong>Unauthorized</strong> — {t('doc.api.error401', language)}</span>
             </div>
             <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
               <Badge className="bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400">403</Badge>
-              <span className="text-sm"><strong>Forbidden</strong> — нет доступа к ресурсу</span>
+              <span className="text-sm"><strong>Forbidden</strong> — {t('doc.api.error403', language)}</span>
             </div>
             <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
               <Badge className="bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400">404</Badge>
-              <span className="text-sm"><strong>Not Found</strong> — ресурс не найден</span>
+              <span className="text-sm"><strong>Not Found</strong> — {t('doc.api.error404', language)}</span>
             </div>
             <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
               <Badge className="bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400">429</Badge>
-              <span className="text-sm"><strong>Too Many Requests</strong> — превышен лимит запросов</span>
+              <span className="text-sm"><strong>Too Many Requests</strong> — {t('doc.api.error429', language)}</span>
             </div>
             <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
               <Badge className="bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400">500</Badge>
-              <span className="text-sm"><strong>Internal Server Error</strong> — ошибка сервера</span>
+              <span className="text-sm"><strong>Internal Server Error</strong> — {t('doc.api.error500', language)}</span>
             </div>
           </div>
-          <h3 className="text-sm font-semibold">Пример ответа с ошибкой:</h3>
+          <h3 className="text-sm font-semibold">{t('doc.api.errorExample', language)}</h3>
           <CodeBlock
-            language="json"
+            lang="json"
             code={`{
   "success": false,
   "error": {
@@ -499,6 +501,8 @@ Content-Type: application/json`}
 // 2. Integration Guides Page
 // ──────────────────────────────────────────────────────────────
 function IntegrationGuidesPage() {
+  const language = useAppStore((s) => s.language);
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -508,44 +512,44 @@ function IntegrationGuidesPage() {
             <Plug className="size-6 text-teal-600 dark:text-teal-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Руководства по интеграции</h1>
-            <p className="text-muted-foreground">Пошаговые инструкции для интеграции АгентБот с CRM, ERP и другими системами</p>
+            <h1 className="text-2xl font-bold tracking-tight">{t('doc.integration.title', language)}</h1>
+            <p className="text-muted-foreground">{t('doc.integration.subtitle', language)}</p>
           </div>
         </div>
       </div>
 
       <Tabs defaultValue="general">
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
-          <TabsTrigger value="general">Общие принципы</TabsTrigger>
-          <TabsTrigger value="crm">CRM-системы</TabsTrigger>
-          <TabsTrigger value="website">Сайты (CMS)</TabsTrigger>
-          <TabsTrigger value="other">Другие системы</TabsTrigger>
+          <TabsTrigger value="general">{t('doc.integration.tabGeneral', language)}</TabsTrigger>
+          <TabsTrigger value="crm">{t('doc.integration.tabCrm', language)}</TabsTrigger>
+          <TabsTrigger value="website">{t('doc.integration.tabWebsite', language)}</TabsTrigger>
+          <TabsTrigger value="other">{t('doc.integration.tabOther', language)}</TabsTrigger>
         </TabsList>
 
         {/* General Tab */}
         <TabsContent value="general" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Database className="size-5" /> Как работает интеграция</CardTitle>
+              <CardTitle className="flex items-center gap-2"><Database className="size-5" /> {t('doc.integration.howItWorks', language)}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm text-muted-foreground">
               <p>
-                АгентБот поддерживает два основных способа интеграции с внешними системами:
+                {t('doc.integration.howItWorksDesc', language)}
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-lg border bg-card p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <Webhook className="size-5 text-emerald-500" />
-                    <h3 className="font-semibold">Вебхуки (Push)</h3>
+                    <h3 className="font-semibold">{t('doc.integration.webhooksPush', language)}</h3>
                   </div>
-                  <p>АгентБот отправляет данные в вашу систему в реальном времени при наступлении событий: новое сообщение, запись, смена статуса.</p>
+                  <p>{t('doc.integration.webhooksPushDesc', language)}</p>
                 </div>
                 <div className="rounded-lg border bg-card p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <Code2 className="size-5 text-emerald-500" />
-                    <h3 className="font-semibold">REST API (Pull)</h3>
+                    <h3 className="font-semibold">{t('doc.integration.restPull', language)}</h3>
                   </div>
-                  <p>Ваша система периодически обращается к API АгентБот для получения обновлений: списка диалогов, записей, аналитики.</p>
+                  <p>{t('doc.integration.restPullDesc', language)}</p>
                 </div>
               </div>
             </CardContent>
@@ -553,17 +557,17 @@ function IntegrationGuidesPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Общая схема работы</CardTitle>
+              <CardTitle>{t('doc.integration.generalScheme', language)}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <StepNumber num={1} title="Настройте API-ключ" />
-              <p className="ml-11 text-sm text-muted-foreground">Получите ключ в личном кабинете: Настройки → API → Сгенерировать ключ</p>
-              <StepNumber num={2} title="Создайте вебхук (опционально)" />
-              <p className="ml-11 text-sm text-muted-foreground">Настройте URL вашей системы для получения событий в реальном времени</p>
-              <StepNumber num={3} title="Настройте обмен данными" />
-              <p className="ml-11 text-sm text-muted-foreground">Используйте API для синхронизации данных между АгентБот и вашей системой</p>
-              <StepNumber num={4} title="Протестируйте интеграцию" />
-              <p className="ml-11 text-sm text-muted-foreground">Отправьте тестовые данные и убедитесь, что обмен работает корректно</p>
+              <StepNumber num={1} title={t('doc.integration.step1Title', language)} />
+              <p className="ml-11 text-sm text-muted-foreground">{t('doc.integration.step1Desc', language)}</p>
+              <StepNumber num={2} title={t('doc.integration.step2Title', language)} />
+              <p className="ml-11 text-sm text-muted-foreground">{t('doc.integration.step2Desc', language)}</p>
+              <StepNumber num={3} title={t('doc.integration.step3Title', language)} />
+              <p className="ml-11 text-sm text-muted-foreground">{t('doc.integration.step3Desc', language)}</p>
+              <StepNumber num={4} title={t('doc.integration.step4Title', language)} />
+              <p className="ml-11 text-sm text-muted-foreground">{t('doc.integration.step4Desc', language)}</p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -573,23 +577,23 @@ function IntegrationGuidesPage() {
           {/* AmoCRM */}
           <Card>
             <CardHeader>
-              <CardTitle>Интеграция с amoCRM</CardTitle>
+              <CardTitle>{t('doc.integration.amocrmTitle', language)}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                amoCRM — популярная CRM-система для управления продажами. Интеграция позволяет автоматически создавать сделки и контакты из диалогов бота.
+                {t('doc.integration.amocrmDesc', language)}
               </p>
-              <StepNumber num={1} title="Получите API-ключи amoCRM" />
+              <StepNumber num={1} title={t('doc.integration.amocrmStep1', language)} />
               <p className="ml-11 text-sm text-muted-foreground">
-                Перейдите в amoCRM → Настройки → Интеграции → Создать интеграцию. Скопируйте <code className="rounded bg-muted px-1 text-xs">Client ID</code> и <code className="rounded bg-muted px-1 text-xs">Client Secret</code>.
+                {t('doc.integration.amocrmStep1Desc', language)}
               </p>
-              <StepNumber num={2} title="Настройте вебхук в АгентБот" />
+              <StepNumber num={2} title={t('doc.integration.amocrmStep2', language)} />
               <p className="ml-11 text-sm text-muted-foreground">
-                В личном кабинете АгентБот перейдите в настройки бота → Интеграции → amoCRM. Вставьте API-ключи и выберите события для передачи.
+                {t('doc.integration.amocrmStep2Desc', language)}
               </p>
               <CodeBlock
-                language="json"
-                filename="Пример: создание сделки в amoCRM через вебхук"
+                lang="json"
+                filename={t('doc.integration.amocrmCodeFilename', language)}
                 code={`// АгентБот отправляет POST на ваш сервер
 // Ваш сервер создаёт сделку в amoCRM
 
@@ -618,12 +622,12 @@ POST https://your-domain.amocrm.ru/api/v4/leads
   }
 }`}
               />
-              <StepNumber num={3} title="Настройте синхронизацию статусов" />
+              <StepNumber num={3} title={t('doc.integration.amocrmStep3', language)} />
               <p className="ml-11 text-sm text-muted-foreground">
-                При изменении статуса записи в АгентБот (подтверждено/отменено) — статус автоматически обновляется в amoCRM.
+                {t('doc.integration.amocrmStep3Desc', language)}
               </p>
               <Callout type="tip">
-                <strong>Совет:</strong> Используйте промежуточный сервер (middleware) для преобразования данных между форматами АгентБот и amoCRM. Это позволит гибко настраивать маппинг полей.
+                <strong>{t('doc.api.tip', language)}:</strong> {t('doc.integration.amocrmTip', language)}
               </Callout>
             </CardContent>
           </Card>
@@ -631,20 +635,20 @@ POST https://your-domain.amocrm.ru/api/v4/leads
           {/* Bitrix24 */}
           <Card>
             <CardHeader>
-              <CardTitle>Интеграция с Битрикс24</CardTitle>
+              <CardTitle>{t('doc.integration.bitrixTitle', language)}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Битрикс24 — комплексная CRM с инструментами управления задачами и коммуникациями.
+                {t('doc.integration.bitrixDesc', language)}
               </p>
-              <StepNumber num={1} title="Создайте входящий вебхук в Битрикс24" />
+              <StepNumber num={1} title={t('doc.integration.bitrixStep1', language)} />
               <p className="ml-11 text-sm text-muted-foreground">
-                Битрикс24 → Разработчикам → Другое → Входящий вебхук. Выберите права: CRM (лиды, контакты) и скопируйте URL вебхука.
+                {t('doc.integration.bitrixStep1Desc', language)}
               </p>
-              <StepNumber num={2} title="Настройте обработчик" />
+              <StepNumber num={2} title={t('doc.integration.bitrixStep2', language)} />
               <CodeBlock
-                language="json"
-                filename="Пример: создание лида в Битрикс24"
+                lang="json"
+                filename={t('doc.integration.bitrixCodeFilename', language)}
                 code={`// POST на URL входящего вебхука Битрикс24
 POST https://your-domain.bitrix24.ru/rest/1/your_webhook_code/crm.lead.add.json
 {
@@ -664,9 +668,9 @@ POST https://your-domain.bitrix24.ru/rest/1/your_webhook_code/crm.lead.add.json
   "params": { "REGISTER_SONET_EVENT": "Y" }
 }`}
               />
-              <StepNumber num={3} title="Настройте уведомления в Битрикс24" />
+              <StepNumber num={3} title={t('doc.integration.bitrixStep3', language)} />
               <p className="ml-11 text-sm text-muted-foreground">
-                При создании лида менеджер получает уведомление в Битрикс24 и может сразу связаться с клиентом.
+                {t('doc.integration.bitrixStep3Desc', language)}
               </p>
             </CardContent>
           </Card>
@@ -674,21 +678,20 @@ POST https://your-domain.bitrix24.ru/rest/1/your_webhook_code/crm.lead.add.json
           {/* YClients */}
           <Card>
             <CardHeader>
-              <CardTitle>Интеграция с YClients</CardTitle>
+              <CardTitle>{t('doc.integration.yclientsTitle', language)}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                YClients — популярная система управления для салонов красоты и сервисных бизнесов.
-                АгентБот может автоматически создавать записи в YClients из диалогов с клиентами.
+                {t('doc.integration.yclientsDesc', language)}
               </p>
-              <StepNumber num={1} title="Подключите YClients API" />
+              <StepNumber num={1} title={t('doc.integration.yclientsStep1', language)} />
               <p className="ml-11 text-sm text-muted-foreground">
-                В YClients: Настройки → API → Получите ключ авторизации (Bearer token).
+                {t('doc.integration.yclientsStep1Desc', language)}
               </p>
-              <StepNumber num={2} title="Настройте双向 синхронизацию записей" />
+              <StepNumber num={2} title={t('doc.integration.yclientsStep2', language)} />
               <CodeBlock
-                language="json"
-                filename="Пример: создание записи в YClients"
+                lang="json"
+                filename={t('doc.integration.yclientsCodeFilename', language)}
                 code={`// Получение списка услуг из YClients
 GET https://api.yclients.com/api/v1/services/{company_id}
 Authorization: Bearer ycl_token_xxxxx
@@ -708,7 +711,7 @@ Authorization: Bearer ycl_token_xxxxx
 }`}
               />
               <Callout type="tip">
-                <strong>Совет:</strong> Синхронизируйте расписание сотрудников из YClients с ботом, чтобы клиент видел только доступные слоты.
+                <strong>{t('doc.api.tip', language)}:</strong> {t('doc.integration.yclientsTip', language)}
               </Callout>
             </CardContent>
           </Card>
@@ -722,11 +725,11 @@ Authorization: Bearer ycl_token_xxxxx
               <CardTitle>WordPress</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <StepNumber num={1} title="Установите код виджета" />
-              <p className="ml-11 text-sm text-muted-foreground">Перейдите в Внешний вид → Редактор тем → header.php (или footer.php). Вставьте код перед <code className="rounded bg-muted px-1 text-xs">&lt;/body&gt;</code></p>
+              <StepNumber num={1} title={t('doc.integration.wpStep1', language)} />
+              <p className="ml-11 text-sm text-muted-foreground">{t('doc.integration.wpStep1Desc', language)}</p>
               <CodeBlock
-                language="html"
-                filename="functions.php или плагин"
+                lang="html"
+                filename={t('doc.integration.wpCodeFilename', language)}
                 code={`// Добавьте в functions.php вашей темы WordPress
 function agentbot_widget() {
     ?>
@@ -742,8 +745,8 @@ function agentbot_widget() {
 }
 add_action('wp_footer', 'agentbot_widget');`}
               />
-              <StepNumber num={2} title="Альтернатива: через плагин" />
-              <p className="ml-11 text-sm text-muted-foreground">Установите плагин «Insert Headers and Footers» и добавьте код виджета в раздел Footer Scripts.</p>
+              <StepNumber num={2} title={t('doc.integration.wpStep2', language)} />
+              <p className="ml-11 text-sm text-muted-foreground">{t('doc.integration.wpStep2Desc', language)}</p>
             </CardContent>
           </Card>
 
@@ -753,12 +756,12 @@ add_action('wp_footer', 'agentbot_widget');`}
               <CardTitle>Tilda</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <StepNumber num={1} title="Добавьте код в настройки сайта" />
+              <StepNumber num={1} title={t('doc.integration.tildaStep1', language)} />
               <p className="ml-11 text-sm text-muted-foreground">
-                Перейдите в Настройки сайта → Ещё → Код в &lt;head&gt; или &lt;body&gt;. Вставьте код виджета.
+                {t('doc.integration.tildaStep1Desc', language)}
               </p>
               <CodeBlock
-                language="html"
+                lang="html"
                 code={`<!-- Вставьте в «Код в <body>» в настройках Tilda -->
 <script>
   (function(w,d,s,o){
@@ -770,7 +773,7 @@ add_action('wp_footer', 'agentbot_widget');`}
 </script>`}
               />
               <Callout type="tip">
-                <strong>Совет:</strong> Если вы используете несколько проектов Tilda, добавьте код в каждый проект отдельно.
+                <strong>{t('doc.api.tip', language)}:</strong> {t('doc.integration.tildaTip', language)}
               </Callout>
             </CardContent>
           </Card>
@@ -781,13 +784,13 @@ add_action('wp_footer', 'agentbot_widget');`}
               <CardTitle>Shopify</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <StepNumber num={1} title="Добавьте код в тему Shopify" />
+              <StepNumber num={1} title={t('doc.integration.shopifyStep1', language)} />
               <p className="ml-11 text-sm text-muted-foreground">
-                Перейдите в Интернет-магазин → Темы → Действие → Изменить код → theme.liquid → вставьте код перед <code className="rounded bg-muted px-1 text-xs">&lt;/body&gt;</code>
+                {t('doc.integration.shopifyStep1Desc', language)}
               </p>
-              <StepNumber num={2} title="Альтернатива: через раздел настроек" />
+              <StepNumber num={2} title={t('doc.integration.shopifyStep2', language)} />
               <p className="ml-11 text-sm text-muted-foreground">
-                Интернет-магазин → Настройки → Пользовательские скрипты → добавьте код в «Дополнительные скрипты».
+                {t('doc.integration.shopifyStep2Desc', language)}
               </p>
             </CardContent>
           </Card>
@@ -801,11 +804,11 @@ add_action('wp_footer', 'agentbot_widget');`}
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Если у вас собственный бекенд (Node.js, Python, PHP), интеграция выполняется через REST API.
+                {t('doc.integration.customBackendDesc', language)}
               </p>
               <CodeBlock
-                language="python"
-                filename="Python / Flask — пример обработчика вебхука"
+                lang="python"
+                filename={t('doc.integration.pythonWebhookFilename', language)}
                 code={`from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -834,8 +837,8 @@ if __name__ == '__main__':
     app.run(port=3000)`}
               />
               <CodeBlock
-                language="javascript"
-                filename="Node.js / Express — пример обработчика вебхука"
+                lang="javascript"
+                filename={t('doc.integration.nodeWebhookFilename', language)}
                 code={`const express = require('express');
 const app = express();
 
@@ -875,11 +878,11 @@ app.listen(3000, () => console.log('Webhook server running'));`}
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Вы можете создать своего Telegram-бота, который будет пересылать уведомления от АгентБот в чат оператора.
+                {t('doc.integration.telegramRelayDesc', language)}
               </p>
               <CodeBlock
-                language="python"
-                filename="Python — пересылка уведомлений в Telegram"
+                lang="python"
+                filename={t('doc.integration.telegramRelayFilename', language)}
                 code={`import requests
 
 TELEGRAM_TOKEN = "your_bot_token"
@@ -918,6 +921,8 @@ def handle_agentbot_event(event, data):
 // 3. Widget Setup Page
 // ──────────────────────────────────────────────────────────────
 function WidgetSetupPage() {
+  const language = useAppStore((s) => s.language);
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -927,8 +932,8 @@ function WidgetSetupPage() {
             <LayoutTemplate className="size-6 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Настройка виджета</h1>
-            <p className="text-muted-foreground">Встраивание чат-виджета на любой сайт за минуту</p>
+            <h1 className="text-2xl font-bold tracking-tight">{t('doc.widget.title', language)}</h1>
+            <p className="text-muted-foreground">{t('doc.widget.subtitle', language)}</p>
           </div>
         </div>
       </div>
@@ -936,31 +941,30 @@ function WidgetSetupPage() {
       {/* What is Widget */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Monitor className="size-5" /> Что такое виджет?</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Monitor className="size-5" /> {t('doc.widget.whatIsWidget', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm text-muted-foreground">
           <p>
-            Виджет АгентБот — это плавающий чат-окно, которое отображается на вашем сайте и позволяет посетителям общаться
-            с вашим AI-ботом в реальном времени. Виджет поддерживает запись на услуги, ответы на вопросы и сбор контактных данных.
+            {t('doc.widget.whatIsWidgetDesc', language)}
           </p>
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="flex items-start gap-3 rounded-lg border bg-card p-3">
               <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/50">
                 <Zap className="size-4 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <div><strong>Быстрая загрузка</strong><br />Асинхронная загрузка без задержки страницы</div>
+              <div><strong>{t('doc.widget.fastLoading', language)}</strong><br />{t('doc.widget.fastLoadingDesc', language)}</div>
             </div>
             <div className="flex items-start gap-3 rounded-lg border bg-card p-3">
               <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/50">
                 <Palette className="size-4 text-amber-600 dark:text-amber-400" />
               </div>
-              <div><strong>Кастомизация</strong><br />Цвета, позиция, заголовок, аватар</div>
+              <div><strong>{t('doc.widget.customization', language)}</strong><br />{t('doc.widget.customizationDesc', language)}</div>
             </div>
             <div className="flex items-start gap-3 rounded-lg border bg-card p-3">
               <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
                 <Smartphone className="size-4 text-sky-600 dark:text-sky-400" />
               </div>
-              <div><strong>Адаптивный</strong><br />Работает на мобильных и десктопе</div>
+              <div><strong>{t('doc.widget.responsive', language)}</strong><br />{t('doc.widget.responsiveDesc', language)}</div>
             </div>
           </div>
         </CardContent>
@@ -969,18 +973,17 @@ function WidgetSetupPage() {
       {/* Step by Step */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Settings className="size-5" /> Пошаговая установка</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Settings className="size-5" /> {t('doc.widget.stepByStep', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <StepNumber num={1} title="Получите код внедрения" />
+          <StepNumber num={1} title={t('doc.widget.step1Title', language)} />
           <p className="ml-11 text-sm text-muted-foreground">
-            После создания бота в личном кабинете, перейдите в раздел <strong>Мои боты</strong>, нажмите на нужного бота
-            и скопируйте код внедрения. Код выглядит так:
+            {t('doc.widget.step1Desc', language)}
           </p>
           <div className="ml-11">
             <CodeBlock
-              language="html"
-              filename="Код виджета АгентБот"
+              lang="html"
+              filename={t('doc.widget.widgetCodeFilename', language)}
               code={`<script>
   (function(w,d,s,o){
     var j=d.createElement(s);j.async=true;
@@ -993,17 +996,17 @@ function WidgetSetupPage() {
           </div>
 
           <Callout type="info">
-            <strong>Код внедрения</strong> уникален для каждого бота. Не используйте чужие коды — они не будут работать на вашем домене.
+            <strong>{t('doc.widget.embedCodeLabel', language)}</strong> {t('doc.widget.embedCodeNote', language)}
           </Callout>
 
-          <StepNumber num={2} title="Добавьте код на ваш сайт" />
+          <StepNumber num={2} title={t('doc.widget.step2Title', language)} />
           <p className="ml-11 text-sm text-muted-foreground">
-            Вставьте скопированный код перед закрывающим тегом <code className="rounded bg-muted px-1 text-xs">&lt;/body&gt;</code> на всех страницах вашего сайта.
+            {t('doc.widget.step2Desc', language)}
           </p>
           <div className="ml-11">
             <CodeBlock
-              language="html"
-              filename="Пример: HTML-страница с виджетом"
+              lang="html"
+              filename={t('doc.widget.htmlPageFilename', language)}
               code={`<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -1030,13 +1033,13 @@ function WidgetSetupPage() {
             />
           </div>
 
-          <StepNumber num={3} title="Проверьте работу виджета" />
+          <StepNumber num={3} title={t('doc.widget.step3Title', language)} />
           <p className="ml-11 text-sm text-muted-foreground">
-            Откройте ваш сайт в браузере. В правом нижнем углу появится иконка чата. Нажмите на неё — откроется окно виджета с приветственным сообщением бота.
+            {t('doc.widget.step3Desc', language)}
           </p>
 
           <Callout type="tip">
-            <strong>Совет:</strong> Если виджет не отображается, проверьте: (1) код вставлен корректно, (2) бот активен в личном кабинете, (3) нет блокировок со стороны Content Security Policy.
+            <strong>{t('doc.api.tip', language)}:</strong> {t('doc.widget.step3Tip', language)}
           </Callout>
         </CardContent>
       </Card>
@@ -1044,20 +1047,20 @@ function WidgetSetupPage() {
       {/* Customization */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Palette className="size-5" /> Настройка внешнего вида</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Palette className="size-5" /> {t('doc.widget.appearance', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Настройте внешний вид виджета в личном кабинете: раздел <strong>Мои боты → Настройки бота → Внешний вид</strong>.
+            {t('doc.widget.appearanceDesc', language)}
           </p>
 
           <div className="space-y-3">
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-2 font-semibold text-sm">Цветовая схема</h4>
-              <p className="text-sm text-muted-foreground">Выберите основной цвет виджета, который будет соответствовать вашему бренду. Цвет применяется к кнопкам, заголовку и активным элементам.</p>
+              <h4 className="mb-2 font-semibold text-sm">{t('doc.widget.colorScheme', language)}</h4>
+              <p className="text-sm text-muted-foreground">{t('doc.widget.colorSchemeDesc', language)}</p>
               <CodeBlock
-                language="html"
-                filename="Настройка цвета через data-атрибуты"
+                lang="html"
+                filename={t('doc.widget.colorConfigFilename', language)}
                 code={`<script>
   var config = {
     code: 'ABCD1234EFGH5678',
@@ -1079,16 +1082,16 @@ function WidgetSetupPage() {
             </div>
 
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-2 font-semibold text-sm">Позиция на странице</h4>
+              <h4 className="mb-2 font-semibold text-sm">{t('doc.widget.position', language)}</h4>
               <p className="text-sm text-muted-foreground">
-                Виджет можно разместить в правом (<code className="rounded bg-muted px-1 text-xs">right</code>) или левом (<code className="rounded bg-muted px-1 text-xs">left</code>) нижнем углу. По умолчанию — справа.
+                {t('doc.widget.positionDesc', language)}
               </p>
             </div>
 
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-2 font-semibold text-sm">Приветствие и аватар</h4>
+              <h4 className="mb-2 font-semibold text-sm">{t('doc.widget.greetingAvatar', language)}</h4>
               <p className="text-sm text-muted-foreground">
-                Настройте приветственное сообщение и аватар бота в личном кабинете. Аватар отображается в шапке чата и рядом с сообщениями бота.
+                {t('doc.widget.greetingAvatarDesc', language)}
               </p>
             </div>
           </div>
@@ -1098,14 +1101,14 @@ function WidgetSetupPage() {
       {/* Advanced Settings */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Zap className="size-5" /> Дополнительные настройки</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Zap className="size-5" /> {t('doc.widget.advanced', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3">
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-2 font-semibold text-sm">Автозапуск через N секунд</h4>
+              <h4 className="mb-2 font-semibold text-sm">{t('doc.widget.autoOpen', language)}</h4>
               <CodeBlock
-                language="html"
+                lang="html"
                 code={`<script>
   // Автоматически открыть чат через 10 секунд
   var config = {
@@ -1118,17 +1121,16 @@ function WidgetSetupPage() {
             </div>
 
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-2 font-semibold text-sm">Сбор контактных данных</h4>
+              <h4 className="mb-2 font-semibold text-sm">{t('doc.widget.contactCollection', language)}</h4>
               <p className="text-sm text-muted-foreground">
-                Бот автоматически запрашивает имя, телефон и email посетителя перед началом диалога.
-                Контактные данные сохраняются в личном кабинете и передаются через вебхуки.
+                {t('doc.widget.contactCollectionDesc', language)}
               </p>
             </div>
 
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-2 font-semibold text-sm">Режим «только на определённых страницах»</h4>
+              <h4 className="mb-2 font-semibold text-sm">{t('doc.widget.pageFiltering', language)}</h4>
               <CodeBlock
-                language="html"
+                lang="html"
                 code={`<!-- Показывать виджет только на страницах /services и /contacts -->
 <script>
   var showOnPages = ['/services', '/contacts'];
@@ -1151,33 +1153,33 @@ function WidgetSetupPage() {
       {/* Troubleshooting */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><AlertCircle className="size-5" /> Решение проблем</CardTitle>
+          <CardTitle className="flex items-center gap-2"><AlertCircle className="size-5" /> {t('doc.widget.troubleshooting', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-3">
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-1 font-semibold text-sm">Виджет не отображается</h4>
+              <h4 className="mb-1 font-semibold text-sm">{t('doc.widget.troubleNotVisible', language)}</h4>
               <ol className="ml-4 list-decimal space-y-1 text-sm text-muted-foreground">
-                <li>Проверьте, что код скопирован полностью и вставлен перед <code className="rounded bg-muted px-1 text-xs">&lt;/body&gt;</code></li>
-                <li>Убедитесь, что бот активен в личном кабинете (Мои боты → статус «Активен»)</li>
-                <li>Откройте консоль браузера (F12) и проверьте наличие ошибок</li>
-                <li>Убедитесь, что Content Security Policy не блокирует загрузку скрипта</li>
+                <li>{t('doc.widget.troubleNotVisible1', language)}</li>
+                <li>{t('doc.widget.troubleNotVisible2', language)}</li>
+                <li>{t('doc.widget.troubleNotVisible3', language)}</li>
+                <li>{t('doc.widget.troubleNotVisible4', language)}</li>
               </ol>
             </div>
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-1 font-semibold text-sm">Виджет отображается, но бот не отвечает</h4>
+              <h4 className="mb-1 font-semibold text-sm">{t('doc.widget.troubleNoReply', language)}</h4>
               <ol className="ml-4 list-decimal space-y-1 text-sm text-muted-foreground">
-                <li>Проверьте подключение AI-модели в настройках бота</li>
-                <li>Убедитесь, что не превышен лимит сообщений по тарифу</li>
-                <li>Проверьте сетевую вкладку (F12 → Network) на наличие ошибок запросов</li>
+                <li>{t('doc.widget.troubleNoReply1', language)}</li>
+                <li>{t('doc.widget.troubleNoReply2', language)}</li>
+                <li>{t('doc.widget.troubleNoReply3', language)}</li>
               </ol>
             </div>
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-1 font-semibold text-sm">Виджет замедляет загрузку страницы</h4>
+              <h4 className="mb-1 font-semibold text-sm">{t('doc.widget.troubleSlowPage', language)}</h4>
               <ol className="ml-4 list-decimal space-y-1 text-sm text-muted-foreground">
-                <li>Убедитесь, что скрипт загружается асинхронно (<code className="rounded bg-muted px-1 text-xs">j.async=true</code>)</li>
-                <li>Виджет загружается после основной страницы и не блокирует рендеринг</li>
-                <li>Используйте Chrome DevTools → Performance для анализа</li>
+                <li>{t('doc.widget.troubleSlowPage1', language)}</li>
+                <li>{t('doc.widget.troubleSlowPage2', language)}</li>
+                <li>{t('doc.widget.troubleSlowPage3', language)}</li>
               </ol>
             </div>
           </div>
@@ -1191,6 +1193,8 @@ function WidgetSetupPage() {
 // 4. Telegram Setup Page
 // ──────────────────────────────────────────────────────────────
 function TelegramSetupPage() {
+  const language = useAppStore((s) => s.language);
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -1200,8 +1204,8 @@ function TelegramSetupPage() {
             <MessageSquare className="size-6 text-violet-600 dark:text-violet-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Настройка Telegram</h1>
-            <p className="text-muted-foreground">Подключите Telegram-бота для общения с клиентами в мессенджере</p>
+            <h1 className="text-2xl font-bold tracking-tight">{t('doc.telegram.title', language)}</h1>
+            <p className="text-muted-foreground">{t('doc.telegram.subtitle', language)}</p>
           </div>
         </div>
       </div>
@@ -1209,32 +1213,30 @@ function TelegramSetupPage() {
       {/* What is Telegram Bot */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><MessageSquare className="size-5" /> Что такое Telegram-бот?</CardTitle>
+          <CardTitle className="flex items-center gap-2"><MessageSquare className="size-5" /> {t('doc.telegram.whatIsBot', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm text-muted-foreground">
           <p>
-            Telegram-бот АгентБот — это ваш AI-ассистент, доступный прямо в мессенджере Telegram.
-            Клиенты могут общаться с ботом, записываться на услуги и получать ответы на вопросы
-            без необходимости переходить на ваш сайт.
+            {t('doc.telegram.whatIsBotDesc', language)}
           </p>
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="flex items-start gap-3 rounded-lg border bg-card p-3">
               <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/50">
                 <Send className="size-4 text-violet-600 dark:text-violet-400" />
               </div>
-              <div><strong>Мгновенные ответы</strong><br />Бот отвечает за 1-2 секунды 24/7</div>
+              <div><strong>{t('doc.telegram.instantReplies', language)}</strong><br />{t('doc.telegram.instantRepliesDesc', language)}</div>
             </div>
             <div className="flex items-start gap-3 rounded-lg border bg-card p-3">
               <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/50">
                 <Terminal className="size-4 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <div><strong>Единый кабинет</strong><br />Управление из той же панели, что и виджет</div>
+              <div><strong>{t('doc.telegram.singleDashboard', language)}</strong><br />{t('doc.telegram.singleDashboardDesc', language)}</div>
             </div>
             <div className="flex items-start gap-3 rounded-lg border bg-card p-3">
               <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/50">
                 <Layers className="size-4 text-amber-600 dark:text-amber-400" />
               </div>
-              <div><strong>Общая база</strong><br />Все диалоги в единой аналитике</div>
+              <div><strong>{t('doc.telegram.unifiedBase', language)}</strong><br />{t('doc.telegram.unifiedBaseDesc', language)}</div>
             </div>
           </div>
         </CardContent>
@@ -1243,18 +1245,18 @@ function TelegramSetupPage() {
       {/* Step by Step */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Settings className="size-5" /> Пошаговая настройка</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Settings className="size-5" /> {t('doc.telegram.stepByStep', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <StepNumber num={1} title="Создайте бота через @BotFather" />
+          <StepNumber num={1} title={t('doc.telegram.step1Title', language)} />
           <p className="ml-11 text-sm text-muted-foreground">
-            <code className="rounded bg-muted px-1.5 py-0.5 text-xs">@BotFather</code> — это официальный бот Telegram для создания и управления ботами.
+            {t('doc.telegram.step1Desc', language)}
           </p>
           <div className="ml-11 space-y-2">
-            <p className="text-sm text-muted-foreground">Отправьте @BotFather следующие команды:</p>
+            <p className="text-sm text-muted-foreground">{t('doc.telegram.step1SendCommands', language)}</p>
             <CodeBlock
-              language="text"
-              filename="Диалог с @BotFather"
+              lang="text"
+              filename={t('doc.telegram.botfatherDialog', language)}
               code={`1. Откройте Telegram и найдите @BotFather
 2. Отправьте команду: /newbot
 3. Введите имя бота: Мой Салон AI
@@ -1264,17 +1266,17 @@ function TelegramSetupPage() {
             />
           </div>
           <Callout type="warning">
-            <strong>Важно:</strong> Сохраните полученный токен в безопасном месте. Он потребуется для подключения бота к АгентБот. Не делитесь токеном с третьими лицами.
+            <strong>{t('doc.api.important', language)}:</strong> {t('doc.telegram.step1Warning', language)}
           </Callout>
 
-          <StepNumber num={2} title="Настройте бота в @BotFather (опционально)" />
+          <StepNumber num={2} title={t('doc.telegram.step2Title', language)} />
           <p className="ml-11 text-sm text-muted-foreground">
-            Улучшите профиль бота, настроив описание и команды:
+            {t('doc.telegram.step2Desc', language)}
           </p>
           <div className="ml-11 space-y-2">
             <CodeBlock
-              language="text"
-              filename="Дополнительные настройки через @BotFather"
+              lang="text"
+              filename={t('doc.telegram.botfatherExtraSettings', language)}
               code={`/setdescription — Описание бота (показывается при запуске)
   Пример: "AI-ассистент салона красоты. Запишитесь на услугу за 1 минуту!"
 
@@ -1292,14 +1294,14 @@ function TelegramSetupPage() {
             />
           </div>
 
-          <StepNumber num={3} title="Подключите бота в АгентБот" />
+          <StepNumber num={3} title={t('doc.telegram.step3Title', language)} />
           <p className="ml-11 text-sm text-muted-foreground">
-            В личном кабинете АгентБот перейдите в настройки бота и вставьте полученный токен:
+            {t('doc.telegram.step3Desc', language)}
           </p>
           <div className="ml-11">
             <CodeBlock
-              language="text"
-              filename="Настройки в личном кабинете"
+              lang="text"
+              filename={t('doc.telegram.dashboardSettings', language)}
               code={`1. Откройте личный кабинет АгентБот
 2. Перейдите в раздел "Мои боты"
 3. Нажмите на нужного бота → "Настройки"
@@ -1310,18 +1312,17 @@ function TelegramSetupPage() {
           </div>
 
           <Callout type="tip">
-            <strong>Проверка:</strong> После подключения отправьте сообщение вашему боту в Telegram.
-            Если всё настроено верно, бот ответит приветственным сообщением.
+            <strong>{t('doc.telegram.checkLabel', language)}:</strong> {t('doc.telegram.step3Tip', language)}
           </Callout>
 
-          <StepNumber num={4} title="Настройте приветственное сообщение" />
+          <StepNumber num={4} title={t('doc.telegram.step4Title', language)} />
           <p className="ml-11 text-sm text-muted-foreground">
-            Настройте приветствие, которое будет отправляться новым пользователям:
+            {t('doc.telegram.step4Desc', language)}
           </p>
           <div className="ml-11">
             <CodeBlock
-              language="text"
-              filename="Пример приветственного сообщения"
+              lang="text"
+              filename={t('doc.telegram.welcomeMessageExample', language)}
               code={`Здравствуйте! 👋 Я AI-ассистент салона красоты "Эстетика".
 
 Чем могу помочь?
@@ -1334,18 +1335,17 @@ function TelegramSetupPage() {
             />
           </div>
 
-          <StepNumber num={5} title="Протестируйте работу бота" />
+          <StepNumber num={5} title={t('doc.telegram.step5Title', language)} />
           <p className="ml-11 text-sm text-muted-foreground">
-            Найдите вашего бота в Telegram по username (например, <code className="rounded bg-muted px-1 text-xs">@my_salon_ai_bot</code>)
-            и отправьте тестовое сообщение. Убедитесь, что:
+            {t('doc.telegram.step5Desc', language)}
           </p>
           <div className="ml-11 space-y-1">
             {[
-              'Бот отвечает на сообщения',
-              'Приветственное сообщение отправляется автоматически',
-              'Кнопки и inline-клавиатура работают корректно',
-              'Запись на услуги работает',
-              'Контактные данные сохраняются в личном кабинете',
+              t('doc.telegram.check1', language),
+              t('doc.telegram.check2', language),
+              t('doc.telegram.check3', language),
+              t('doc.telegram.check4', language),
+              t('doc.telegram.check5', language),
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
                 <CheckCircle2 className="size-4 text-emerald-500 shrink-0" />
@@ -1359,17 +1359,17 @@ function TelegramSetupPage() {
       {/* Advanced Features */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Zap className="size-5" /> Дополнительные возможности</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Zap className="size-5" /> {t('doc.telegram.advancedFeatures', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3">
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-2 font-semibold text-sm">Inline-кнопки (клавиатура)</h4>
+              <h4 className="mb-2 font-semibold text-sm">{t('doc.telegram.inlineButtons', language)}</h4>
               <p className="mb-2 text-sm text-muted-foreground">
-                Настройте кнопки быстрого доступа для часто используемых функций:
+                {t('doc.telegram.inlineButtonsDesc', language)}
               </p>
               <CodeBlock
-                language="text"
+                lang="text"
                 code={`Пример меню inline-кнопок:
 
 ┌─────────────────────────────┐
@@ -1384,26 +1384,23 @@ function TelegramSetupPage() {
             </div>
 
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-2 font-semibold text-sm">Передача диалога оператору</h4>
+              <h4 className="mb-2 font-semibold text-sm">{t('doc.telegram.operatorTransfer', language)}</h4>
               <p className="text-sm text-muted-foreground">
-                Если бот не может ответить на вопрос, он может автоматически перевести диалог на живого оператора.
-                Оператор получает уведомление и продолжает общение от имени бота в Telegram.
+                {t('doc.telegram.operatorTransferDesc', language)}
               </p>
             </div>
 
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-2 font-semibold text-sm">Рассылки через Telegram</h4>
+              <h4 className="mb-2 font-semibold text-sm">{t('doc.telegram.broadcasts', language)}</h4>
               <p className="text-sm text-muted-foreground">
-                Отправляйте уведомления клиентам через Telegram: подтверждения записей, напоминания, акции и спецпредложения.
-                Настройки рассылок доступны в разделе «Привлечение клиентов» личного кабинета.
+                {t('doc.telegram.broadcastsDesc', language)}
               </p>
             </div>
 
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-2 font-semibold text-sm">Мультисайтовая поддержка</h4>
+              <h4 className="mb-2 font-semibold text-sm">{t('doc.telegram.multisite', language)}</h4>
               <p className="text-sm text-muted-foreground">
-                Один Telegram-бот может обслуживать несколько сайтов или филиалов.
-                Используйте теги и ниши для маршрутизации вопросов в нужного бота.
+                {t('doc.telegram.multisiteDesc', language)}
               </p>
             </div>
           </div>
@@ -1413,33 +1410,33 @@ function TelegramSetupPage() {
       {/* Troubleshooting */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><AlertCircle className="size-5" /> Решение проблем</CardTitle>
+          <CardTitle className="flex items-center gap-2"><AlertCircle className="size-5" /> {t('doc.telegram.troubleshooting', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-3">
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-1 font-semibold text-sm">Бот не отвечает в Telegram</h4>
+              <h4 className="mb-1 font-semibold text-sm">{t('doc.telegram.troubleNoReply', language)}</h4>
               <ol className="ml-4 list-decimal space-y-1 text-sm text-muted-foreground">
-                <li>Проверьте, что токен введён корректно в настройках АгентБот</li>
-                <li>Убедитесь, что бот не был остановлен через @BotFather</li>
-                <li>Проверьте, что webhook установлен правильно (АгентБот делает это автоматически)</li>
-                <li>Попробуйте отправить команду <code className="rounded bg-muted px-1 text-xs">/start</code></li>
+                <li>{t('doc.telegram.troubleNoReply1', language)}</li>
+                <li>{t('doc.telegram.troubleNoReply2', language)}</li>
+                <li>{t('doc.telegram.troubleNoReply3', language)}</li>
+                <li>{t('doc.telegram.troubleNoReply4', language)}</li>
               </ol>
             </div>
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-1 font-semibold text-sm">Ошибка «Bad Gateway» при подключении</h4>
+              <h4 className="mb-1 font-semibold text-sm">{t('doc.telegram.troubleBadGateway', language)}</h4>
               <ol className="ml-4 list-decimal space-y-1 text-sm text-muted-foreground">
-                <li>Убедитесь, что токен действителен (проверьте через @BotFather → /token)</li>
-                <li>Возможно, токен был перегенерирован — обновите его в настройках</li>
-                <li>Проверьте логи в разделе «Админ-панель → Логи»</li>
+                <li>{t('doc.telegram.troubleBadGateway1', language)}</li>
+                <li>{t('doc.telegram.troubleBadGateway2', language)}</li>
+                <li>{t('doc.telegram.troubleBadGateway3', language)}</li>
               </ol>
             </div>
             <div className="rounded-lg border bg-card p-4">
-              <h4 className="mb-1 font-semibold text-sm">Бот отвечает, но с задержкой</h4>
+              <h4 className="mb-1 font-semibold text-sm">{t('doc.telegram.troubleDelay', language)}</h4>
               <ol className="ml-4 list-decimal space-y-1 text-sm text-muted-foreground">
-                <li>Задержка обычно 1-3 секунды — это нормальное время обработки AI</li>
-                <li>Если задержка более 10 секунд — проверьте лимиты тарифа</li>
-                <li>Попробуйте упростить системный промпт бота для более быстрых ответов</li>
+                <li>{t('doc.telegram.troubleDelay1', language)}</li>
+                <li>{t('doc.telegram.troubleDelay2', language)}</li>
+                <li>{t('doc.telegram.troubleDelay3', language)}</li>
               </ol>
             </div>
           </div>
@@ -1449,30 +1446,29 @@ function TelegramSetupPage() {
       {/* Security */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Shield className="size-5" /> Безопасность</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Shield className="size-5" /> {t('doc.telegram.security', language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           <div className="space-y-2">
             <div className="flex items-start gap-2">
               <CheckCircle2 className="mt-0.5 size-4 text-emerald-500 shrink-0" />
-              <span>Все сообщения шифруются Telegram (TLS 1.3)</span>
+              <span>{t('doc.telegram.security1', language)}</span>
             </div>
             <div className="flex items-start gap-2">
               <CheckCircle2 className="mt-0.5 size-4 text-emerald-500 shrink-0" />
-              <span>Токен бота хранится в зашифрованном виде на серверах АгентБот</span>
+              <span>{t('doc.telegram.security2', language)}</span>
             </div>
             <div className="flex items-start gap-2">
               <CheckCircle2 className="mt-0.5 size-4 text-emerald-500 shrink-0" />
-              <span>Контактные данные клиентов не передаются третьим лицам</span>
+              <span>{t('doc.telegram.security3', language)}</span>
             </div>
             <div className="flex items-start gap-2">
               <CheckCircle2 className="mt-0.5 size-4 text-emerald-500 shrink-0" />
-              <span>Журнал всех действий доступен в разделе «Админ-панель → Логи»</span>
+              <span>{t('doc.telegram.security4', language)}</span>
             </div>
           </div>
           <Callout type="warning">
-            <strong>Важно:</strong> Никогда не публиковайте токен бота в открытых источниках (GitHub, форумы, документация).
-            Если токен скомпрометирован — перегенерируйте его через @BotFather (/revoke).
+            <strong>{t('doc.api.important', language)}:</strong> {t('doc.telegram.securityWarning', language)}
           </Callout>
         </CardContent>
       </Card>
@@ -1485,17 +1481,18 @@ function TelegramSetupPage() {
 // ──────────────────────────────────────────────────────────────
 export type DocPageId = 'api' | 'integration' | 'widget' | 'telegram';
 
-const DOC_PAGES: { id: DocPageId; title: string; icon: React.ElementType; color: string; component: React.FC }[] = [
-  { id: 'api', title: 'API документация', icon: Code2, color: 'emerald', component: ApiDocsPage },
-  { id: 'integration', title: 'Руководства по интеграции', icon: Plug, color: 'teal', component: IntegrationGuidesPage },
-  { id: 'widget', title: 'Настройка виджета', icon: LayoutTemplate, color: 'amber', component: WidgetSetupPage },
-  { id: 'telegram', title: 'Настройка Telegram', icon: MessageSquare, color: 'violet', component: TelegramSetupPage },
+const DOC_PAGES: { id: DocPageId; titleKey: string; icon: React.ElementType; color: string; component: React.FC }[] = [
+  { id: 'api', titleKey: 'doc.shared.apiDocs', icon: Code2, color: 'emerald', component: ApiDocsPage },
+  { id: 'integration', titleKey: 'doc.shared.integrationGuides', icon: Plug, color: 'teal', component: IntegrationGuidesPage },
+  { id: 'widget', titleKey: 'doc.shared.widgetSetup', icon: LayoutTemplate, color: 'amber', component: WidgetSetupPage },
+  { id: 'telegram', titleKey: 'doc.shared.telegramSetup', icon: MessageSquare, color: 'violet', component: TelegramSetupPage },
 ];
 
 export function DocumentationOverlay({ pageId, onBack }: { pageId: DocPageId; onBack: () => void }) {
   const pageInfo = DOC_PAGES.find((p) => p.id === pageId) || DOC_PAGES[0];
   const PageComponent = pageInfo.component;
   const colors = COLOR_MAP[pageInfo.color];
+  const language = useAppStore((s) => s.language);
 
   // Close on Escape
   useEffect(() => {
@@ -1518,14 +1515,14 @@ export function DocumentationOverlay({ pageId, onBack }: { pageId: DocPageId; on
       <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-background/95 backdrop-blur-sm px-4 py-3 sm:px-6">
         <Button variant="ghost" size="sm" onClick={onBack} className="gap-1.5 shrink-0">
           <ArrowLeft className="size-4" />
-          <span className="hidden sm:inline">Назад</span>
+          <span className="hidden sm:inline">{t('doc.shared.back', language)}</span>
         </Button>
         <Separator orientation="vertical" className="h-5" />
         <div className={`flex size-8 items-center justify-center rounded-lg ${colors.bg}`}>
           <pageInfo.icon className={`size-4 ${colors.icon}`} />
         </div>
-        <h1 className="text-sm font-semibold truncate">{pageInfo.title}</h1>
-        <Badge variant="secondary" className="ml-auto shrink-0 hidden sm:inline-flex">Документация</Badge>
+        <h1 className="text-sm font-semibold truncate">{t(pageInfo.titleKey, language)}</h1>
+        <Badge variant="secondary" className="ml-auto shrink-0 hidden sm:inline-flex">{t('doc.shared.documentation', language)}</Badge>
       </div>
 
       {/* Content */}
