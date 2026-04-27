@@ -246,11 +246,29 @@ export function SettingsPage() {
   // ── Delete account ──
   const handleDeleteAccount = useCallback(async () => {
     if (deleteConfirmText !== 'DELETE') return;
+    if (!user?.id) return;
     setDeleting(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const res = await fetch('/api/profile', {
+        method: 'DELETE',
+        headers: { 'x-user-id': user.id },
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: 'Request failed' }));
+        toast.error(t('settings.accountDeleteFailed', language), {
+          description: (errData as Record<string, string>).error,
+        });
+        setDeleting(false);
+        setDeleteDialogOpen(false);
+        setDeleteConfirmText('');
+        return;
+      }
       toast.success(t('settings.accountDeleted', language));
-      // In a real app, call logout and redirect
+      // Log out and redirect to landing
+      const { logout } = useAuthStore.getState();
+      logout();
+      const { setPage } = useAppStore.getState();
+      setPage('landing');
     } catch {
       toast.error(t('settings.accountDeleteFailed', language));
     } finally {
@@ -258,7 +276,7 @@ export function SettingsPage() {
       setDeleteDialogOpen(false);
       setDeleteConfirmText('');
     }
-  }, [deleteConfirmText]);
+  }, [deleteConfirmText, user?.id]);
 
   if (!mounted || !user) {
     return (

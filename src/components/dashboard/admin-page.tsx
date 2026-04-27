@@ -571,15 +571,19 @@ function UsersTab({ lang }: { lang: string }) {
       toast.success(t('admin.impersonateSuccess', lang), {
         description: t('admin.impersonateSuccessDesc', lang, { name: targetUser.name || targetUser.email }),
       });
-      // Navigate to dashboard as the impersonated user
-      setPage('dashboard');
+      // Force full page reload to re-initialize the app with new user context
+      // React state updates alone can be unreliable for a complete context switch
+      useAppStore.getState().setPage('dashboard');
+      setTimeout(() => {
+        window.location.reload();
+      }, 300);
     } catch (err) {
       console.error('Failed to impersonate:', err);
       toast.error(t('admin.impersonateFailed', lang));
     } finally {
       setImpersonating(null);
     }
-  }, [user?.id, lang, setPage]);
+  }, [user?.id, lang]);
 
   if (isLoading) return <UsersTableSkeleton />;
 
