@@ -245,6 +245,35 @@ Stage Summary:
 - Documentation overlays (API, Integration, Widget, Telegram) now properly translate when switching languages
 
 ---
+Task ID: 4
+Agent: main
+Task: Fix all bugs in admin-page.tsx
+
+Work Log:
+- Fixed Bug 1: Impersonate button was a no-op — added `import { toast } from 'sonner'` and `toast.success()` with trilingual message (ru/en/tr) based on `lang` prop; added `lang` to useCallback deps
+- Fixed Bug 2: Missing Activate button for inactive embed codes — added `CheckCircle2` button that calls `handleActivate(ec.id)` for rows where `!ec.isActive`
+- Fixed Bug 3: Replaced hardcoded `Статистика платформы` with `t('admin.platformStats', lang)`
+- Fixed Bug 4: Replaced hardcoded Russian chart labels (Активные подписки, Всего диалогов, Всего записей) with `t('admin.activeSubscriptions', lang)`, `t('admin.totalConversations', lang)`, `t('admin.totalAppointments', lang)`
+- Fixed Bug 5: Replaced hardcoded `Не удалось загрузить коды внедрения` with `t('admin.failedEmbedCodes', lang)`
+- Fixed Bug 6: Replaced hardcoded Russian revoke dialog description with `t('admin.revokeConfirm', lang, { code: ec.code })`
+- Fixed Bug 7: Replaced hardcoded Russian in regenerate dialog (title, description, button text, title attribute) with `t('admin.regenerateCode', lang)` and `t('admin.regenerateConfirm', lang, { code: ec.code })`
+- Fixed Bug 8: Replaced all `toLocaleDateString('ru-RU')` with locale-aware formatting (`lang === 'ru' ? 'ru-RU' : lang === 'tr' ? 'tr-TR' : 'en-US'`) at 3 locations (users table, user details dialog, embed codes table); also fixed `toLocaleTimeString('ru-RU')` in logs tab
+- Fixed `actionLabel` function: added `lang` parameter, changed from hardcoded Russian labels to multilingual object with ru/en/tr keys; updated all 2 call sites
+- Fixed hardcoded Russian error message in logs tab: `Не удалось загрузить журналы` → trilingual ternary
+- Added 10 new i18n keys to all 3 locale files (ru.json, en.json, tr.json): platformStats, activeSubscriptions, totalConversations, totalAppointments, failedEmbedCodes, activateCode, revokeConfirm, regenerateCode, regenerateConfirm
+- Note: Used `{code}` interpolation syntax (matching existing `t()` implementation) instead of `{{code}}`
+- Lint clean, all JSON files valid
+
+Stage Summary:
+- All 8 specified bugs fixed plus additional hardcoded Russian strings discovered and fixed
+- Impersonate button now shows toast notification
+- Activate button added for inactive embed codes
+- All hardcoded Russian UI text replaced with i18n t() calls
+- Date/time formatting now locale-aware (ru-RU, tr-TR, en-US)
+- actionLabel function supports 3 languages
+- 10 new i18n keys added to ru/en/tr locale files
+
+---
 Task ID: 2
 Agent: main
 Task: Replace all hardcoded Russian code blocks in documentation-pages.tsx with t() calls

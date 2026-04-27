@@ -27,6 +27,7 @@ import {
   FileText,
   Shield,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuthStore, useAppStore } from '@/stores';
 import { t } from '@/lib/i18n';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -178,17 +179,17 @@ function actionBadgeClass(action: string) {
   }
 }
 
-function actionLabel(actionType: string) {
-  const labels: Record<string, string> = {
-    create: 'Создание',
-    update: 'Обновление',
-    delete: 'Удаление',
-    block: 'Блокировка',
-    unblock: 'Разблокировка',
-    login: 'Вход',
-    export: 'Экспорт',
+function actionLabel(actionType: string, lang: string) {
+  const labels: Record<string, Record<string, string>> = {
+    create: { ru: 'Создание', en: 'Create', tr: 'Oluşturma' },
+    update: { ru: 'Обновление', en: 'Update', tr: 'Güncelleme' },
+    delete: { ru: 'Удаление', en: 'Delete', tr: 'Silme' },
+    block: { ru: 'Блокировка', en: 'Block', tr: 'Engelleme' },
+    unblock: { ru: 'Разблокировка', en: 'Unblock', tr: 'Engel Kaldırma' },
+    login: { ru: 'Вход', en: 'Login', tr: 'Giriş' },
+    export: { ru: 'Экспорт', en: 'Export', tr: 'Dışa Aktarma' },
   };
-  return labels[actionType] ?? actionType;
+  return labels[actionType]?.[lang] ?? actionType;
 }
 
 function embedStatusBadge(isActive: boolean, lang: string) {
@@ -544,8 +545,9 @@ function UsersTab({ lang }: { lang: string }) {
 
   const handleImpersonate = useCallback((userId: string) => {
     setImpersonating(userId);
+    toast.success(lang === 'ru' ? `Вход как пользователь ${userId.slice(0, 8)}...` : lang === 'tr' ? `Kullanıcı olarak giriş ${userId.slice(0, 8)}...` : `Impersonating user ${userId.slice(0, 8)}...`);
     setTimeout(() => setImpersonating(null), 2000);
-  }, []);
+  }, [lang]);
 
   if (isLoading) return <UsersTableSkeleton />;
 
@@ -645,7 +647,7 @@ function UsersTab({ lang }: { lang: string }) {
                       <TableCell>{roleBadge(u.role)}</TableCell>
                       <TableCell>{userStatusBadge(u.isActive, lang)}</TableCell>
                       <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
-                        {new Date(u.createdAt).toLocaleDateString('ru-RU')}
+                        {new Date(u.createdAt).toLocaleDateString(lang === 'ru' ? 'ru-RU' : lang === 'tr' ? 'tr-TR' : 'en-US')}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
@@ -801,7 +803,7 @@ function UsersTab({ lang }: { lang: string }) {
                 </div>
                 <div className="col-span-2">
                   <p className="text-muted-foreground">{t('admin.registrationDate', lang)}</p>
-                  <p className="font-medium">{new Date(selectedUser.createdAt).toLocaleDateString('ru-RU')}</p>
+                  <p className="font-medium">{new Date(selectedUser.createdAt).toLocaleDateString(lang === 'ru' ? 'ru-RU' : lang === 'tr' ? 'tr-TR' : 'en-US')}</p>
                 </div>
                 <div className="col-span-2">
                   <p className="text-muted-foreground">{t('admin.id', lang)}</p>
@@ -949,16 +951,16 @@ function AnalyticsTab({ lang }: { lang: string }) {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Activity className="size-4 text-emerald-600 dark:text-emerald-400" />
-              Статистика платформы
+              {t('admin.platformStats', lang)}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 pt-0">
             <div className="flex flex-col gap-4">
               {[
                 { label: t('admin.activeUsers', lang), value: a?.activeUsers ?? 0, color: '#10b981' },
-                { label: 'Активные подписки', value: a?.activeSubscriptions ?? 0, color: '#14b8a6' },
-                { label: 'Всего диалогов', value: a?.totalConversations ?? 0, color: '#f59e0b' },
-                { label: 'Всего записей', value: a?.totalAppointments ?? 0, color: '#8b5cf6' },
+                { label: t('admin.activeSubscriptions', lang), value: a?.activeSubscriptions ?? 0, color: '#14b8a6' },
+                { label: t('admin.totalConversations', lang), value: a?.totalConversations ?? 0, color: '#f59e0b' },
+                { label: t('admin.totalAppointments', lang), value: a?.totalAppointments ?? 0, color: '#8b5cf6' },
               ].map((item) => {
                 const maxValue = Math.max(a?.totalUsers ?? 1, a?.totalConversations ?? 1, a?.totalAppointments ?? 1, 1);
                 return (
@@ -991,27 +993,27 @@ function AnalyticsTab({ lang }: { lang: string }) {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <BarChart3 className="size-4 text-emerald-600 dark:text-emerald-400" />
-              Финансовые показатели
+              {t('admin.financialMetrics', lang)}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 pt-0">
             <div className="flex flex-col gap-6">
               <div className="rounded-lg border p-4">
-                <p className="text-xs text-muted-foreground mb-1">Monthly Recurring Revenue</p>
+                <p className="text-xs text-muted-foreground mb-1">{t('admin.mrr', lang)}</p>
                 <p className="text-3xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
                   ${a ? a.mrr.toLocaleString() : '0'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Annual: ${a ? a.arr.toLocaleString() : '0'}
+                  {t('admin.annual', lang)}: ${a ? a.arr.toLocaleString() : '0'}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-lg border p-4 text-center">
-                  <p className="text-xs text-muted-foreground mb-1">Подписки</p>
+                  <p className="text-xs text-muted-foreground mb-1">{t('admin.activeSubscriptions', lang)}</p>
                   <p className="text-2xl font-bold tabular-nums">{a?.activeSubscriptions ?? 0}</p>
                 </div>
                 <div className="rounded-lg border p-4 text-center">
-                  <p className="text-xs text-muted-foreground mb-1">Диалоги</p>
+                  <p className="text-xs text-muted-foreground mb-1">{t('admin.totalConversations', lang)}</p>
                   <p className="text-2xl font-bold tabular-nums">{a?.totalConversations ?? 0}</p>
                 </div>
               </div>
@@ -1045,7 +1047,7 @@ function LogsTab({ lang }: { lang: string }) {
         const data = await fetchAdminData<{ logs: AdminLog[] }>('logs', user.id);
         if (!cancelled) setLogs(data.logs);
       } catch (err) {
-        if (!cancelled) setError('Не удалось загрузить журналы');
+        if (!cancelled) setError(t('admin.failedLogs', lang));
         console.error('Failed to load logs:', err);
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -1096,7 +1098,7 @@ function LogsTab({ lang }: { lang: string }) {
               <SelectContent>
                 {LOG_ACTION_TYPES.map((type) => (
                   <SelectItem key={type} value={type}>
-                    {type === 'all' ? t('common.all', lang) : actionLabel(type)}
+                    {type === 'all' ? t('common.all', lang) : actionLabel(type, lang)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1121,7 +1123,7 @@ function LogsTab({ lang }: { lang: string }) {
               ) : (
                 filteredLogs.map((log) => {
                   const logDate = new Date(log.createdAt);
-                  const timeStr = logDate.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+                  const timeStr = logDate.toLocaleTimeString(lang === 'ru' ? 'ru-RU' : lang === 'tr' ? 'tr-TR' : 'en-US', { hour: '2-digit', minute: '2-digit' });
                   return (
                     <div key={log.id} className="flex items-start gap-4 p-4 hover:bg-muted/30 transition-colors">
                       <div className="mt-0.5 shrink-0">
@@ -1138,7 +1140,7 @@ function LogsTab({ lang }: { lang: string }) {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                           <Badge variant="outline" className={`text-[11px] px-1.5 py-0 border-0 ${actionBadgeClass(log.action)}`}>
-                            {actionLabel(log.action)}
+                            {actionLabel(log.action, lang)}
                           </Badge>
                           <span className="text-xs font-medium text-muted-foreground">{log.adminEmail}</span>
                         </div>
@@ -1179,7 +1181,7 @@ function EmbedCodesTab({ lang }: { lang: string }) {
       const data = await fetchAdminData<{ embedCodes: EmbedCodeRecord[] }>('embed', user.id);
       setEmbedCodes(data.embedCodes);
     } catch (err) {
-      setError('Не удалось загрузить коды внедрения');
+      setError(t('admin.failedEmbedCodes', lang));
       console.error('Failed to load embed codes:', err);
     } finally {
       setIsLoading(false);
@@ -1477,7 +1479,7 @@ function EmbedCodesTab({ lang }: { lang: string }) {
                       </TableCell>
                       <TableCell>{embedStatusBadge(ec.isActive, lang)}</TableCell>
                       <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
-                        {new Date(ec.createdAt).toLocaleDateString('ru-RU')}
+                        {new Date(ec.createdAt).toLocaleDateString(lang === 'ru' ? 'ru-RU' : lang === 'tr' ? 'tr-TR' : 'en-US')}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
@@ -1500,7 +1502,7 @@ function EmbedCodesTab({ lang }: { lang: string }) {
                                   {t('admin.revokeCode', lang)}
                                 </AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Вы уверены, что хотите отозвать код <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{ec.code}</code>? Виджет перестанет работать на сайте.
+                                  {t('admin.revokeConfirm', lang, { code: ec.code })}
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -1521,7 +1523,7 @@ function EmbedCodesTab({ lang }: { lang: string }) {
                                 size="icon"
                                 className="size-8 text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
                                 disabled={processingId === ec.id}
-                                title="Перегенерировать код"
+                                title={t('admin.regenerateCode', lang)}
                               >
                                 <RefreshCw className={`size-4 ${processingId === ec.id ? 'animate-spin' : ''}`} />
                               </Button>
@@ -1530,10 +1532,10 @@ function EmbedCodesTab({ lang }: { lang: string }) {
                               <AlertDialogHeader>
                                 <AlertDialogTitle className="flex items-center gap-2">
                                   <RefreshCw className="size-5 text-amber-500" />
-                                  Перегенерировать код
+                                  {t('admin.regenerateCode', lang)}
                                 </AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Будет сгенерирован новый код для виджета. Старый код <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{ec.code}</code> перестанет работать. Это действие нельзя отменить.
+                                  {t('admin.regenerateConfirm', lang, { code: ec.code })}
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -1542,11 +1544,23 @@ function EmbedCodesTab({ lang }: { lang: string }) {
                                   className="bg-amber-600 hover:bg-amber-700"
                                   onClick={() => handleRegenerate(ec.id)}
                                 >
-                                  Перегенерировать
+                                  {t('admin.regenerateCode', lang)}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
+                          {!ec.isActive && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                              disabled={processingId === ec.id}
+                              onClick={() => handleActivate(ec.id)}
+                              title={t('admin.activateCode', lang) || 'Активировать код'}
+                            >
+                              <CheckCircle2 className="size-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1591,9 +1605,9 @@ export function AdminPage() {
         <div className="flex size-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-950">
           <AlertTriangle className="size-8 text-red-500" />
         </div>
-        <h3 className="text-lg font-semibold">Доступ запрещён</h3>
+        <h3 className="text-lg font-semibold">{t('admin.accessDenied', lang)}</h3>
         <p className="text-sm text-muted-foreground text-center max-w-md">
-          У вас нет прав для доступа к панели администратора. Обратитесь к суперпользователю.
+          {t('admin.accessDeniedDesc', lang)}
         </p>
       </div>
     );
@@ -1609,7 +1623,7 @@ export function AdminPage() {
             {t('admin.title', lang)}
           </h2>
           <p className="text-sm text-muted-foreground">
-            Управление платформой АгентБот
+            {t('admin.title', lang)}
           </p>
         </div>
       </div>

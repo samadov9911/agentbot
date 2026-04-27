@@ -479,7 +479,21 @@
     "userDetailsDesc": "Hesap hakkında tam bilgi",
     "registrationDate": "Kayıt Tarihi",
     "id": "ID",
-    "inactiveEmbedCodes": "Pasif"
+    "inactiveEmbedCodes": "Pasif",
+    "platformStats": "Platform İstatistikleri",
+    "activeSubscriptions": "Aktif Abonelikler",
+    "totalConversations": "Toplam Sohbetler",
+    "totalAppointments": "Toplam Randevular",
+    "failedEmbedCodes": "Kodlar yüklenemedi",
+    "activateCode": "Kodu Etkinleştir",
+    "revokeConfirm": "{code} kodunu iptal etmek istediğinizden emin misiniz? Widget sitede çalışmayı durduracak.",
+    "regenerateCode": "Kodu Yeniden Oluştur",
+    "regenerateConfirm": "Widget için yeni bir kod oluşturulacak. Eski {code} kodu çalışmayı durduracak. Bu işlem geri alınamaz.",
+    "financialMetrics": "Finansal Göstergeler",
+    "annual": "Yıllık",
+    "failedLogs": "Günlükler yüklenemedi",
+    "accessDenied": "Erişim Engellendi",
+    "accessDeniedDesc": "Yönetici paneline erişim izniniz yok. Süper kullanıcıyla iletişime geçin."
   },
   "bookings": {
     "title": "Randevular",

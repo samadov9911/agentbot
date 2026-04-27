@@ -479,7 +479,21 @@
     "userDetailsDesc": "Full account information",
     "registrationDate": "Registration Date",
     "id": "ID",
-    "inactiveEmbedCodes": "Inactive"
+    "inactiveEmbedCodes": "Inactive",
+    "platformStats": "Platform Statistics",
+    "activeSubscriptions": "Active Subscriptions",
+    "totalConversations": "Total Conversations",
+    "totalAppointments": "Total Appointments",
+    "failedEmbedCodes": "Failed to load embed codes",
+    "activateCode": "Activate Code",
+    "revokeConfirm": "Are you sure you want to revoke code {code}? The widget will stop working on the site.",
+    "regenerateCode": "Regenerate Code",
+    "regenerateConfirm": "A new code will be generated for the widget. The old code {code} will stop working. This action cannot be undone.",
+    "financialMetrics": "Financial Metrics",
+    "annual": "Annual",
+    "failedLogs": "Failed to load activity logs",
+    "accessDenied": "Access Denied",
+    "accessDeniedDesc": "You do not have permission to access the admin panel. Contact a superuser."
   },
   "bookings": {
     "title": "Bookings",

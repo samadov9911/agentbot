@@ -479,7 +479,21 @@
     "userDetailsDesc": "Полная информация об учётной записи",
     "registrationDate": "Дата регистрации",
     "id": "ID",
-    "inactiveEmbedCodes": "Неактивных"
+    "inactiveEmbedCodes": "Неактивных",
+    "platformStats": "Статистика платформы",
+    "activeSubscriptions": "Активные подписки",
+    "totalConversations": "Всего диалогов",
+    "totalAppointments": "Всего записей",
+    "failedEmbedCodes": "Не удалось загрузить коды внедрения",
+    "activateCode": "Активировать код",
+    "revokeConfirm": "Вы уверены, что хотите отозвать код {code}? Виджет перестанет работать на сайте.",
+    "regenerateCode": "Перегенерировать код",
+    "regenerateConfirm": "Будет сгенерирован новый код для виджета. Старый код {code} перестанет работать. Это действие нельзя отменить.",
+    "financialMetrics": "Финансовые показатели",
+    "annual": "Годовой",
+    "failedLogs": "Не удалось загрузить журналы",
+    "accessDenied": "Доступ запрещён",
+    "accessDeniedDesc": "У вас нет прав для доступа к панели администратора. Обратитесь к суперпользователю."
   },
   "bookings": {
     "title": "Записи",
