@@ -692,6 +692,10 @@ function ImpersonationBanner() {
     toast.success(
       language === 'ru' ? 'Имперсонация завершена' : language === 'tr' ? 'Taklit sonlandırıldı' : 'Impersonation ended'
     );
+    // Force reload to fully restore admin context (sidebar, permissions, etc.)
+    requestAnimationFrame(() => {
+      window.location.replace(window.location.pathname);
+    });
   };
 
   return (

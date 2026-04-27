@@ -825,9 +825,22 @@ export async function POST(request: NextRequest) {
             deletedAt: null,
             publishedAt: { not: null },
           },
-          select: { id: true, name: true, type: true, config: true },
+          select: { id: true, name: true, type: true, config: true, userId: true },
         });
         if (bot) {
+          // Verify the bot owner's account is active (not deleted/blocked)
+          const botOwner = await db.user.findUnique({
+            where: { id: bot.userId },
+            select: { id: true, isActive: true, deletedAt: true },
+          });
+          if (!botOwner || !botOwner.isActive || botOwner.deletedAt) {
+            console.warn(`[AgentBot] Bot ${bot.id} owner account is inactive/deleted. Rejecting message.`);
+            return NextResponse.json(
+              { error: 'Bot unavailable', message: 'This chatbot is no longer available.' },
+              { status: 410 }
+            );
+          }
+
           botId = bot.id;
           botName = botName || bot.name;
           try {
@@ -843,6 +856,13 @@ export async function POST(request: NextRequest) {
           } catch {
             botConfig = {};
           }
+        } else {
+          // embedCode provided but no matching active bot found → account deleted or code revoked
+          console.warn(`[AgentBot] No active bot found for embedCode=${embedCode}. Returning 410.`);
+          return NextResponse.json(
+            { error: 'Bot not found', message: 'This chatbot is no longer available.' },
+            { status: 410 }
+          );
         }
       } catch (dbErr) {
         console.error('Failed to resolve embedCode:', dbErr);

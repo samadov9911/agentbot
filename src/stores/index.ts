@@ -43,7 +43,8 @@ export const useAuthStore = create<AuthState>()(
       setLoading: (loading) => set({ isLoading: loading }),
       impersonate: (targetUser, targetToken) => {
         const { user, token } = get();
-        if (!user || !token) return;
+        if (!user) return;
+        // Store current session (token may be null for impersonated sessions — that's OK)
         set({
           originalAdmin: { ...user },
           originalToken: token,
@@ -54,7 +55,7 @@ export const useAuthStore = create<AuthState>()(
       },
       stopImpersonation: () => {
         const { originalAdmin, originalToken } = get();
-        if (!originalAdmin || !originalToken) return;
+        if (!originalAdmin) return;
         set({
           user: originalAdmin,
           token: originalToken,

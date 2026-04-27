@@ -560,23 +560,38 @@ function UsersTab({ lang }: { lang: string }) {
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ error: 'Request failed' }));
         toast.error(t('admin.impersonateFailed', lang), { description: (errData as Record<string, string>).error });
-        setImpersonating(null);
         return;
       }
       const result = await res.json();
       const { user: targetUser, token: targetToken } = result.data;
-      // Switch auth context to the target user
+
+      // 1. Switch auth context to the target user FIRST
       const { impersonate } = useAuthStore.getState();
       impersonate(targetUser, targetToken);
+
+      // 2. Set page to dashboard BEFORE reload so it persists
+      useAppStore.getState().setPage('dashboard');
+
+      // 3. Show success toast
       toast.success(t('admin.impersonateSuccess', lang), {
         description: t('admin.impersonateSuccessDesc', lang, { name: targetUser.name || targetUser.email }),
       });
-      // Force full page reload to re-initialize the app with new user context
-      // React state updates alone can be unreliable for a complete context switch
-      useAppStore.getState().setPage('dashboard');
-      setTimeout(() => {
-        window.location.reload();
-      }, 300);
+
+      // 4. Wait for zustand persist to flush to localStorage, then reload.
+      //    useAuthStore.persist.rehydrate() is not needed here because set()
+      //    writes synchronously. We use requestAnimationFrame to ensure React
+      //    has committed the state update before we tear down the page.
+      requestAnimationFrame(() => {
+        // Double-check the state was persisted
+        const stored = useAuthStore.getState();
+        if (stored.originalAdmin && stored.user?.id !== user.id) {
+          window.location.replace(window.location.pathname);
+        } else {
+          // Fallback: force persist and reload
+          useAuthStore.persist.rehydrate();
+          window.location.replace(window.location.pathname);
+        }
+      });
     } catch (err) {
       console.error('Failed to impersonate:', err);
       toast.error(t('admin.impersonateFailed', lang));

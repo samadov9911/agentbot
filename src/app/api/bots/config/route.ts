@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getCached, setConfigCache } from '@/lib/config-cache';
+import { getCached, setConfigCache, invalidateConfigCache } from '@/lib/config-cache';
 
 const NO_CACHE_HEADERS = {
   'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
         appearance: true,
         embedCode: true,
         updatedAt: true,
+        userId: true,
       },
     });
 
@@ -54,6 +55,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Bot not found or inactive' },
         { status: 404, headers: NO_CACHE_HEADERS }
+      );
+    }
+
+    // Verify bot owner account is active (not deleted/blocked)
+    const botOwner = await db.user.findUnique({
+      where: { id: bot.userId },
+      select: { id: true, isActive: true, deletedAt: true },
+    });
+    if (!botOwner || !botOwner.isActive || botOwner.deletedAt) {
+      invalidateConfigCache(embedCode);
+      return NextResponse.json(
+        { error: 'Bot unavailable — owner account is inactive' },
+        { status: 410, headers: NO_CACHE_HEADERS }
       );
     }
 

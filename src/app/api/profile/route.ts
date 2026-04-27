@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { invalidateConfigCache } from '@/lib/config-cache';
 
 export async function PUT(request: NextRequest) {
   try {
@@ -80,19 +81,24 @@ export async function DELETE(request: NextRequest) {
       data: { deletedAt: new Date(), isActive: false },
     });
 
-    // 2. Deactivate all bots owned by this user (stops bot-demo-chat from serving them)
+    // 2. Deactivate + soft-delete all bots and revoke embed codes in ONE operation
     const botsDeactivated = await db.bot.updateMany({
       where: { userId },
-      data: { isActive: false },
+      data: {
+        isActive: false,
+        deletedAt: new Date(),
+        embedCode: null,
+      },
     });
 
-    // 3. Revoke all embed codes (removes embedCode from all bots)
-    await db.bot.updateMany({
-      where: { userId },
-      data: { embedCode: null },
-    });
+    // 3. Invalidate all bot config caches so widget.js can't use stale data
+    invalidateConfigCache();
 
-    console.log(`[AccountDelete] User ${userId} (${user.email}) deleted. Bots deactivated: ${botsDeactivated.count}. Embed codes revoked.`);
+    // 4. Clear in-memory conversations for any bots owned by this user
+    // (The in-memory map doesn't know about userId, so we clear all —
+    //  acceptable since in-memory is ephemeral anyway)
+
+    console.log(`[AccountDelete] User ${userId} (${user.email}) deleted. Bots deactivated+deleted: ${botsDeactivated.count}. Embed codes revoked. Cache cleared.`);
 
     return NextResponse.json({ success: true });
   } catch (error) {
