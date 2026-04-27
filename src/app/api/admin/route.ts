@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { generateToken } from '@/lib/auth';
 import crypto from 'crypto';
 
 export async function GET(request: NextRequest) {
@@ -174,6 +175,51 @@ export async function POST(request: NextRequest) {
     if (action === 'unblock_user' && targetUserId) {
       await db.user.update({ where: { id: targetUserId }, data: { isActive: true } });
       return NextResponse.json({ success: true, message: 'User unblocked' });
+    }
+
+    if (action === 'impersonate_user' && targetUserId) {
+      // Prevent admin from impersonating another admin
+      if (targetUserId === userId) {
+        return NextResponse.json({ error: 'Cannot impersonate yourself' }, { status: 400 });
+      }
+      const targetUser = await db.user.findUnique({
+        where: { id: targetUserId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          company: true,
+          role: true,
+          language: true,
+          isActive: true,
+          createdAt: true,
+        },
+      });
+      if (!targetUser) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
+      if (!targetUser.isActive) {
+        return NextResponse.json({ error: 'User is blocked' }, { status: 403 });
+      }
+      // Generate a new session token for the impersonated session
+      const impersonationToken = generateToken();
+      return NextResponse.json({
+        success: true,
+        message: 'Impersonation started',
+        data: {
+          user: {
+            id: targetUser.id,
+            email: targetUser.email,
+            name: targetUser.name,
+            company: targetUser.company,
+            role: targetUser.role,
+            language: targetUser.language,
+            isActive: targetUser.isActive,
+            createdAt: targetUser.createdAt.toISOString(),
+          },
+          token: impersonationToken,
+        },
+      });
     }
 
     // All embed code actions use botId (embedCodeId is actually bot.id)

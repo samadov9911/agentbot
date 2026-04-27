@@ -7,28 +7,66 @@ interface AuthState {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+ /** Original admin user stored during impersonation */
+  originalAdmin: User | null;
+  /** Original admin token stored during impersonation */
+  originalToken: string | null;
   login: (user: User, token: string) => void;
   logout: () => void;
   updateUser: (data: Partial<User>) => void;
   setLoading: (loading: boolean) => void;
+  /** Switch to impersonating a target user (saves current admin) */
+  impersonate: (targetUser: User, targetToken: string) => void;
+  /** Exit impersonation and restore original admin */
+  stopImpersonation: () => void;
+  /** Whether the current session is an impersonation */
+  isImpersonating: () => boolean;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       token: null,
       isLoading: false,
       isAuthenticated: false,
+      originalAdmin: null,
+      originalToken: null,
       login: (user, token) =>
-        set({ user, token, isAuthenticated: true, isLoading: false }),
+        set({ user, token, isAuthenticated: true, isLoading: false, originalAdmin: null, originalToken: null }),
       logout: () =>
-        set({ user: null, token: null, isAuthenticated: false, isLoading: false }),
+        set({ user: null, token: null, isAuthenticated: false, isLoading: false, originalAdmin: null, originalToken: null }),
       updateUser: (data) =>
         set((state) => ({
           user: state.user ? { ...state.user, ...data } : null,
         })),
       setLoading: (loading) => set({ isLoading: loading }),
+      impersonate: (targetUser, targetToken) => {
+        const { user, token } = get();
+        if (!user || !token) return;
+        set({
+          originalAdmin: { ...user },
+          originalToken: token,
+          user: { ...targetUser, isImpersonated: true } as User & { isImpersonated?: boolean },
+          token: targetToken,
+          isAuthenticated: true,
+        });
+      },
+      stopImpersonation: () => {
+        const { originalAdmin, originalToken } = get();
+        if (!originalAdmin || !originalToken) return;
+        set({
+          user: originalAdmin,
+          token: originalToken,
+          isAuthenticated: true,
+          originalAdmin: null,
+          originalToken: null,
+        });
+      },
+      isImpersonating: () => {
+        const { originalAdmin } = get();
+        return originalAdmin !== null;
+      },
     }),
     {
       name: 'auth-storage',
@@ -36,6 +74,8 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         token: state.token,
         isAuthenticated: state.isAuthenticated,
+        originalAdmin: state.originalAdmin,
+        originalToken: state.originalToken,
       }),
     }
   )

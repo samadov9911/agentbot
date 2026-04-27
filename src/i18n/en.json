@@ -493,7 +493,12 @@
     "annual": "Annual",
     "failedLogs": "Failed to load activity logs",
     "accessDenied": "Access Denied",
-    "accessDeniedDesc": "You do not have permission to access the admin panel. Contact a superuser."
+    "accessDeniedDesc": "You do not have permission to access the admin panel. Contact a superuser.",
+    "impersonateSuccess": "Login successful",
+    "impersonateSuccessDesc": "You are now logged in as {name}",
+    "impersonateFailed": "Failed to impersonate user",
+    "impersonateBanner": "You are logged in as {user} (Admin: {admin})",
+    "stopImpersonate": "Return to Admin"
   },
   "bookings": {
     "title": "Bookings",

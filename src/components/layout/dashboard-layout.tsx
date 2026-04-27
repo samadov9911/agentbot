@@ -23,6 +23,7 @@ import {
   CalendarDays,
   Headset,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { useAuthStore, useAppStore } from '@/stores';
 import { t, allLanguages, type Language } from '@/lib/i18n';
@@ -676,6 +677,46 @@ function NotificationBell() {
 }
 
 // ──────────────────────────────────────────────────────────────
+// Impersonation Banner
+// ──────────────────────────────────────────────────────────────
+
+function ImpersonationBanner() {
+  const { user, originalAdmin, stopImpersonation } = useAuthStore();
+  const { setPage, language } = useAppStore();
+
+  if (!originalAdmin || !user) return null;
+
+  const handleExit = () => {
+    stopImpersonation();
+    setPage('admin');
+    toast.success(
+      language === 'ru' ? 'Имперсонация завершена' : language === 'tr' ? 'Taklit sonlandırıldı' : 'Impersonation ended'
+    );
+  };
+
+  return (
+    <div className="sticky top-0 z-50 flex items-center gap-3 px-4 py-2 bg-amber-500 text-white text-sm font-medium border-b border-amber-600">
+      <Shield className="size-4 shrink-0" />
+      <span className="flex-1 truncate">
+        {t('admin.impersonateBanner', language, {
+          admin: originalAdmin.name || originalAdmin.email,
+          user: user.name || user.email,
+        })}
+      </span>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 px-3 text-xs font-semibold bg-white/20 hover:bg-white/30 border-white/40 text-white"
+        onClick={handleExit}
+      >
+        <LogOut className="size-3 mr-1.5" />
+        {t('admin.stopImpersonate', language)}
+      </Button>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
 // Header
 // ──────────────────────────────────────────────────────────────
 
@@ -740,6 +781,7 @@ export function DashboardLayout({ children, floatingWidget }: DashboardLayoutPro
     <SidebarProvider>
       <DashboardSidebar />
       <SidebarInset>
+        <ImpersonationBanner />
         <DashboardHeader />
         <div className="flex-1 p-4 lg:p-6 overflow-auto">
           {children}

@@ -493,7 +493,12 @@
     "annual": "Годовой",
     "failedLogs": "Не удалось загрузить журналы",
     "accessDenied": "Доступ запрещён",
-    "accessDeniedDesc": "У вас нет прав для доступа к панели администратора. Обратитесь к суперпользователю."
+    "accessDeniedDesc": "У вас нет прав для доступа к панели администратора. Обратитесь к суперпользователю.",
+    "impersonateSuccess": "Вход выполнен",
+    "impersonateSuccessDesc": "Вы вошли как пользователь {name}",
+    "impersonateFailed": "Не удалось выполнить вход",
+    "impersonateBanner": "Вы вошли как {user} (Админ: {admin})",
+    "stopImpersonate": "Вернуться в админку"
   },
   "bookings": {
     "title": "Записи",

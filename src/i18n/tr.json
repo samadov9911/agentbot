@@ -493,7 +493,12 @@
     "annual": "Yıllık",
     "failedLogs": "Günlükler yüklenemedi",
     "accessDenied": "Erişim Engellendi",
-    "accessDeniedDesc": "Yönetici paneline erişim izniniz yok. Süper kullanıcıyla iletişime geçin."
+    "accessDeniedDesc": "Yönetici paneline erişim izniniz yok. Süper kullanıcıyla iletişime geçin.",
+    "impersonateSuccess": "Giriş başarılı",
+    "impersonateSuccessDesc": "{name} kullanıcısı olarak giriş yaptınız",
+    "impersonateFailed": "Kullanıcı olarak giriş başarısız",
+    "impersonateBanner": "{user} olarak giriş yaptınız (Yönetici: {admin})",
+    "stopImpersonate": "Yöneticiye Dön"
   },
   "bookings": {
     "title": "Randevular",

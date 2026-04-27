@@ -444,10 +444,11 @@ function OverviewTab({ lang, onNavigate }: { lang: string; onNavigate: (tab: Adm
 
 function UsersTab({ lang }: { lang: string }) {
   const { user } = useAuthStore();
+  const { setPage } = useAppStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [page, setPage] = useState(1);
+  const [page, setPageState] = useState(1);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [impersonating, setImpersonating] = useState<string | null>(null);
   const [blockingId, setBlockingId] = useState<string | null>(null);
@@ -502,19 +503,19 @@ function UsersTab({ lang }: { lang: string }) {
 
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value);
-    setPage(1);
+    setPageState(1);
   }, []);
 
-  const handlePageChange = useCallback((p: number) => setPage(p), []);
+  const handlePageChange = useCallback((p: number) => setPageState(p), []);
 
   const handleRoleFilterChange = useCallback((value: string) => {
     setRoleFilter(value);
-    setPage(1);
+    setPageState(1);
   }, []);
 
   const handleStatusFilterChange = useCallback((value: string) => {
     setStatusFilter(value);
-    setPage(1);
+    setPageState(1);
   }, []);
 
   const handleBlockToggle = useCallback(async (userId: string, currentIsActive: boolean) => {
@@ -543,11 +544,42 @@ function UsersTab({ lang }: { lang: string }) {
     }
   }, [user?.id, selectedUser]);
 
-  const handleImpersonate = useCallback((userId: string) => {
+  const handleImpersonate = useCallback(async (userId: string) => {
+    if (!user?.id) return;
     setImpersonating(userId);
-    toast.success(lang === 'ru' ? `Вход как пользователь ${userId.slice(0, 8)}...` : lang === 'tr' ? `Kullanıcı olarak giriş ${userId.slice(0, 8)}...` : `Impersonating user ${userId.slice(0, 8)}...`);
-    setTimeout(() => setImpersonating(null), 2000);
-  }, [lang]);
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+        body: JSON.stringify({
+          action: 'impersonate_user',
+          targetUserId: userId,
+          details: { action: 'login' },
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: 'Request failed' }));
+        toast.error(t('admin.impersonateFailed', lang), { description: (errData as Record<string, string>).error });
+        setImpersonating(null);
+        return;
+      }
+      const result = await res.json();
+      const { user: targetUser, token: targetToken } = result.data;
+      // Switch auth context to the target user
+      const { impersonate } = useAuthStore.getState();
+      impersonate(targetUser, targetToken);
+      toast.success(t('admin.impersonateSuccess', lang), {
+        description: t('admin.impersonateSuccessDesc', lang, { name: targetUser.name || targetUser.email }),
+      });
+      // Navigate to dashboard as the impersonated user
+      setPage('dashboard');
+    } catch (err) {
+      console.error('Failed to impersonate:', err);
+      toast.error(t('admin.impersonateFailed', lang));
+    } finally {
+      setImpersonating(null);
+    }
+  }, [user?.id, lang, setPage]);
 
   if (isLoading) return <UsersTableSkeleton />;
 
