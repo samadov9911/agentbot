@@ -297,3 +297,47 @@ Stage Summary:
 - Platform names (WordPress, Tilda, Shopify) in CardTitle components now translated
 - Code examples adapt to selected language: Russian, English, Turkish
 - Total new i18n keys added: 21 code keys × 3 files + 3 platform keys × 3 files = 72 keys
+---
+Task ID: 9
+Agent: main
+Task: Implement "Login as User" (impersonation) feature in admin panel
+
+Work Log:
+- Analyzed existing handleImpersonate in admin-page.tsx: was a no-op (just showed toast, no real action)
+- Enhanced auth store (src/stores/index.ts):
+  - Added originalAdmin/originalToken fields to AuthState interface
+  - Added impersonate() method: saves current admin, switches to target user
+  - Added stopImpersonation() method: restores original admin session
+  - Added isImpersonating() helper
+  - Updated partialize to persist originalAdmin/originalToken
+  - login/logout now clear impersonation state
+- Added 'impersonate_user' API action in /api/admin POST route:
+  - Validates target user exists and is active
+  - Prevents self-impersonation (400 error)
+  - Returns target user data + new session token
+  - Logs action to AdminLog with 'login' type
+- Updated handleImpersonate in admin-page.tsx:
+  - Calls /api/admin with impersonate_user action
+  - On success: calls useAuthStore.getState().impersonate() to switch context
+  - Shows success/error toasts with i18n
+  - Navigates to dashboard as impersonated user
+  - Fixed setPage naming conflict (local page state renamed to setPageState)
+- Added ImpersonationBanner component in dashboard-layout.tsx:
+  - Amber warning banner with Shield icon
+  - Shows "Вы вошли как {user} (Админ: {admin})" text
+  - "Return to Admin" button calls stopImpersonation() + navigates to admin page
+  - Toast notification on exit
+  - Added toast import from sonner
+- Added 5 new i18n keys to all 3 locale files (ru/en/tr):
+  - admin.impersonateSuccess, admin.impersonateSuccessDesc, admin.impersonateFailed
+  - admin.impersonateBanner, admin.stopImpersonate
+- Lint clean, JSON valid, dev server compiles without errors
+- Committed as e176216, pushed to main
+
+Stage Summary:
+- "Войти как пользователь" button now fully functional
+- Admin can impersonate any active user from the Users table
+- Amber banner appears at top of dashboard during impersonation
+- One-click return to admin account
+- Original admin session preserved in localStorage
+- Feature works across all 3 languages (RU/EN/TR)
